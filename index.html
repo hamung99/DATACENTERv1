@@ -627,6 +627,7 @@
                 <select id="filterSalesMonth"><option value="all">Semua Bulan</option></select>
                 <select id="filterSalesPembayaran"><option value="all">Semua Pembayaran</option><option value="Cash">Cash</option><option value="Tempo">Tempo</option></select>
                 <select id="filterSalesSales"><option value="all">Semua Sales</option><option value="GC">GC</option><option value="HAFID">HAFID</option><option value="JOSSY">JOSSY</option><option value="PARIMIN">PARIMIN</option><option value="RAJU">RAJU</option></select>
+                <select id="filterSalesKategori"><option value="all">Semua Kategori</option><option value="Fitri">🟣 Fitri</option><option value="Rupa2">⚪ Rupa Rupa</option></select>
                 <button class="btn" id="salesSearchBtn" onclick="doSalesSearch()">Cari</button>
                 <button class="btn btn-outline" onclick="resetSalesSearch()">Reset</button>
                 <div class="menu-wrap" id="salesMenuWrap">
@@ -3609,6 +3610,8 @@
             const q = document.getElementById('salesSearchInput').value.trim().toLowerCase();
             const pay = document.getElementById('filterSalesPembayaran').value;
             const sls = document.getElementById('filterSalesSales').value;
+            const katEl = document.getElementById('filterSalesKategori');
+            const kat = katEl ? katEl.value : 'all';
             let filtered = salesRows;
             if (pay === '__BATAL__') {
                 filtered = filtered.filter(isBatalRow);
@@ -3617,6 +3620,7 @@
                 if (pay !== 'all') filtered = filtered.filter(r => r.pembayaran === pay);
             }
             if (sls !== 'all') filtered = filtered.filter(r => r.sales === sls);
+            if (kat !== 'all') filtered = filtered.filter(r => kat === 'Fitri' ? isFitriProduk(r.produk) : !isFitriProduk(r.produk));
             if (q) {
                 filtered = filtered.filter(r => flexibleSearchMatch(q, [
                     r.noFaktur, r.produk, r.customer, r.toko, r.namaToko, r.sales,
@@ -3631,6 +3635,8 @@
             const mon = document.getElementById('filterSalesMonth').value;
             const pay = document.getElementById('filterSalesPembayaran').value;
             const sls = document.getElementById('filterSalesSales').value;
+            const katEl2 = document.getElementById('filterSalesKategori');
+            const kat2 = katEl2 ? katEl2.value : 'all';
             let filtered = salesRows;
             if (mon !== 'all') filtered = filtered.filter(r => r.month === mon);
             if (pay === '__BATAL__') {
@@ -3640,6 +3646,7 @@
                 if (pay !== 'all') filtered = filtered.filter(r => r.pembayaran === pay);
             }
             if (sls !== 'all') filtered = filtered.filter(r => r.sales === sls);
+            if (kat2 !== 'all') filtered = filtered.filter(r => kat2 === 'Fitri' ? isFitriProduk(r.produk) : !isFitriProduk(r.produk));
             if (q) {
                 setSearchBusy('salesSearchBtn', true);
                 filtered = await chunkedFilter(filtered, r => flexibleSearchMatch(q, [
@@ -3664,6 +3671,8 @@
             document.getElementById('filterSalesMonth').value = activeMonth || 'all';
             document.getElementById('filterSalesPembayaran').value = 'all';
             document.getElementById('filterSalesSales').value = 'all';
+            const katResetEl = document.getElementById('filterSalesKategori');
+            if (katResetEl) katResetEl.value = 'all';
             const nonBatal = salesRows.filter(r => !isBatalRow(r));
             lastSalesFiltered = nonBatal;
             renderSalesTable(nonBatal);
@@ -7026,6 +7035,8 @@
         document.getElementById('filterSalesMonth').addEventListener('change', doSalesSearch);
         document.getElementById('filterSalesPembayaran').addEventListener('change', doSalesSearch);
         document.getElementById('filterSalesSales').addEventListener('change', doSalesSearch);
+        const filterSalesKategoriEl = document.getElementById('filterSalesKategori');
+        if (filterSalesKategoriEl) filterSalesKategoriEl.addEventListener('change', doSalesSearch);
         const ringkasanRupaSearchEl = document.getElementById('ringkasanRupaSearch');
         if (ringkasanRupaSearchEl) {
             ringkasanRupaSearchEl.addEventListener('input', () => renderRingkasanRupa());
