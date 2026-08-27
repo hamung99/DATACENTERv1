@@ -763,6 +763,12 @@
                     </div>
                 </div>
                 <select id="cekFilterStatus"><option value="all">Semua Status</option></select>
+                <select id="cekFilterProduk" style="display:none;">
+                    <option value="all">Semua Produk</option>
+                    <option value="Fitri">🟣 Fitri saja</option>
+                    <option value="Rupa2">⚪ Rupa2 saja</option>
+                    <option value="Campur">🟣⚪ Campur (Fitri + Rupa2)</option>
+                </select>
                 <button class="btn" id="cekSearchBtn" onclick="renderCekTable()">Cari</button>
                 <button class="btn btn-outline" onclick="resetCekSearch()">Reset</button>
             </div>
@@ -4366,6 +4372,11 @@
                 el.style.display = (sub === 'anomali' || sub === 'nosales') ? 'none' : '';
             });
             populateCekStatusOptions(sub);
+            const produkFilterEl = document.getElementById('cekFilterProduk');
+            if (produkFilterEl) {
+                produkFilterEl.style.display = (sub === 'tempo') ? '' : 'none';
+                if (sub !== 'tempo') produkFilterEl.value = 'all';
+            }
             const bl = document.getElementById('cekFilterBulan');
             const multiWrap = document.getElementById('cekBulanMultiWrap');
             const hint = document.getElementById('cekBulanHint');
@@ -4488,6 +4499,20 @@
             }
             const validValues = Array.from(sel.options).map(o => o.value);
             sel.value = validValues.includes(cur) ? cur : 'all';
+        }
+
+        // ---- Badge kategori produk (Fitri / Rupa2 / Campur) untuk tabel Cek Data -> Tempo ----
+        function produkKategoriBadge(kategori) {
+            if (kategori === 'Fitri') {
+                return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.7rem;font-weight:700;color:#fff;background:var(--indigo,#4f46e5);white-space:nowrap;">🟣 Fitri</span>';
+            }
+            if (kategori === 'Rupa2') {
+                return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.7rem;font-weight:700;color:#fff;background:var(--muted,#64748b);white-space:nowrap;">⚪ Rupa2</span>';
+            }
+            if (kategori === 'Campur') {
+                return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.7rem;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--indigo,#4f46e5),var(--muted,#64748b));white-space:nowrap;">🟣⚪ Campur</span>';
+            }
+            return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.7rem;font-weight:700;color:var(--muted);background:var(--th-bg);white-space:nowrap;">—</span>';
         }
 
         // ---- Badge: faktur yang cuma ada di Uang Masuk, tidak ketemu di Data Penjualan ----
@@ -5246,12 +5271,15 @@
                             nominal: 0,
                             items: 0,
                             month: r.month || monthNameFromDate(td) || 'Lainnya',
-                            fromSales: true
+                            fromSales: true,
+                            hasFitri: false,
+                            hasRupa: false
                         });
                     }
                     const g = byFaktur.get(fk);
                     g.nominal += Number(r.total) || 0;
                     g.items += 1;
+                    if (isFitriProduk(r.produk)) g.hasFitri = true; else g.hasRupa = true;
                     const td = parseSalesDate(r.tanggal);
                     if (td && (!g.tglDate || td < g.tglDate)) {
                         g.tglDate = td;
@@ -5332,6 +5360,14 @@
                     g.tagihanUMDate = u ? (u.latestDateLabel || '') : '';
                     g.paid = hasLunas || (tagihanUM > 0 && paidAmount >= tagihanUM - 1);
                     g.pembayaran = isPiutang ? 'Piutang' : 'Tempo';
+
+                    // Kategori produk faktur: FITRI (minyak Fitri), RUPA2 (rupa-rupa),
+                    // atau CAMPUR (dua-duanya ada dalam satu faktur). Faktur yang cuma
+                    // ada di Uang Masuk (fromSales:false, tidak ada rincian produk) -> '—'.
+                    if (g.hasFitri && g.hasRupa) g.produkKategori = 'Campur';
+                    else if (g.hasFitri) g.produkKategori = 'Fitri';
+                    else if (g.hasRupa) g.produkKategori = 'Rupa2';
+                    else g.produkKategori = '—';
 
                     const due = g.tglDate ? addDays(g.tglDate, CEK_TEMPO_DAYS) : null;
                     g.jatuhTempo = due;
@@ -5439,6 +5475,7 @@
                         '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekTempoDetail(encodeURIComponent(\'' + String(r.noFaktur || '') + '\'))">' + esc(r.noFaktur) + '</span>' + notInSalesBadge(r) + '</td>' +
                         '<td class="toko">' + esc(r.customer) + '</td>' +
                         '<td>' + esc(r.sales) + '</td>' +
+                        '<td>' + produkKategoriBadge(r.produkKategori) + '</td>' +
                         '<td class="num"><strong>' + (r.nominal || 0).toLocaleString('id-ID') + '</strong></td>' +
                         '<td>' + esc(r.jatuhTempoStr) + '</td>' +
                         '<td>' + statusBadgeCek(r) + (r.manualLunas ? ' <span title="Ditandai LUNAS manual' + (r.manualLunasNote ? (': ' + esc(r.manualLunasNote)) : '') + '" style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:5px;font-size:0.65rem;font-weight:700;background:var(--green-bg,rgba(22,163,74,.12));color:var(--green,#16a34a);white-space:nowrap;vertical-align:middle;">✏ Manual</span>' : '') + '</td>' +
@@ -5728,7 +5765,7 @@
                 rows = await chunkedFilter(rows, r => flexibleSearchMatch(q, [
                     r.noFaktur, r.customer, r.toko, r.namaToko, r.sales, r.alamat,
                     r.pembayaran, r.statusCek, r.status, r.tanggal, r.tglDate, r.month,
-                    r.jatuhTempoStr, r.tipeBayar
+                    r.jatuhTempoStr, r.tipeBayar, r.produkKategori
                 ], r, 'cek'));
                 setSearchBusy('cekSearchBtn', false);
             }
@@ -5760,6 +5797,12 @@
                     if (stFilter === 'anomali_tempo_overdue') return r.tipeBayar === 'Tempo' && r.isOverdue;
                     return true;
                 });
+            }
+            if (isTempo) {
+                const produkFilter = (document.getElementById('cekFilterProduk') || {}).value || 'all';
+                if (produkFilter !== 'all') {
+                    rows = rows.filter(r => r.produkKategori === produkFilter);
+                }
             }
             lastCekRows = rows;
 
@@ -5892,7 +5935,7 @@
 
             if (isTempo) {
                 thead.innerHTML = '<tr>' +
-                    '<th>Tgl Transaksi</th><th>No Faktur</th><th>Customer</th><th>Sales</th>' +
+                    '<th>Tgl Transaksi</th><th>No Faktur</th><th>Customer</th><th>Sales</th><th>Produk</th>' +
                     '<th class="num">Nominal</th><th>Jatuh Tempo</th><th>Status</th>' +
                     '<th class="num">Umur Overdue</th><th class="num">Sudah Bayar</th><th>Alamat</th><th>Pembayaran</th></tr>';
             } else if (isNosales) {
@@ -5938,6 +5981,8 @@
         function resetCekSearch() {
             document.getElementById('cekSearchInput').value = '';
             document.getElementById('cekFilterStatus').value = 'all';
+            const produkFilterReset = document.getElementById('cekFilterProduk');
+            if (produkFilterReset) produkFilterReset.value = 'all';
             const bl = document.getElementById('cekFilterBulan');
             const cekMonths = [...new Set(((cekSub === 'tempo' || cekSub === 'anomali' || cekSub === 'nosales') ? (salesRows || []) : (allRows || [])).map(r => r.month).filter(Boolean))];
             const activeCekMonth = preferredMonth(cekMonths);
