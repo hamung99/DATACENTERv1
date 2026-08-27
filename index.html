@@ -4109,6 +4109,7 @@
             const period = isAllTrans ? 'Semua Data' : getSalesPeriodLabel();
             const safePeriod = period.replace(/\s+/g, '_');
             let sheetName, aoa, fileName;
+            let sheetNameExtra = null, aoaExtra = null; // dipakai untuk sheet kedua (mis. Rupa Rupa di sub-tab Ringkasan)
             if (currentSalesSub === 'ringkasan') {
                 const rows = lastSalesFiltered.length ? lastSalesFiltered : salesRows;
                 const fitriRows = rows.filter(r => isFitriProduk(r.produk));
@@ -4126,6 +4127,25 @@
                 });
                 aoa.push(['TOTAL'].concat(pivot.salesList.map(s => (pivot.salesTotals[s] || 0))).concat([pivot
                     .grandTotal
+                ]));
+
+                // Sheet kedua: Ringkasan Rupa Rupa (pivot Produk x Sales yang sama seperti
+                // di layar, tapi khusus produk non-Fitri) -- supaya download di sub-tab
+                // Ringkasan tidak cuma memuat Fitri.
+                const rupaRows = rows.filter(r => !isFitriProduk(r.produk));
+                const pivotRupa = buildRingkasanPivot(rupaRows);
+                sheetNameExtra = 'Ringkasan Rupa Rupa';
+                aoaExtra = [
+                    ['RINGKASAN PENJUALAN RUPA RUPA'].concat(pivotRupa.salesList.map(() => '')).concat([period])
+                ];
+                aoaExtra.push(['Produk'].concat(pivotRupa.salesList).concat(['Total']));
+                pivotRupa.products.forEach(p => {
+                    aoaExtra.push([p].concat(pivotRupa.salesList.map(s => (pivotRupa.prodMap[p][s] || 0))).concat([
+                        pivotRupa.prodMap[p].__total
+                    ]));
+                });
+                aoaExtra.push(['TOTAL'].concat(pivotRupa.salesList.map(s => (pivotRupa.salesTotals[s] || 0))).concat([
+                    pivotRupa.grandTotal
                 ]));
             } else if (currentSalesSub === 'produk') {
                 if (!lastProfitProdukRows.length) renderProfitProduk(lastSalesFiltered.length ? lastSalesFiltered :
@@ -4300,6 +4320,25 @@
             ws['!cols'] = computeAutoColWidths(aoa);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            if (aoaExtra && aoaExtra.length) {
+                const wsExtra = XLSX.utils.aoa_to_sheet(aoaExtra);
+                const rangeExtra = XLSX.utils.decode_range(wsExtra['!ref']);
+                for (let R = rangeExtra.s.r; R <= rangeExtra.e.r; R++) {
+                    for (let C = rangeExtra.s.c; C <= rangeExtra.e.c; C++) {
+                        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                        const cell = wsExtra[addr];
+                        if (cell && cell.t === 'n' && typeof cell.v === 'number') {
+                            cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.##';
+                        }
+                    }
+                }
+                if (aoaExtra[0] && aoaExtra[0].length > 2) {
+                    wsExtra['!merges'] = wsExtra['!merges'] || [];
+                    wsExtra['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoaExtra[0].length - 2 } });
+                }
+                wsExtra['!cols'] = computeAutoColWidths(aoaExtra);
+                XLSX.utils.book_append_sheet(wb, wsExtra, sheetNameExtra || 'Sheet2');
+            }
             XLSX.writeFile(wb, fileName);
         }
 
