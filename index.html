@@ -6056,13 +6056,13 @@
             if (!rows.length) { alert('Tidak ada data untuk diunduh.'); return; }
             const aoa = [];
             if (isTempo || isNosales) {
-                aoa.push(['Tgl Transaksi', 'No Faktur', 'Customer', 'Sales', 'Nominal', 'Jatuh Tempo', 'Status',
+                aoa.push(['Tgl Transaksi', 'No Faktur', 'Customer', 'Sales', 'Kategori Produk', 'Nominal', 'Jatuh Tempo', 'Status',
                     'Umur Overdue (hari)', 'Sudah Bayar', 'Alamat', 'Pembayaran'
                 ]);
                 rows.forEach(r => {
                     const st = r.isOverdue ? (r.statusCek.toUpperCase() + ' · OVERDUE ' + r.umurOverdue + ' hr') : r.statusCek;
                     aoa.push([
-                        r.tanggal || '', r.noFaktur, r.customer, r.sales, r.nominal || 0,
+                        r.tanggal || '', r.noFaktur, r.customer, r.sales, r.produkKategori || '—', r.nominal || 0,
                         r.jatuhTempoStr, st,
                         r.isOverdue ? r.umurOverdue : '',
                         r.paidAmount || 0, r.alamat || '', r.pembayaran || 'Tempo'
