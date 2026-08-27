@@ -4422,8 +4422,8 @@
             populateCekStatusOptions(sub);
             const produkFilterEl = document.getElementById('cekFilterProduk');
             if (produkFilterEl) {
-                produkFilterEl.style.display = (sub === 'tempo') ? '' : 'none';
-                if (sub !== 'tempo') produkFilterEl.value = 'all';
+                produkFilterEl.style.display = (sub === 'tempo' || sub === 'anomali') ? '' : 'none';
+                if (sub !== 'tempo' && sub !== 'anomali') produkFilterEl.value = 'all';
             }
             const bl = document.getElementById('cekFilterBulan');
             const multiWrap = document.getElementById('cekBulanMultiWrap');
@@ -5115,6 +5115,7 @@
                     g.nominal += Number(r.total) || 0;
                     g.items += 1;
                     g.details.push(r);
+                    if (isFitriProduk(r.produk)) g.hasFitri = true; else g.hasRupa = true;
                     const td = parseSalesDate(r.tanggal);
                     if (td && (!g.tglDate || td < g.tglDate)) {
                         g.tglDate = td;
@@ -5153,6 +5154,13 @@
                     if (fuzzyResolved.has(g.noFaktur)) continue;
                     g.statusCek = 'Anomali';
                     g.pembayaran = g.tipeBayar;
+                    // Kategori produk faktur: FITRI, RUPA2, atau CAMPUR (dua-duanya ada
+                    // di satu faktur) -- dipakai untuk filter & kolom "Kategori Produk"
+                    // di sub-tab Belum Ada Uang Masuk.
+                    if (g.hasFitri && g.hasRupa) g.produkKategori = 'Campur';
+                    else if (g.hasFitri) g.produkKategori = 'Fitri';
+                    else if (g.hasRupa) g.produkKategori = 'Rupa2';
+                    else g.produkKategori = '—';
                     // Jatuh tempo hanya relevan untuk anomali bertipe Tempo (Cash tidak
                     // punya konsep jatuh tempo). paidAmount selalu 0 di sini karena
                     // memang tidak ada uang masuk sama sekali untuk faktur ini.
@@ -5506,6 +5514,7 @@
                         '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekAnomaliDetail(encodeURIComponent(\'' + String(r.noFaktur || '') + '\'))">' + esc(r.noFaktur) + '</span></td>' +
                         '<td class="toko">' + esc(r.customer) + '</td>' +
                         '<td>' + esc(r.sales) + '</td>' +
+                        '<td>' + produkKategoriBadge(r.produkKategori) + '</td>' +
                         '<td class="num"><strong>' + (r.nominal || 0).toLocaleString('id-ID') + '</strong></td>' +
                         '<td><span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.7rem;font-weight:700;color:#fff;background:' + tipeColor + ';">' +
                             (r.tipeBayar === 'Cash' ? '💵 CASH' : '📅 TEMPO') + '</span>' +
@@ -5846,7 +5855,7 @@
                     return true;
                 });
             }
-            if (isTempo) {
+            if (isTempo || isAnomali) {
                 const produkFilter = (document.getElementById('cekFilterProduk') || {}).value || 'all';
                 if (produkFilter !== 'all') {
                     rows = rows.filter(r => r.produkKategori === produkFilter);
@@ -5993,7 +6002,7 @@
                     '<th>Alamat</th><th>Pembayaran</th></tr>';
             } else if (isAnomali) {
                 thead.innerHTML = '<tr>' +
-                    '<th>Tgl Transaksi</th><th>No Faktur</th><th>Customer</th><th>Sales</th>' +
+                    '<th>Tgl Transaksi</th><th>No Faktur</th><th>Customer</th><th>Sales</th><th>Produk</th>' +
                     '<th class="num">Nominal</th><th>Tipe</th><th>Jatuh Tempo</th><th class="num">Umur Overdue</th><th class="num">Item</th><th>Alamat</th></tr>';
             } else {
                 thead.innerHTML = '<tr>' +
@@ -6054,7 +6063,44 @@
             const payType = isTempo ? 'TEMPO' : (isAnomali ? 'ANOMALI' : (isNosales ? 'NOSALES' : 'CASH'));
             const rows = (scope === 'all') ? await buildCekFakturList(payType) : lastCekRows;
             if (!rows.length) { alert('Tidak ada data untuk diunduh.'); return; }
+
+            // ---- Baris info filter yang sedang aktif saat file ini didownload ----
+            // Supaya orang yang buka file Excel-nya tahu persis data ini hasil filter
+            // apa (bulan, status, kategori produk, kata kunci pencarian), tanpa perlu
+            // buka aplikasinya lagi.
+            let filterInfoText;
+            if (scope === 'all') {
+                filterInfoText = 'Semua Data (tanpa filter)';
+            } else {
+                const parts = [];
+                if (isTempo || isAnomali || isNosales) {
+                    const bulanLabelEl = document.getElementById('cekBulanMultiLabel');
+                    parts.push('Bulan: ' + ((bulanLabelEl && bulanLabelEl.textContent) || 'Semua Bulan'));
+                } else {
+                    const bulanSel = document.getElementById('cekFilterBulan');
+                    const bulanTxt = bulanSel && bulanSel.selectedOptions && bulanSel.selectedOptions[0] ?
+                        bulanSel.selectedOptions[0].textContent : 'Semua Bulan';
+                    parts.push('Bulan: ' + bulanTxt);
+                }
+                const statusSel = document.getElementById('cekFilterStatus');
+                const statusTxt = statusSel && statusSel.selectedOptions && statusSel.selectedOptions[0] ?
+                    statusSel.selectedOptions[0].textContent : 'Semua Status';
+                parts.push('Status: ' + statusTxt);
+                if (isTempo || isAnomali) {
+                    const produkSel = document.getElementById('cekFilterProduk');
+                    const produkTxt = produkSel && produkSel.selectedOptions && produkSel.selectedOptions[0] ?
+                        produkSel.selectedOptions[0].textContent : 'Semua Produk';
+                    if (!produkSel || produkSel.value !== 'all') parts.push('Kategori Produk: ' + produkTxt);
+                }
+                const searchInp = document.getElementById('cekSearchInput');
+                const searchVal = searchInp ? searchInp.value.trim() : '';
+                if (searchVal) parts.push('Kata Kunci: "' + searchVal + '"');
+                filterInfoText = 'Filter aktif — ' + parts.join(' | ');
+            }
+
             const aoa = [];
+            aoa.push([filterInfoText]);
+            aoa.push([]);
             if (isTempo || isNosales) {
                 aoa.push(['Tgl Transaksi', 'No Faktur', 'Customer', 'Sales', 'Kategori Produk', 'Nominal', 'Jatuh Tempo', 'Status',
                     'Umur Overdue (hari)', 'Sudah Bayar', 'Alamat', 'Pembayaran'
@@ -6069,12 +6115,12 @@
                     ]);
                 });
             } else if (isAnomali) {
-                aoa.push(['Tgl Transaksi', 'No Faktur', 'Customer', 'Sales', 'Nominal', 'Tipe (Cash/Tempo)',
+                aoa.push(['Tgl Transaksi', 'No Faktur', 'Customer', 'Sales', 'Kategori Produk', 'Nominal', 'Tipe (Cash/Tempo)',
                     'Jatuh Tempo', 'Sudah Jatuh Tempo?', 'Umur Overdue (hari)', 'Jml Item', 'Alamat'
                 ]);
                 rows.forEach(r => {
                     aoa.push([
-                        r.tanggal || '', r.noFaktur, r.customer, r.sales, r.nominal || 0,
+                        r.tanggal || '', r.noFaktur, r.customer, r.sales, r.produkKategori || '—', r.nominal || 0,
                         r.tipeBayar || '', r.jatuhTempoStr || '—',
                         r.isOverdue ? 'YA' : (r.tipeBayar === 'Tempo' ? 'Belum' : '—'),
                         r.isOverdue ? r.umurOverdue : '',
@@ -6102,6 +6148,11 @@
                         cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.##';
                     }
                 }
+            }
+            // Gabung baris info filter jadi 1 baris penuh supaya tidak nyempil di kolom pertama.
+            if (aoa[2] && aoa[2].length > 1) {
+                ws['!merges'] = ws['!merges'] || [];
+                ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoa[2].length - 1 } });
             }
             const wb = XLSX.utils.book_new();
             const sheetLabel = isTempo ? 'Cek Tempo' : (isNosales ? 'Tanpa Penjualan' : (isAnomali ? 'Cek Anomali' : 'Cek Cash'));
