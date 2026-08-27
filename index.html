@@ -1022,6 +1022,48 @@
         let lastCekRows = []; // baris hasil render terakhir Cek Data (dipakai modal detail Tempo)
         const CEK_TEMPO_DAYS = 12; // aturan jatuh tempo: transaksi + N hari
 
+        // ---- Tandai Lunas Manual (overlay, tidak mengubah Data Uang Masuk asli) ----
+        // Dipakai kalau user sudah cek manual dan faktur ternyata SUDAH dibayar,
+        // tapi datanya belum/tidak ketemu otomatis di Data Uang Masuk (misal karena
+        // No.Faktur beda, nominal beda, atau pembayarannya belum sempat diinput).
+        // Disimpan terpisah di localStorage (bukan di salesRows) supaya data asli
+        // dari file yang diupload tetap utuh & tidak tertimpa saat file diupload ulang.
+        const MANUAL_LUNAS_STORAGE_KEY = 'cek_tempo_manual_lunas_v1';
+        function loadManualLunasMap() {
+            try {
+                const raw = localStorage.getItem(MANUAL_LUNAS_STORAGE_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return (parsed && typeof parsed === 'object') ? parsed : {};
+            } catch (err) { return {}; }
+        }
+        let manualLunasMap = loadManualLunasMap();
+        function saveManualLunasMap() {
+            try { localStorage.setItem(MANUAL_LUNAS_STORAGE_KEY, JSON.stringify(manualLunasMap)); } catch (err) {}
+        }
+        function getManualLunasInfo(noFaktur) {
+            const key = normFakturKey(noFaktur);
+            return key ? (manualLunasMap[key] || null) : null;
+        }
+        function setFakturManualLunas(noFaktur, lunas, note) {
+            const key = normFakturKey(noFaktur);
+            if (!key) return false;
+            if (lunas) {
+                manualLunasMap[key] = {
+                    noFaktur: String(noFaktur || '').trim(),
+                    note: note || '',
+                    date: new Date().toISOString()
+                };
+            } else {
+                if (!(key in manualLunasMap)) return false;
+                delete manualLunasMap[key];
+            }
+            saveManualLunasMap();
+            cekFakturCacheDirty.tempo = true;
+            cekFakturCacheDirty.anomali = true;
+            cekFakturCacheDirty.nosales = true;
+            return true;
+        }
+
         // ---- Supabase config ----
         const SUPABASE_URL = 'https://nmmwmrhnvzxqttlrfaeo.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_NU7_yfSbWzd_74h9cTdpzw_NaCGndiu';
@@ -2333,8 +2375,50 @@
             } else {
                 conclusion += '<br><span style="color:var(--muted);">🔗 Pembayaran terhubung melalui No.Faktur.</span>';
             }
+            if (row.manualLunas) {
+                conclusion += '<br><div style="margin-top:8px;padding:9px 10px;border-radius:8px;background:rgba(22,163,74,.10);border:1px solid rgba(22,163,74,.35);color:var(--green,#16a34a);"><b>✏ DITANDAI LUNAS MANUAL</b><br>Status faktur ini ditandai LUNAS secara manual oleh user (bukan dari matching otomatis Data Uang Masuk).' + (row.manualLunasNote ? ('<br><b>Catatan:</b> ' + esc(row.manualLunasNote)) : '') + (row.manualLunasDate ? ('<br><span style="opacity:.8;">Ditandai pada: ' + esc(fmtCekTanggalTampilan(row.manualLunasDate, new Date(row.manualLunasDate))) + '</span>') : '') + '<br><span style="opacity:.85;">Catatan ini hanya menandai status di aplikasi — sebaiknya tetap lengkapi Data Uang Masuk supaya rekap tetap akurat.</span></div>';
+            }
             document.getElementById('cekTempoModalConclusion').innerHTML = conclusion;
+
+            const actionsElTempoBtn = document.getElementById('cekTempoModalActions');
+            if (actionsElTempoBtn) {
+                if (row.manualLunas) {
+                    actionsElTempoBtn.innerHTML = '<button class="btn btn-outline" onclick="undoFakturLunasManualFromModal(encodeURIComponent(\'' +
+                        String(faktur).replace(/'/g, "\\'") + '\'))">↩️ Batalkan Tandai Lunas Manual</button>';
+                } else if (!isLunas) {
+                    actionsElTempoBtn.innerHTML = '<button class="btn btn-outline" style="border-color:var(--green,#16a34a);color:var(--green,#16a34a);" onclick="markFakturLunasManualFromModal(encodeURIComponent(\'' +
+                        String(faktur).replace(/'/g, "\\'") + '\'))">✅ Tandai Lunas Manual</button>';
+                }
+            }
             document.getElementById('cekTempoDetailModal').classList.add('open');
+        }
+
+        // Tandai faktur LUNAS secara manual (dipakai kalau user sudah cek manual dan
+        // ternyata sudah dibayar, tapi belum/tidak ketemu otomatis di Data Uang Masuk).
+        // Ini hanya overlay status di aplikasi -- TIDAK mengubah/menambah data asli di
+        // Data Uang Masuk, dan bisa di-undo kapan saja.
+        function markFakturLunasManualFromModal(encodedFaktur) {
+            const faktur = decodeURIComponent(String(encodedFaktur || ''));
+            const note = prompt('Catatan (opsional) — misal: "Sudah cek manual, transfer 12/8 belum tercatat di Data Uang Masuk":', '');
+            if (note === null) return; // user cancel
+            if (!confirm('Tandai faktur ' + faktur + ' sebagai LUNAS (manual)?\n\nIni hanya menandai status di aplikasi berdasarkan pengecekan Anda -- TIDAK mengubah Data Uang Masuk asli. Sebaiknya tetap lengkapi Data Uang Masuk supaya rekap tetap akurat. Bisa di-undo kapan saja lewat tombol di detail faktur ini.')) return;
+            const changed = setFakturManualLunas(faktur, true, note.trim());
+            if (changed) {
+                closeCekTempoDetail();
+                if (typeof renderCekTable === 'function') renderCekTable();
+                alert('Faktur ' + faktur + ' berhasil ditandai LUNAS (manual).');
+            }
+        }
+
+        function undoFakturLunasManualFromModal(encodedFaktur) {
+            const faktur = decodeURIComponent(String(encodedFaktur || ''));
+            if (!confirm('Batalkan tanda LUNAS manual untuk faktur ' + faktur + '?\n\nStatus faktur akan kembali mengikuti hasil matching otomatis dengan Data Uang Masuk.')) return;
+            const changed = setFakturManualLunas(faktur, false);
+            if (changed) {
+                closeCekTempoDetail();
+                if (typeof renderCekTable === 'function') renderCekTable();
+                alert('Tanda LUNAS manual untuk faktur ' + faktur + ' sudah dibatalkan.');
+            }
         }
 
         function closeCekTempoDetail() {
@@ -5256,7 +5340,14 @@
                     // paymentStatus & isOverdue dipisah sebagai dua dimensi independen,
                     // supaya faktur bayar-sebagian-tapi-lewat-jatuh-tempo tidak "hilang"
                     // dari kelompok Titip hanya karena sudah lewat jatuh tempo.
-                    const isLunas = g.paid;
+                    // Tandai Lunas Manual (hasil cek manual user) menang atas hasil
+                    // matching otomatis -- dipakai kalau faktur sebenarnya sudah
+                    // dibayar tapi belum/tidak ketemu pasangannya di Data Uang Masuk.
+                    const manualLunasInfo = getManualLunasInfo(g.noFaktur);
+                    g.manualLunas = !!manualLunasInfo;
+                    g.manualLunasNote = manualLunasInfo ? (manualLunasInfo.note || '') : '';
+                    g.manualLunasDate = manualLunasInfo ? (manualLunasInfo.date || '') : '';
+                    const isLunas = g.paid || g.manualLunas;
                     const isTitipPembayaran = !isLunas && (hasTitip || paidAmount > 0);
                     g.paymentStatus = isLunas ? 'Lunas' : (isTitipPembayaran ? 'Titip' : 'Belum Bayar');
                     g.isOverdue = !isLunas && !!(due && daysBetween(due, today) > 0);
@@ -5350,7 +5441,7 @@
                         '<td>' + esc(r.sales) + '</td>' +
                         '<td class="num"><strong>' + (r.nominal || 0).toLocaleString('id-ID') + '</strong></td>' +
                         '<td>' + esc(r.jatuhTempoStr) + '</td>' +
-                        '<td>' + statusBadgeCek(r) + '</td>' +
+                        '<td>' + statusBadgeCek(r) + (r.manualLunas ? ' <span title="Ditandai LUNAS manual' + (r.manualLunasNote ? (': ' + esc(r.manualLunasNote)) : '') + '" style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:5px;font-size:0.65rem;font-weight:700;background:var(--green-bg,rgba(22,163,74,.12));color:var(--green,#16a34a);white-space:nowrap;vertical-align:middle;">✏ Manual</span>' : '') + '</td>' +
                         '<td class="num">' + (r.isOverdue ? ('<strong style="color:var(--red)">' + esc(
                             r.umurOverdueStr) + '</strong>') : '—') + '</td>' +
                         '<td class="num">' + (r.paidAmount ? r.paidAmount.toLocaleString('id-ID') : '—') + '</td>' +
@@ -6871,6 +6962,7 @@
             doSearch, resetSearch, filterBySheet, clearData, switchFakturSub,
             openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, closeCekTempoDetail,
             openCekAnomaliDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
+            markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
             downloadFakturExcel,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
