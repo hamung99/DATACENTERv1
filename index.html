@@ -3221,6 +3221,65 @@
         let ringkasanBaseRows = [];
         let ringkasanFilterDate = ''; // format 'YYYY-MM-DD', kosong = tidak difilter tanggal
 
+        // ---- Output Gudang (input manual) & Ket (Cocok / mismatch) untuk tabel
+        // Ringkasan (PENJUALAN FITRI & RUPA RUPA). Disimpan di localStorage per
+        // kombinasi tanggal-filter + kategori (fitri/rupa) + nama produk, supaya
+        // angka yang sudah diisi tidak hilang saat pindah tanggal/filter dan
+        // tidak tertimpa saat file Data Penjualan diupload ulang.
+        const RINGKASAN_OUTPUT_GUDANG_KEY = 'ringkasan_output_gudang_v1';
+        function loadOutputGudangMap() {
+            try {
+                const raw = localStorage.getItem(RINGKASAN_OUTPUT_GUDANG_KEY);
+                const parsed = raw ? JSON.parse(raw) : {};
+                return (parsed && typeof parsed === 'object') ? parsed : {};
+            } catch (err) { return {}; }
+        }
+        let outputGudangMap = loadOutputGudangMap();
+        function saveOutputGudangMap() {
+            try { localStorage.setItem(RINGKASAN_OUTPUT_GUDANG_KEY, JSON.stringify(outputGudangMap)); } catch (err) {}
+        }
+        function outputGudangKey(category, produk) {
+            const dateKey = ringkasanFilterDate || 'ALL';
+            return dateKey + '|' + category + '|' + String(produk || '').trim().toUpperCase();
+        }
+        function getOutputGudang(category, produk) {
+            const key = outputGudangKey(category, produk);
+            const v = outputGudangMap[key];
+            return (v === undefined || v === null || v === '') ? null : Number(v);
+        }
+        function setOutputGudang(category, produk, value) {
+            const key = outputGudangKey(category, produk);
+            const trimmed = String(value == null ? '' : value).trim();
+            if (trimmed === '') {
+                delete outputGudangMap[key];
+            } else {
+                const n = Number(trimmed);
+                if (isNaN(n)) return false;
+                outputGudangMap[key] = n;
+            }
+            saveOutputGudangMap();
+            return true;
+        }
+        // Sel "Ket": belum diisi -> '—', sama dengan Total -> Cocok, beda -> tanda seru merah.
+        function renderRingkasanKetCell(outputVal, totalVal) {
+            if (outputVal === null) return '<span class="muted">—</span>';
+            if (outputVal === totalVal) {
+                return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;color:var(--green,#16a34a);background:var(--green-bg,rgba(22,163,74,.12));">✅ Cocok</span>';
+            }
+            return '<span class="badge badge-retur" title="Output Gudang (' + outputVal.toLocaleString('id-ID') +
+                ') tidak sama dengan Total (' + totalVal.toLocaleString('id-ID') + ')" style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;">❗ Tidak Sama</span>';
+        }
+        function onRingkasanOutputGudangChange(inputEl, category, encodedProduk) {
+            const produk = decodeURIComponent(encodedProduk);
+            const ok = setOutputGudang(category, produk, inputEl.value);
+            if (!ok) { inputEl.value = ''; return; }
+            if (category === 'fitri') {
+                renderRingkasan();
+            } else {
+                renderRingkasanRupa();
+            }
+        }
+
         function ringkasanDateToISO(d) {
             if (!(d instanceof Date) || isNaN(d.getTime())) return '';
             return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
@@ -3390,27 +3449,45 @@
             return { prodMap, products, salesList, salesTotals, grandTotal };
         }
 
-        function renderRingkasanPivotTable(pivot, productSubset) {
+        function renderRingkasanPivotTable(pivot, productSubset, category) {
             const products = productSubset || pivot.products;
             if (!products.length) {
                 return '<div style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data.</div>';
             }
+            const withGudang = !!category;
             const thead = '<tr><th>PRODUK</th>' +
                 pivot.salesList.map(s => '<th class="num">' + esc(s) + '</th>').join('') +
-                '<th class="num">TOTAL</th></tr>';
+                '<th class="num">TOTAL</th>' +
+                (withGudang ? '<th class="num">OUTPUT GUDANG</th><th>KET</th>' : '') +
+                '</tr>';
+            let sumOutputGudang = 0;
+            let anyOutputGudang = false;
             const bodyRows = products.map(p => {
                 const cells = pivot.salesList.map(s => {
                     const v = (pivot.prodMap[p] && pivot.prodMap[p][s]) || 0;
                     return '<td class="num">' + (v ? v.toLocaleString('id-ID') : '—') + '</td>';
                 }).join('');
                 const tot = (pivot.prodMap[p] && pivot.prodMap[p].__total) || 0;
+                let gudangCells = '';
+                if (withGudang) {
+                    const outputVal = getOutputGudang(category, p);
+                    if (outputVal !== null) { sumOutputGudang += outputVal; anyOutputGudang = true; }
+                    const encodedProduk = encodeURIComponent(p);
+                    gudangCells = '<td class="num"><input type="number" inputmode="numeric" placeholder="—" value="' +
+                        (outputVal !== null ? outputVal : '') + '" onchange="onRingkasanOutputGudangChange(this,\'' +
+                        category + '\',\'' + encodedProduk + '\')" style="width:84px;text-align:right;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);font-size:0.8rem;"></td>' +
+                        '<td>' + renderRingkasanKetCell(outputVal, tot) + '</td>';
+                }
                 return '<tr><td>' + esc(p) + '</td>' + cells + '<td class="num"><strong>' + tot.toLocaleString('id-ID') +
-                    '</strong></td></tr>';
+                    '</strong></td>' + gudangCells + '</tr>';
             }).join('');
             const totalCells = pivot.salesList.map(s => '<td class="num">' + (pivot.salesTotals[s] || 0).toLocaleString(
                 'id-ID') + '</td>').join('');
+            const totalGudangCells = withGudang ?
+                '<td class="num">' + (anyOutputGudang ? sumOutputGudang.toLocaleString('id-ID') : '—') + '</td>' +
+                '<td>' + renderRingkasanKetCell(anyOutputGudang ? sumOutputGudang : null, pivot.grandTotal) + '</td>' : '';
             const totalRow = '<tr class="total-row"><td>TOTAL</td>' + totalCells + '<td class="num">' + pivot.grandTotal
-                .toLocaleString('id-ID') + '</td></tr>';
+                .toLocaleString('id-ID') + '</td>' + totalGudangCells + '</tr>';
             return '<table class="profit-table"><thead>' + thead + '</thead><tbody>' + bodyRows + totalRow +
                 '</tbody></table>';
         }
@@ -3480,7 +3557,7 @@
             const LIMIT = 8;
             const shown = ringkasanRupaShowAll ? pivot.products : pivot.products.slice(0, LIMIT);
             const bodyEl = document.getElementById('ringkasanRupaBody');
-            if (bodyEl) bodyEl.innerHTML = renderRingkasanPivotTable(pivot, shown);
+            if (bodyEl) bodyEl.innerHTML = renderRingkasanPivotTable(pivot, shown, 'rupa');
             const toggleBtn = document.getElementById('ringkasanRupaToggleBtn');
             if (toggleBtn) {
                 toggleBtn.style.display = pivot.products.length > LIMIT ? 'inline-flex' : 'none';
@@ -3513,7 +3590,7 @@
 
             const pivotFitriTable = buildRingkasanPivot(fitriRows);
             const fitriBody = document.getElementById('ringkasanFitriBody');
-            if (fitriBody) fitriBody.innerHTML = renderRingkasanPivotTable(pivotFitriTable);
+            if (fitriBody) fitriBody.innerHTML = renderRingkasanPivotTable(pivotFitriTable, null, 'fitri');
             const fitriPeriod = document.getElementById('ringkasanFitriPeriod');
             if (fitriPeriod) {
                 if (ringkasanFilterDate) {
@@ -7286,7 +7363,7 @@
             toggleCekDownloadMenu, renderCekTable, resetCekSearch, downloadCekExcel,
             pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
             installApp, toggleRingkasanRupaShowAll,
-            onRingkasanDateFilterChange, clearRingkasanDateFilter,
+            onRingkasanDateFilterChange, clearRingkasanDateFilter, onRingkasanOutputGudangChange,
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal
         });
     </script>
