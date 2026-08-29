@@ -2274,23 +2274,28 @@
         function exportFakturAoa(aoa, sheetName, fileName) {
             if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
             const ws = XLSX.utils.aoa_to_sheet(aoa);
-            // format numbers
-            const range = XLSX.utils.decode_range(ws['!ref']);
-            for (let R = range.s.r; R <= range.e.r; R++) {
-                for (let C = range.s.c; C <= range.e.c; C++) {
-                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                    const cell = ws[addr];
-                    if (cell && cell.t === 'n' && typeof cell.v === 'number') {
-                        cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.##';
-                    }
-                }
-            }
-            if (!ws['!cols']) {
-                const colCount = (aoa[1] || aoa[0] || []).length;
-                ws['!cols'] = Array.from({ length: colCount }, () => ({ wch: 14 }));
-            }
+            // Lebar kolom otomatis (header lebih lebar, teks panjang lebih lebar).
+            const headerCols = (aoa[1] || aoa[0] || []);
+            const widths = headerCols.map(h => {
+                if (/tanggal/i.test(h)) return { wch: 12 };
+                if (/no faktur|faktur/i.test(h)) return { wch: 16 };
+                if (/alamat/i.test(h)) return { wch: 26 };
+                if (/nama toko|customer|^sales|bagian|sheet|status/i.test(h)) return { wch: 16 };
+                return { wch: 14 };
+            });
+            ws['!cols'] = widths;
+            // Style rapi: judul di-merge, header tebal, border, zebra, TOTAL hijau, "Rp" untuk nominal.
+            try {
+                styleSalesExportSheet(ws, aoa, {
+                    titleRow: 0,
+                    headerRow: 1,
+                    dateCols: new Set([0, 12]),
+                    currCols: new Set([7, 8, 9, 10, 11]),
+                    leftCols: new Set([5, 6])
+                });
+            } catch (e) { /* fallback aman */ }
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
             XLSX.writeFile(wb, fileName);
         }
 
@@ -4993,18 +4998,45 @@
                 '</tr>';
         }
 
-        // ---- Style helper: bikin header tebal + fill biru, border tipis, dsb ----
-        // Dipakai oleh semua sheet hasil download agar hasilnya rapi & konsisten.
+        // ---- Style helper: bikin output Excel rapi & konsisten untuk semua tab ----
+        // Dipakai oleh: Sales (Profit Per Produk dll.), Uang Masuk, Cek Data (Tempo /
+        // Anomali / No Sales / Cash), dan Rapikan Data. Opsional:
+        //   headerRow   : index baris header (default 1)
+        //   titleRow    : index baris judul besar (opsional, akan di-merge + fill gelap)
+        //   dateCols    : Set index kolom tanggal (format dd/mm/yyyy)
+        //   intCols     : Set index kolom bilangan bulat kecil (format #,##0 tanpa Rp)
+        //   currCols    : Set index kolom nominal uang (format "Rp"#,##0)
+        //   leftCols    : Set index kolom teks panjang (rata kiri)
         function styleSalesExportSheet(ws, aoa, opts) {
             opts = opts || {};
-            const headerRow = opts.headerRow || 1;
-            const lastDataRow = opts.lastDataRow || (aoa.length - 1);
+            const headerRow = opts.headerRow != null ? opts.headerRow : 1;
+            const titleRow = opts.titleRow;
+            const dateCols = opts.dateCols || new Set();
+            const intCols = opts.intCols || new Set();
+            const currCols = opts.currCols || new Set();
+            const leftCols = opts.leftCols || new Set();
             const lastCol = aoa.reduce((m, row) => Math.max(m, row.length), 0) || 1;
             const headerFill = { patternType: 'solid', fgColor: { rgb: 'FF0284C7' } };
+            const titleFill  = { patternType: 'solid', fgColor: { rgb: 'FF075985' } };
             const totalFill  = { patternType: 'solid', fgColor: { rgb: 'FF0F766E' } };
             const whiteBold  = { font: { bold: true, color: { rgb: 'FFFFFFFF' } } };
             const thin = { style: 'thin', color: { rgb: 'FFD0D0D0' } };
             const border = { top: thin, bottom: thin, left: thin, right: thin };
+
+            // Baris judul (opsional) - di-merge dan dibikin besar
+            if (titleRow != null && aoa[titleRow] && aoa[titleRow].length) {
+                for (let C = 0; C < aoa[titleRow].length; C++) {
+                    const addr = XLSX.utils.encode_cell({ r: titleRow, c: C });
+                    if (!ws[addr]) continue;
+                    ws[addr].s = Object.assign({}, ws[addr].s || {},
+                        whiteBold, { font: { bold: true, color: { rgb: 'FFFFFFFF' }, sz: 13 } },
+                        { fill: titleFill, alignment: { horizontal: 'center', vertical: 'center' } });
+                }
+                if (aoa[titleRow].length > 1) {
+                    ws['!merges'] = ws['!merges'] || [];
+                    ws['!merges'].push({ s: { r: titleRow, c: 0 }, e: { r: titleRow, c: aoa[titleRow].length - 1 } });
+                }
+            }
 
             // Header
             for (let C = 0; C < lastCol; C++) {
@@ -5014,61 +5046,71 @@
                     whiteBold, { fill: headerFill, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } },
                     { border: border });
             }
-            // Border semua sel data + zebra
+
             const range = XLSX.utils.decode_range(ws['!ref']);
+
+            // Border tipis + zebra untuk baris data
             for (let R = range.s.r; R <= range.e.r; R++) {
                 for (let C = range.s.c; C <= range.e.c; C++) {
                     const addr = XLSX.utils.encode_cell({ r: R, c: C });
                     const cell = ws[addr];
                     if (!cell) continue;
                     cell.s = Object.assign({}, cell.s || {}, { border: border });
-                    if (R > headerRow && R <= lastDataRow && (R - headerRow) % 2 === 0) {
+                    if (R > headerRow && (R - headerRow) % 2 === 1) {
                         cell.s.fill = { patternType: 'solid', fgColor: { rgb: 'FFF4F8FB' } };
                     }
                 }
             }
-            // Baris TOTAL (jika ada teks TOTAL di kolom kedua)
+
+            // Deteksi baris TOTAL (cek 5 kolom pertama apakah ada teks 'TOTAL')
             for (let R = headerRow + 1; R <= range.e.r; R++) {
-                const a = XLSX.utils.encode_cell({ r: R, c: 1 });
-                const b = XLSX.utils.encode_cell({ r: R, c: 0 });
-                const aa = ws[a] && ws[a].v;
-                const bb = ws[b] && ws[b].v;
-                if ((typeof aa === 'string' && aa.trim().toUpperCase() === 'TOTAL') ||
-                    (typeof bb === 'string' && bb.trim().toUpperCase() === 'TOTAL')) {
+                let isTotal = false;
+                for (let C = 0; C < Math.min(lastCol, 6); C++) {
+                    const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+                    if (cell && typeof cell.v === 'string' && cell.v.trim().toUpperCase() === 'TOTAL') {
+                        isTotal = true; break;
+                    }
+                }
+                if (isTotal) {
                     for (let C = 0; C < lastCol; C++) {
-                        const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                        const cell = ws[addr];
+                        const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
                         if (!cell) continue;
                         cell.s = Object.assign({}, cell.s || {}, whiteBold, { fill: totalFill });
-                        if (C >= 2 && typeof cell.v === 'number') {
-                            cell.z = '"Rp"#,##0';
-                        }
                     }
                 }
             }
-            // Alignment default
+
+            // Format angka & alignment
             for (let R = headerRow + 1; R <= range.e.r; R++) {
-                for (let C = range.s.c; C <= range.e.c; C++) {
-                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                    const cell = ws[addr];
+                for (let C = 0; C < lastCol; C++) {
+                    const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
                     if (!cell) continue;
-                    if (C === 0) {
-                        cell.s.alignment = { horizontal: 'center', vertical: 'center' };
-                    } else if (C === 1) {
-                        cell.s.alignment = { horizontal: 'left', vertical: 'center' };
+                    // Alignment default
+                    if (leftCols.has(C)) {
+                        cell.s.alignment = { horizontal: 'left', vertical: 'center', indent: 1 };
                     } else if (typeof cell.v === 'number') {
                         cell.s.alignment = { horizontal: 'right', vertical: 'center' };
-                        // Format Rupiah untuk nilai uang
-                        if (cell.s && (!cell.z || cell.z === '#,##0' || cell.z === '#,##0.##')) {
-                            // kolom No & Qty tetap "qty style" (tanpa Rp)
-                            cell.z = (C === 2) ? '#,##0' : '"Rp"#,##0';
+                    } else if (C === 0 && (typeof cell.v === 'string')) {
+                        cell.s.alignment = { horizontal: 'center', vertical: 'center' };
+                    }
+                    // Number/date format dengan override berdasarkan opsi
+                    if (typeof cell.v === 'number') {
+                        if (dateCols.has(C)) {
+                            cell.z = 'dd/mm/yyyy';
+                        } else if (intCols.has(C)) {
+                            cell.z = '#,##0';
+                        } else if (currCols.has(C)) {
+                            cell.z = '"Rp"#,##0';
+                        } else if (!cell.z || cell.z === 'General' || cell.z === '#,##0' || cell.z === '#,##0.##') {
+                            // Auto: angka bulat kecil -> qty, nominal besar -> Rp
+                            cell.z = (Number.isInteger(cell.v) && Math.abs(cell.v) < 10000 && C <= 2)
+                                ? '#,##0' : '"Rp"#,##0';
                         }
                     }
                 }
             }
-            // Freeze panes di bawah header
-            ws['!freeze'] = { xSplit: 0, ySplit: headerRow + 1 };
-            // Auto-filter
+
+            // Auto-filter di header (fitur bawaan Excel)
             const lastColLetter = XLSX.utils.encode_col(lastCol - 1);
             ws['!autofilter'] = { ref: XLSX.utils.encode_range(headerRow, headerRow, range.s.c, range.e.c) };
         }
@@ -7167,21 +7209,31 @@
                 });
             }
             const ws = XLSX.utils.aoa_to_sheet(aoa);
-            const range = XLSX.utils.decode_range(ws['!ref']);
-            for (let R = range.s.r; R <= range.e.r; R++) {
-                for (let C = range.s.c; C <= range.e.c; C++) {
-                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                    const cell = ws[addr];
-                    if (cell && cell.t === 'n' && typeof cell.v === 'number') {
-                        cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.##';
-                    }
-                }
-            }
-            // Gabung baris info filter jadi 1 baris penuh supaya tidak nyempil di kolom pertama.
-            if (aoa[2] && aoa[2].length > 1) {
-                ws['!merges'] = ws['!merges'] || [];
-                ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoa[2].length - 1 } });
-            }
+            // Lebar kolom otomatis berdasarkan nama header (yang ada di aoa[2]).
+            const headerCols = (aoa[2] || []);
+            ws['!cols'] = headerCols.map(h => {
+                if (/tgl|tanggal/i.test(h)) return { wch: 12 };
+                if (/no faktur|faktur/i.test(h)) return { wch: 16 };
+                if (/alamat/i.test(h)) return { wch: 26 };
+                if (/customer|customer/i.test(h)) return { wch: 22 };
+                if (/nominal|sudah bayar|umur/i.test(h)) return { wch: 14 };
+                if (/status|tipe/i.test(h)) return { wch: 16 };
+                if (/jumlah|item/i.test(h)) return { wch: 10 };
+                if (/sales|^sales/i.test(h)) return { wch: 14 };
+                if (/produk|kategori/i.test(h)) return { wch: 18 };
+                if (/jatuh tempo|pembayaran/i.test(h)) return { wch: 16 };
+                return { wch: 13 };
+            });
+            // Style rapi: baris info filter dianggap judul + di-merge, header di row 2.
+            try {
+                styleSalesExportSheet(ws, aoa, {
+                    titleRow: 0,
+                    headerRow: 2,
+                    intCols: new Set([isTempo || isNosales ? 11 : (isAnomali ? 10 : 6), 2].filter(x => false)),
+                    currCols: new Set([5, 9]),
+                    leftCols: new Set([2, 3, 4, (isTempo || isNosales ? 10 : (isAnomali ? 11 : 7))])
+                });
+            } catch (e) { /* fallback aman */ }
             const wb = XLSX.utils.book_new();
             const sheetLabel = isTempo ? 'Cek Tempo' : (isNosales ? 'Tanpa Penjualan' : (isAnomali ? 'Cek Anomali' : 'Cek Cash'));
             XLSX.utils.book_append_sheet(wb, ws, sheetLabel);
@@ -7508,18 +7560,20 @@
                     aoa.push(COLS.map(c => c === 'Tanggal' ? r.Tanggal : r[c]));
                 });
                 const ws = XLSX.utils.aoa_to_sheet(aoa);
-                const range = XLSX.utils.decode_range(ws['!ref']);
-                for (let R = 1; R <= range.e.r; R++) {
-                    const tglCell = ws[XLSX.utils.encode_cell({ r: R, c: 0 })];
-                    if (tglCell) tglCell.z = 'dd/mm/yyyy';
-                    [3, 5, 6, 7, 12].forEach(C => {
-                        const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
-                        if (cell && typeof cell.v === 'number') cell.z = '#,##0';
-                    });
-                }
-                ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 22 }, { wch: 8 }, { wch: 8 }, { wch: 11 },
-                    { wch: 8 }, { wch: 11 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 12 }, { wch: 12 }
+                ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 14 },
+                    { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 22 }, { wch: 26 }, { wch: 14 }, { wch: 14 }
                 ];
+                // Style rapi: header tebal, border, zebra, format tanggal + "Rp" untuk nominal.
+                // Kolom indeks: 0=Tanggal, 3=Jumlah, 5=Harga Jual, 6=Disc, 7=Total, 12=Harga Beli.
+                try {
+                    styleSalesExportSheet(ws, aoa, {
+                        headerRow: 0,
+                        dateCols: new Set([0]),
+                        intCols: new Set([3]),
+                        currCols: new Set([5, 6, 7, 12]),
+                        leftCols: new Set([2, 9, 10])
+                    });
+                } catch (e) { /* fallback aman */ }
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, 'Data Rapi');
                 const stamp = new Date();
