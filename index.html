@@ -134,7 +134,6 @@
         .modal-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         .modal-table th, .modal-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
         .modal-table th { background: var(--th-bg); font-weight: 600; color: var(--muted); }
-        #ringkasanCekWrap .modal-table thead th { position: sticky; top: 0; z-index: 1; }
         .modal-table tr:hover { background: var(--table-hover); }
 
         .subtabs { display: none; align-items: center; gap: 0; margin-bottom: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
@@ -576,6 +575,7 @@
         <div class="tabs" id="tabsBar" style="display:flex;">
             <button class="tab-btn active" id="tabBtnFaktur" onclick="switchTab('faktur')">💰 Uang Masuk</button>
             <button class="tab-btn" id="tabBtnPenjualan" onclick="switchTab('penjualan')">📊 Data Penjualan</button>
+            <button class="tab-btn" id="tabBtnGudang" onclick="switchTab('gudang')">🏭 Data Gudang</button>
             <button class="tab-btn" id="tabBtnCek" onclick="switchTab('cek')">🔍 Cek Data</button>
         </div>
 
@@ -718,20 +718,6 @@
                 </div>
             </div>
 
-            <div class="ringkasan-date-filter" id="ringkasanDateWrap" style="margin-bottom:10px;">
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;white-space:nowrap;">
-                    📅 Filter Tanggal
-                    <input type="date" id="ringkasanDateFilter" onchange="onRingkasanDateFilterChange()">
-                </label>
-                <button type="button" class="btn btn-outline" id="ringkasanDateClearBtn" style="font-size:0.72rem;padding:5px 10px;display:none;" onclick="clearRingkasanDateFilter()">✕ Hapus Filter Tanggal</button>
-                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;" onclick="openRingkasanInvestigationModal()">🔍 Investigasi Perbedaan</button>
-                <div class="view-toggle" id="ringkasanInnerTabs" style="margin-left:auto;">
-                    <button type="button" class="view-toggle-btn active" id="ringkasanTabBtnSummary" onclick="switchRingkasanInner('summary')">📊 Ringkasan</button>
-                    <button type="button" class="view-toggle-btn" id="ringkasanTabBtnGudang" onclick="switchRingkasanInner('gudang')">🏭 Data Gudang</button>
-                    <button type="button" class="view-toggle-btn" id="ringkasanTabBtnCek" onclick="switchRingkasanInner('cek')">🔎 Cek Beda</button>
-                </div>
-            </div>
-
             <div id="ringkasanSummaryBottom">
                 <div class="profit-wrap show" id="ringkasanFitriWrap">
                     <div class="profit-head">
@@ -754,7 +740,36 @@
                 </div>
             </div>
 
-            <div class="profit-wrap show" id="ringkasanGudangWrap" style="display:none;">
+            <div class="profit-wrap" id="profitProdukWrap"><div class="profit-head"><span>PROFIT PENJUALAN / PRODUK</span><span class="muted" id="profitProdukPeriod">—</span></div><table class="profit-table"><thead><tr><th>No</th><th>Produk</th><th class="num">Qty</th><th class="num">Total Penjualan</th><th class="num">Total HPP</th><th class="num">Harga Jual</th><th class="num">Harga Beli</th><th class="num">Profit</th></tr></thead><tbody id="profitProdukBody"></tbody></table></div>
+            <div class="profit-wrap" id="profitPayWrap"><div class="profit-head"><span>PROFIT PER PRODUK PER PEMBAYARAN</span><span class="muted" id="profitPayPeriod">—</span></div><table class="profit-table"><thead><tr><th>Produk</th><th class="num">Nominal Penjualan Cash</th><th class="num">Nominal Penjualan Tempo</th><th class="num">Profit Tempo</th><th class="num">Profit Cash</th><th class="num">Total Nominal Penjualan</th><th class="num">Total Profit</th></tr></thead><tbody id="profitPayBody"></tbody></table></div>
+            <div class="profit-wrap" id="profitSalesWrap"><div class="profit-head"><span>PROFIT PER SALES</span><span class="muted" id="profitSalesPeriod">—</span></div><table class="profit-table"><thead><tr><th>No</th><th>Sales</th><th class="num">Qty Fitri</th><th class="num">Qty Rupa Rupa</th><th class="num">Nominal Fitri</th><th class="num">Nominal Rupa Rupa</th><th class="num">Profit Fitri</th><th class="num">Profit Rupa Rupa</th><th class="num">Total Profit</th></tr></thead><tbody id="profitSalesBody"></tbody></table></div>
+            <div class="profit-wrap" id="profitSalesProdukWrap"><div class="profit-head"><span>PER SALES PER PRODUK</span><span class="muted" id="profitSalesProdukPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesProdukTable"><thead id="profitSalesProdukHead"></thead><tbody id="profitSalesProdukBody"></tbody></table></div></div>
+            <div class="profit-wrap" id="profitBulanWrap"><div class="profit-head"><span>PROFIT PER BULAN</span><span class="muted" id="profitBulanPeriod">—</span></div><table class="profit-table"><thead><tr><th>Bulan</th><th class="num">Total Qty Fitri</th><th class="num">Total Qty Rupa2</th><th class="num">Totl Nominl Fitri</th><th class="num">Total Nominal Rupa2</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th></tr></thead><tbody id="profitBulanBody"></tbody></table></div>
+
+            <div class="empty-state" id="salesEmptyState" style="display:none;">
+                <div class="big">📦</div>
+                <div><strong>Upload file Excel</strong> data penjualan</div>
+                <div class="hint">Kolom: Tanggal, No.Faktur, Produk, Jumlah, Satuan, Harga Jual, Disc, Total, Sales, Customer, Alamat, Pembayaran, Harga Beli.<br>Data diproses di browser Anda.</div>
+            </div>
+            <div class="loading" id="salesLoading" style="display:none;">Memproses file...</div>
+        </div>
+
+        <!-- TAB GUDANG -->
+        <div id="tabGudang" style="display:none;">
+            <div class="ringkasan-date-filter" id="ringkasanDateWrap" style="margin-bottom:10px;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;white-space:nowrap;">
+                    📅 Filter Tanggal
+                    <input type="date" id="ringkasanDateFilter" onchange="onRingkasanDateFilterChange()">
+                </label>
+                <button type="button" class="btn btn-outline" id="ringkasanDateClearBtn" style="font-size:0.72rem;padding:5px 10px;display:none;" onclick="clearRingkasanDateFilter()">✕ Hapus Filter Tanggal</button>
+                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;" onclick="openRingkasanInvestigationModal()">🔍 Investigasi Perbedaan</button>
+                <div class="view-toggle" id="gudangInnerTabs" style="margin-left:auto;">
+                    <button type="button" class="view-toggle-btn active" id="gudangTabBtnMain" onclick="switchGudangMainSub('gudang')">🏭 Data Gudang</button>
+                    <button type="button" class="view-toggle-btn" id="gudangTabBtnCek" onclick="switchGudangMainSub('cek')">🔎 Cek Beda</button>
+                </div>
+            </div>
+
+            <div class="profit-wrap show" id="ringkasanGudangWrap">
                 <div class="profit-head">
                     <span>🏭 DATA GUDANG — STOK MINYAK</span>
                     <span class="muted" id="ringkasanGudangPeriod">—</span>
@@ -763,7 +778,7 @@
                 <div id="ringkasanGudangBody"></div>
             </div>
 
-            <div class="profit-wrap show" id="ringkasanCekWrap" style="display:none;">
+            <div class="profit-wrap" id="ringkasanCekWrap" style="display:none;">
                 <div class="profit-head">
                     <span>🔎 CEK BEDA — TOTAL PENJUALAN vs OUTPUT GUDANG</span>
                 </div>
@@ -800,19 +815,6 @@
                     </table>
                 </div>
             </div>
-
-            <div class="profit-wrap" id="profitProdukWrap"><div class="profit-head"><span>PROFIT PENJUALAN / PRODUK</span><span class="muted" id="profitProdukPeriod">—</span></div><table class="profit-table"><thead><tr><th>No</th><th>Produk</th><th class="num">Qty</th><th class="num">Total Penjualan</th><th class="num">Total HPP</th><th class="num">Harga Jual</th><th class="num">Harga Beli</th><th class="num">Profit</th></tr></thead><tbody id="profitProdukBody"></tbody></table></div>
-            <div class="profit-wrap" id="profitPayWrap"><div class="profit-head"><span>PROFIT PER PRODUK PER PEMBAYARAN</span><span class="muted" id="profitPayPeriod">—</span></div><table class="profit-table"><thead><tr><th>Produk</th><th class="num">Nominal Penjualan Cash</th><th class="num">Nominal Penjualan Tempo</th><th class="num">Profit Tempo</th><th class="num">Profit Cash</th><th class="num">Total Nominal Penjualan</th><th class="num">Total Profit</th></tr></thead><tbody id="profitPayBody"></tbody></table></div>
-            <div class="profit-wrap" id="profitSalesWrap"><div class="profit-head"><span>PROFIT PER SALES</span><span class="muted" id="profitSalesPeriod">—</span></div><table class="profit-table"><thead><tr><th>No</th><th>Sales</th><th class="num">Qty Fitri</th><th class="num">Qty Rupa Rupa</th><th class="num">Nominal Fitri</th><th class="num">Nominal Rupa Rupa</th><th class="num">Profit Fitri</th><th class="num">Profit Rupa Rupa</th><th class="num">Total Profit</th></tr></thead><tbody id="profitSalesBody"></tbody></table></div>
-            <div class="profit-wrap" id="profitSalesProdukWrap"><div class="profit-head"><span>PER SALES PER PRODUK</span><span class="muted" id="profitSalesProdukPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesProdukTable"><thead id="profitSalesProdukHead"></thead><tbody id="profitSalesProdukBody"></tbody></table></div></div>
-            <div class="profit-wrap" id="profitBulanWrap"><div class="profit-head"><span>PROFIT PER BULAN</span><span class="muted" id="profitBulanPeriod">—</span></div><table class="profit-table"><thead><tr><th>Bulan</th><th class="num">Total Qty Fitri</th><th class="num">Total Qty Rupa2</th><th class="num">Totl Nominl Fitri</th><th class="num">Total Nominal Rupa2</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th></tr></thead><tbody id="profitBulanBody"></tbody></table></div>
-
-            <div class="empty-state" id="salesEmptyState" style="display:none;">
-                <div class="big">📦</div>
-                <div><strong>Upload file Excel</strong> data penjualan</div>
-                <div class="hint">Kolom: Tanggal, No.Faktur, Produk, Jumlah, Satuan, Harga Jual, Disc, Total, Sales, Customer, Alamat, Pembayaran, Harga Beli.<br>Data diproses di browser Anda.</div>
-            </div>
-            <div class="loading" id="salesLoading" style="display:none;">Memproses file...</div>
         </div>
 
         <!-- TAB CEK -->
@@ -3864,25 +3866,22 @@
             return aoa;
         }
 
-        function switchRingkasanInner(view) {
-            const isGudang = view === 'gudang';
+        let currentGudangSub = 'gudang';
+        function switchGudangMainSub(view) {
+            currentGudangSub = view;
             const isCek = view === 'cek';
-            document.getElementById('ringkasanTabBtnSummary').classList.toggle('active', !isGudang && !isCek);
-            document.getElementById('ringkasanTabBtnGudang').classList.toggle('active', isGudang);
-            document.getElementById('ringkasanTabBtnCek').classList.toggle('active', isCek);
-            const top = document.getElementById('ringkasanSummaryTop');
-            const bottom = document.getElementById('ringkasanSummaryBottom');
+            document.getElementById('gudangTabBtnMain').classList.toggle('active', !isCek);
+            document.getElementById('gudangTabBtnCek').classList.toggle('active', isCek);
             const gudang = document.getElementById('ringkasanGudangWrap');
             const cek = document.getElementById('ringkasanCekWrap');
-            if (top) top.style.display = (isGudang || isCek) ? 'none' : '';
-            if (bottom) bottom.style.display = (isGudang || isCek) ? 'none' : '';
-            if (gudang) gudang.style.display = isGudang ? 'block' : 'none';
+            if (gudang) gudang.style.display = isCek ? 'none' : 'block';
             if (cek) cek.style.display = isCek ? 'block' : 'none';
-            if (isGudang) {
+            if (!isCek) {
                 if (!gudangRendered) renderGudangTable();
                 else renderGudangCards();
+            } else {
+                renderRingkasanCekTab();
             }
-            if (isCek) renderRingkasanCekTab();
         }
 
         function renderRingkasan(rows) {
@@ -4598,8 +4597,6 @@
             }
             const ringkasanCards = document.getElementById('ringkasanSalesCards');
             if (sub !== 'ringkasan' && ringkasanCards) ringkasanCards.classList.remove('show');
-            const ringkasanDateWrap = document.getElementById('ringkasanDateWrap');
-            if (ringkasanDateWrap) ringkasanDateWrap.style.display = sub === 'ringkasan' ? 'flex' : 'none';
             document.getElementById('ringkasanLastDayWrap').classList.toggle('show', sub === 'ringkasan');
             document.getElementById('ringkasanFitriWrap').classList.toggle('show', sub === 'ringkasan');
             document.getElementById('ringkasanRupaWrap').classList.toggle('show', sub === 'ringkasan');
@@ -7955,7 +7952,7 @@
         })();
 
         function switchTab(tab) {
-            const tabs = ['faktur', 'penjualan', 'cek', 'rapikan'];
+            const tabs = ['faktur', 'penjualan', 'gudang', 'cek', 'rapikan'];
             tabs.forEach(t => {
                 const panelName = t === 'cek' ? 'tabCek' : ('tab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const btnName = t === 'cek' ? 'tabBtnCek' : ('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -7967,7 +7964,13 @@
             if (tab === 'rapikan') {
                 document.getElementById('tabBtnFaktur').classList.remove('active');
                 document.getElementById('tabBtnPenjualan').classList.remove('active');
+                document.getElementById('tabBtnGudang').classList.remove('active');
                 document.getElementById('tabBtnCek').classList.remove('active');
+            }
+            if (tab === 'gudang') {
+                // Render ulang sub-view Data Gudang / Cek Beda yang sedang aktif
+                // supaya datanya selalu up to date saat tab ini dibuka.
+                switchGudangMainSub(currentGudangSub);
             }
             if (tab === 'cek') {
                 // Cukup render ulang tampilan; cache faktur/sales hanya perlu
@@ -8206,7 +8209,7 @@
             switchCekSub, toggleCekBulanPanel, onCekBulanAllChange, onCekBulanItemChange,
             toggleCekDownloadMenu, renderCekTable, resetCekSearch, downloadCekExcel,
             pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
-            installApp, toggleRingkasanRupaShowAll, switchRingkasanInner,
+            installApp, toggleRingkasanRupaShowAll, switchGudangMainSub,
             onRingkasanDateFilterChange, clearRingkasanDateFilter,
             openRingkasanInvestigationModal, closeRingkasanInvestigationModal, performRingkasanInvestigation,
             renderRingkasanCekTab,
