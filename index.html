@@ -4448,20 +4448,33 @@
                 const hargaJual = Number(r.hargaJual) || 0;
                 const total = Number(r.total) || 0;
                 salesSet.add(sales);
-                if (!map[produk]) map[produk] = { produk, satuan: r.satuan || '', salesQty: {}, totalQty: 0, beliXQty: 0, jualXQty: 0, profit: 0 };
+                if (!map[produk]) map[produk] = { produk, satuan: r.satuan || '', salesQty: {}, totalQty: 0, beliXQty: 0, jualXQty: 0, profit: 0, minHargaJual: Infinity, maxHargaJual: -Infinity };
                 const g = map[produk];
                 g.salesQty[sales] = (g.salesQty[sales] || 0) + qty;
                 g.totalQty += qty;
                 g.beliXQty += hargaBeli * qty;
                 g.jualXQty += hargaJual * qty;
                 g.profit += total - (hargaBeli * qty);
+                // Track min dan max harga jual
+                if (hargaJual > 0) {
+                    g.minHargaJual = Math.min(g.minHargaJual, hargaJual);
+                    g.maxHargaJual = Math.max(g.maxHargaJual, hargaJual);
+                }
                 if (!g.satuan && r.satuan) g.satuan = r.satuan;
             }
-            // Harga beli & harga jual per satuan = rata-rata tertimbang (total nilai
-            // dibagi total qty), ditampilkan sebagai 2 kolom baru di tabel/download.
+            // Harga beli per satuan = rata-rata tertimbang (total nilai dibagi total qty)
+            // Harga jual = tampilkan sebagai range (terendah - tertinggi)
             Object.values(map).forEach(g => {
                 g.hargaBeliSatuan = g.totalQty ? (g.beliXQty / g.totalQty) : 0;
-                g.hargaJualSatuan = g.totalQty ? (g.jualXQty / g.totalQty) : 0;
+                // Ganti hargaJualSatuan dengan range display
+                if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
+                    g.hargaJualRange = '—';
+                } else if (g.minHargaJual === g.maxHargaJual) {
+                    g.hargaJualRange = fmt(g.minHargaJual);
+                } else {
+                    g.hargaJualRange = fmt(g.minHargaJual) + ' - ' + fmt(g.maxHargaJual);
+                }
+                g.hargaJualSatuan = g.totalQty ? (g.jualXQty / g.totalQty) : 0; // Simpan untuk referensi/export
             });
             const preferred = ['RAJU','HAFID','JOSSY','GC','PARIMIN'];
             const salesList = Array.from(salesSet).sort((a,b) => {
@@ -4483,7 +4496,7 @@
             body.innerHTML = lastProfitSalesProdukRows.map((r,i) => {
                 totals.qty += r.totalQty; totals.beli += r.beliXQty; totals.jual += r.jualXQty; totals.profit += r.profit;
                 return '<tr><td>'+esc(r.produk)+'</td>' + salesList.map(s => { const q=r.salesQty[s]||0; totals.sales[s]=(totals.sales[s]||0)+q; return '<td class="num">'+(q ? q.toLocaleString('id-ID') : '')+'</td>'; }).join('') +
-                    '<td class="num"><strong>'+r.totalQty.toLocaleString('id-ID')+'</strong></td><td>'+esc(r.satuan || '')+'</td><td class="num">'+fmt(r.hargaBeliSatuan)+'</td><td class="num">'+fmt(r.hargaJualSatuan)+'</td><td class="num">'+fmt(r.beliXQty)+'</td><td class="num">'+fmt(r.jualXQty)+'</td><td class="num"><strong>'+fmt(r.profit)+'</strong></td></tr>';
+                    '<td class="num"><strong>'+r.totalQty.toLocaleString('id-ID')+'</strong></td><td>'+esc(r.satuan || '')+'</td><td class="num">'+fmt(r.hargaBeliSatuan)+'</td><td class="num">'+r.hargaJualRange+'</td><td class="num">'+fmt(r.beliXQty)+'</td><td class="num">'+fmt(r.jualXQty)+'</td><td class="num"><strong>'+fmt(r.profit)+'</strong></td></tr>';
             }).join('') +
             '<tr class="total-row"><td>TOTAL</td>' + salesList.map(s => '<td class="num">'+(totals.sales[s]||0).toLocaleString('id-ID')+'</td>').join('') +
             '<td class="num">'+totals.qty.toLocaleString('id-ID')+'</td><td></td><td></td><td></td><td class="num">'+fmt(totals.beli)+'</td><td class="num">'+fmt(totals.jual)+'</td><td class="num">'+fmt(totals.profit)+'</td></tr>';
@@ -4751,7 +4764,7 @@
                 lastProfitSalesProdukRows.forEach(r => {
                     salesList.forEach(s => totals.sales[s]=(totals.sales[s]||0)+(r.salesQty[s]||0));
                     totals.qty+=r.totalQty; totals.beli+=r.beliXQty; totals.jual+=r.jualXQty; totals.profit+=r.profit;
-                    aoa.push([r.produk].concat(salesList.map(s => r.salesQty[s]||0)).concat([r.totalQty,r.satuan||'',r.hargaBeliSatuan,r.hargaJualSatuan,r.beliXQty,r.jualXQty,r.profit]));
+                    aoa.push([r.produk].concat(salesList.map(s => r.salesQty[s]||0)).concat([r.totalQty,r.satuan||'',r.hargaBeliSatuan,r.hargaJualRange,r.beliXQty,r.jualXQty,r.profit]));
                 });
                 aoa.push(['TOTAL'].concat(salesList.map(s=>totals.sales[s]||0)).concat([totals.qty,'','','',totals.beli,totals.jual,totals.profit]));
             } else if (currentSalesSub === 'bulan') {
