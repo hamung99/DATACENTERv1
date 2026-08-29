@@ -3955,19 +3955,29 @@
             scopeDates.sort();
 
             // ---- Kumpulkan semua produk Fitri (dari penjualan & dari gudang) ----
-            // PENTING: disatukan berdasarkan nama yang SUDAH DINORMALISASI
-            // (normalizeGudangName -> huruf besar & tanpa spasi/simbol), supaya
-            // varian ejaan seperti "FITRI BOTOL 800ML" (dari Data Penjualan)
-            // vs "FITRI BOTOL 800 ML" (dari Data Gudang) tidak dianggap 2
-            // produk berbeda -- karena kalau dianggap beda, akan muncul baris
-            // "hantu" (Total Penjualan 0 vs Output Gudang X) padahal
-            // penjualannya sebenarnya sudah tercatat, cuma di bawah ejaan lain.
+            // PENTING:
+            // 1) Hanya produk FITRI yang dipakai (bukan seluruh daftar Data
+            //    Gudang) -- tab ini memang khusus PENJUALAN FITRI vs OUTPUT
+            //    GUDANG, jadi produk lain seperti RIZKI BOTOL, BONUS MINYAK
+            //    CURAH, MINYAK GORENG CURAH, FRAISWELL, dll TIDAK relevan &
+            //    tidak boleh muncul di filter/pengecekan ini.
+            // 2) Disatukan berdasarkan nama yang SUDAH DINORMALISASI
+            //    (normalizeGudangName -> huruf besar & tanpa spasi/simbol),
+            //    supaya varian ejaan seperti "FITRI BOTOL 800ML" (dari Data
+            //    Penjualan) vs "FITRI BOTOL 800 ML" (dari Data Gudang) tidak
+            //    dianggap 2 produk berbeda -- kalau dianggap beda, muncul
+            //    baris "hantu" (Total Penjualan 0 vs Output Gudang X) padahal
+            //    penjualannya sebenarnya sudah tercatat, cuma di ejaan lain.
             const produkCanon = {}; // normKey -> nama tampilan (canonical)
-            // Prioritaskan nama dari Data Gudang sebagai nama tampilan resmi
+            // Prioritaskan nama dari Data Gudang (yang mengandung "FITRI")
+            // sebagai nama tampilan resmi.
             (GUDANG_DATA.products || []).forEach(p => {
+                if (!isFitriProduk(p.name)) return; // skip produk non-Fitri
                 const norm = normalizeGudangName(p.name);
                 if (norm && !produkCanon[norm]) produkCanon[norm] = p.name;
             });
+            // fitriRowsAll sudah pasti produk Fitri (sudah difilter isFitriProduk
+            // di atas), jadi semua nama dari sini aman dimasukkan.
             fitriRowsAll.forEach(r => {
                 const p = (r.produk || '').trim();
                 const norm = normalizeGudangName(p);
@@ -3994,6 +4004,7 @@
                 txByDateProduk[iso][normKey].push({
                     noFaktur: (r.noFaktur || '').trim() || '—',
                     sales: (r.sales || '').trim() || '—',
+                    satuan: (r.satuan || '').trim() || 'pcs',
                     qty
                 });
             });
@@ -4029,11 +4040,10 @@
 
                     let rowStyle = '', statusHtml;
                     if (status === 'mismatch') {
-                        rowStyle = ' style="background-color:var(--yellow-bg);color:var(--yellow);"';
                         const bedaAbs = Math.abs(selisih).toLocaleString('id-ID');
                         statusHtml = (selisih > 0)
-                            ? ('<strong>⚠ Keluar Gudang LEBIH BANYAK ' + bedaAbs + ' dibanding Data Penjualan</strong>')
-                            : ('<strong>⚠ Keluar Gudang LEBIH SEDIKIT ' + bedaAbs + ' dibanding Data Penjualan</strong>');
+                            ? ('<strong style="color:var(--yellow);">⚠ Keluar Gudang LEBIH BANYAK ' + bedaAbs + ' dibanding Data Penjualan</strong>')
+                            : ('<strong style="color:var(--yellow);">⚠ Keluar Gudang LEBIH SEDIKIT ' + bedaAbs + ' dibanding Data Penjualan</strong>');
                     } else if (status === 'match') {
                         statusHtml = '<span style="color:var(--green,#16a34a);">✅ Cocok</span>';
                     } else {
@@ -4082,7 +4092,7 @@
                             const fakturLinkHtml = (t.noFaktur && t.noFaktur !== '—')
                                 ? ('<span class="faktur-link" title="Klik untuk lihat detail faktur" onclick="openCekBedaFakturDetail(\'' + encodeURIComponent(String(t.noFaktur).trim()) + '\')">' + esc(t.noFaktur) + '</span>')
                                 : esc(t.noFaktur);
-                            const line = fakturLinkHtml + ' · ' + esc(t.sales) + ' (' + t.qty + 'x)';
+                            const line = fakturLinkHtml + ' · ' + esc(t.sales) + ' · Penjualan di Faktur: <strong>' + t.qty + ' ' + esc(t.satuan) + '</strong>';
                             return suspect
                                 ? ('<span style="background:rgba(220,38,38,.16);border-radius:4px;padding:1px 5px;" title="Kemungkinan penyebab: ' + reason + '">🎯 ' + line + '</span>')
                                 : line;
