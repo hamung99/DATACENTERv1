@@ -771,9 +771,14 @@
                 </div>
                 <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                     <div id="ringkasanCekSummary" style="font-size:0.82rem;font-weight:600;"></div>
-                    <label style="font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
-                        <input type="checkbox" id="ringkasanCekShowAll" onchange="renderRingkasanCekTab()"> Tampilkan semua (termasuk yang Cocok)
-                    </label>
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <select id="ringkasanCekFilterProduk" onchange="renderRingkasanCekTab()" style="font-size:0.78rem;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
+                            <option value="all">Semua Produk</option>
+                        </select>
+                        <label style="font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+                            <input type="checkbox" id="ringkasanCekShowAll" onchange="renderRingkasanCekTab()"> Tampilkan semua (termasuk yang Cocok)
+                        </label>
+                    </div>
                 </div>
                 <div style="overflow-x:auto;">
                     <table class="modal-table" style="width:100%;font-size:0.8rem;">
@@ -3932,7 +3937,7 @@
         // Fungsi inti: hitung baris investigasi (tanggal x produk) dengan opsi
         // showAll (true = tampilkan semua termasuk yang Cocok, false = hanya beda).
         // Dipakai bersama oleh Modal "Investigasi Perbedaan" DAN tab "🔎 Cek Beda".
-        function buildRingkasanCekRows(showAll) {
+        function buildRingkasanCekRows(showAll, filterProduk) {
             const allRows = ringkasanBaseRows || [];
             const fitriRowsAll = allRows.filter(r => isFitriProduk(r.produk) && !isBatalRow(r));
 
@@ -3982,6 +3987,7 @@
                 const tanggalFormat = fmtDateID(dObj) || iso;
 
                 produkList.forEach(produk => {
+                    if (filterProduk && filterProduk !== 'all' && produk !== filterProduk) return;
                     const gp = findGudangProduct(produk);
                     const outputGudang = gp ? getGudangKeluarForDate(gp, iso) : null;
                     const totalPenjualan = (totalByDateProduk[iso] && totalByDateProduk[iso][produk]) || 0;
@@ -4053,7 +4059,10 @@
                                 const minGap = Math.min(prevGap, nextGap);
                                 if (minGap > medianGap * 3 && minGap >= 4) { suspect = true; reason = 'no.faktur meloncat'; }
                             }
-                            const line = esc(t.noFaktur) + ' · ' + esc(t.sales) + ' (' + t.qty + 'x)';
+                            const fakturLinkHtml = (t.noFaktur && t.noFaktur !== '—')
+                                ? ('<span class="faktur-link" title="Klik untuk lihat detail faktur" onclick="openCekBedaFakturDetail(\'' + encodeURIComponent(String(t.noFaktur).trim()) + '\')">' + esc(t.noFaktur) + '</span>')
+                                : esc(t.noFaktur);
+                            const line = fakturLinkHtml + ' · ' + esc(t.sales) + ' (' + t.qty + 'x)';
                             return suspect
                                 ? ('<span style="background:rgba(220,38,38,.16);border-radius:4px;padding:1px 5px;" title="Kemungkinan penyebab: ' + reason + '">🎯 ' + line + '</span>')
                                 : line;
@@ -4080,7 +4089,7 @@
                 });
             });
 
-            return { rowsHtml, mismatchCount };
+            return { rowsHtml, mismatchCount, produkList };
         }
 
         function performRingkasanInvestigation() {
@@ -4101,12 +4110,101 @@
             }
         }
 
+        // ---- Modal detail faktur untuk tab "🔎 Cek Beda" — dipanggil saat
+        // No Faktur di kolom "Detail Transaksi" diklik. Menampilkan seluruh
+        // item dalam faktur tsb (dari Data Penjualan) supaya gampang
+        // dicocokkan ke nota fisik.
+        function openCekBedaFakturDetail(encodedFaktur) {
+            const faktur = decodeURIComponent(String(encodedFaktur || '')).trim();
+            document.getElementById('cekTempoModalTitle').textContent = 'Detail Faktur ' + (faktur || '—');
+            const actionsEl = document.getElementById('cekTempoModalActions');
+            if (actionsEl) actionsEl.innerHTML = '';
+
+            if (!faktur || faktur === '—') return;
+            const rows = (salesRows || []).filter(r => String(r.noFaktur || '').trim() === faktur);
+
+            if (!rows.length) {
+                document.getElementById('cekTempoModalSub').textContent = '—';
+                document.getElementById('cekTempoCustomer').textContent = '—';
+                document.getElementById('cekTempoSales').textContent = '—';
+                document.getElementById('cekTempoAlamat').textContent = '—';
+                document.getElementById('cekTempoModalStatus').innerHTML = '';
+                document.getElementById('cekTempoModalStats').innerHTML = '';
+                document.getElementById('cekTempoModalProduk').innerHTML = '';
+                document.getElementById('cekTempoModalConclusion').innerHTML =
+                    '<span class="muted">Tidak ditemukan detail transaksi untuk No Faktur ini di Data Penjualan.</span>';
+                document.getElementById('cekTempoDetailModal').classList.add('open');
+                return;
+            }
+
+            const first = rows[0];
+            const totalNominal = rows.reduce((s, r) => s + (Number(r.total) || 0), 0);
+            const totalQty = rows.reduce((s, r) => s + (Number(r.jumlah) || 0), 0);
+
+            document.getElementById('cekTempoModalSub').textContent =
+                (first.customer || '—') + (first.alamat ? ' · ' + first.alamat : '');
+            document.getElementById('cekTempoCustomer').textContent = first.customer || '—';
+            document.getElementById('cekTempoSales').textContent = first.sales || '—';
+            document.getElementById('cekTempoAlamat').textContent = first.alamat || '—';
+
+            const payUp = String(first.pembayaran || '').trim().toUpperCase();
+            const isCashRow = payUp === 'CASH' || payUp.startsWith('CASH') || payUp === 'TUNAI';
+            const payLabel = first.pembayaran ? (isCashRow ? '💵 CASH' : '📅 TEMPO') : '—';
+            const payColor = isCashRow ? 'var(--green,#16a34a)' : 'var(--accent)';
+            document.getElementById('cekTempoModalStatus').innerHTML =
+                '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;color:#fff;background:' +
+                payColor + ';">' + payLabel + '</span>';
+
+            document.getElementById('cekTempoModalStats').innerHTML =
+                '<div class="modal-stat"><div class="l">Tanggal Transaksi</div><div class="v">' + esc(first.tanggal || '—') + '</div></div>' +
+                '<div class="modal-stat"><div class="l">Jumlah Item</div><div class="v">' + rows.length.toLocaleString('id-ID') + '</div></div>' +
+                '<div class="modal-stat"><div class="l">Total Qty</div><div class="v">' + totalQty.toLocaleString('id-ID') + '</div></div>' +
+                '<div class="modal-stat"><div class="l">Total Nominal Faktur</div><div class="v">' + fmt(totalNominal) + '</div></div>';
+
+            let ph = '<div class="l" style="margin-bottom:6px;font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;">Rincian Produk dalam Faktur ini</div>' +
+                '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.8rem;">' +
+                '<thead><tr style="border-bottom:1px solid var(--border);text-align:left;">' +
+                '<th style="padding:5px 6px;">Produk</th><th style="padding:5px 6px;text-align:right;">Jumlah</th>' +
+                '<th style="padding:5px 6px;">Satuan</th><th style="padding:5px 6px;text-align:right;">Harga Jual</th>' +
+                '<th style="padding:5px 6px;text-align:right;">Disc</th><th style="padding:5px 6px;text-align:right;">Total</th></tr></thead><tbody>';
+            for (const it of rows) {
+                ph += '<tr style="border-bottom:1px solid var(--border);">' +
+                    '<td style="padding:5px 6px;">' + esc(it.produk || '—') + '</td>' +
+                    '<td style="padding:5px 6px;text-align:right;">' + (Number(it.jumlah) || 0).toLocaleString('id-ID') + '</td>' +
+                    '<td style="padding:5px 6px;">' + esc(it.satuan || '—') + '</td>' +
+                    '<td style="padding:5px 6px;text-align:right;">' + fmt(Number(it.hargaJual) || 0) + '</td>' +
+                    '<td style="padding:5px 6px;text-align:right;">' + fmt(Number(it.disc) || 0) + '</td>' +
+                    '<td style="padding:5px 6px;text-align:right;"><strong>' + fmt(Number(it.total) || 0) + '</strong></td>' +
+                    '</tr>';
+            }
+            ph += '</tbody></table></div>';
+            document.getElementById('cekTempoModalProduk').innerHTML = ph;
+
+            document.getElementById('cekTempoModalConclusion').innerHTML =
+                '<span class="muted">Rincian di atas diambil dari Data Penjualan untuk No Faktur ini. Cocokkan dengan nota fisik untuk verifikasi penyebab selisih Output Gudang.</span>';
+
+            document.getElementById('cekTempoDetailModal').classList.add('open');
+        }
+
         // ---- TAB "🔎 Cek Beda" — sama isinya dengan modal Investigasi, tapi
         // ditampilkan langsung sebagai tab (tidak perlu buka modal) ----
         function renderRingkasanCekTab() {
             const showAllChk = document.getElementById('ringkasanCekShowAll');
             const showAll = showAllChk ? showAllChk.checked : false;
-            const { rowsHtml, mismatchCount } = buildRingkasanCekRows(showAll);
+            const filterSel = document.getElementById('ringkasanCekFilterProduk');
+            const filterProduk = filterSel ? filterSel.value : 'all';
+            const { rowsHtml, mismatchCount, produkList } = buildRingkasanCekRows(showAll, filterProduk);
+
+            if (filterSel) {
+                const currentVal = filterSel.value || 'all';
+                const optionsHtml = '<option value="all">Semua Produk</option>' +
+                    produkList.map(p => '<option value="' + esc(p) + '">' + esc(p) + '</option>').join('');
+                if (filterSel.getAttribute('data-opt-key') !== optionsHtml) {
+                    filterSel.innerHTML = optionsHtml;
+                    filterSel.setAttribute('data-opt-key', optionsHtml);
+                    filterSel.value = (currentVal === 'all' || produkList.includes(currentVal)) ? currentVal : 'all';
+                }
+            }
 
             const tbody = document.getElementById('ringkasanCekBody');
             const summaryEl = document.getElementById('ringkasanCekSummary');
@@ -7923,7 +8021,7 @@
             switchTab, toggleTheme, toggleMenu, closeMenu, toggleSalesMenu, closeSalesMenu,
             doSearch, resetSearch, filterBySheet, clearData, switchFakturSub,
             openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, closeCekTempoDetail,
-            openCekAnomaliDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
+            openCekAnomaliDetail, openCekBedaFakturDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
             markFakturLunasManualFromCardModal, openManualLunasHistoryModal, undoManualLunasFromHistoryModal,
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
