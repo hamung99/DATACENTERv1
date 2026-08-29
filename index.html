@@ -764,6 +764,7 @@
                 <button class="cek-subtab-btn" id="cekSubTempo" onclick="switchCekSub('tempo')">📅 Tempo</button>
                 <button class="cek-subtab-btn" id="cekSubNosales" onclick="switchCekSub('nosales')">🧩 Tanpa Penjualan</button>
                 <button class="cek-subtab-btn" id="cekSubAnomali" onclick="switchCekSub('anomali')">🔴 Belum Ada Uang Masuk</button>
+                <button type="button" class="subtab-dl" id="cekLunasManualBtn" onclick="openManualLunasHistoryModal()" title="Lihat/undo semua faktur yang pernah ditandai Lunas Manual">✏️ Riwayat Lunas Manual</button>
                 <div class="subtab-dl-wrap cek-download-wrap" id="cekDownloadWrap">
                     <button type="button" class="subtab-dl" id="cekDownloadBtn" onclick="toggleCekDownloadMenu(event)">📥 Download ▾</button>
                     <div class="subtab-dl-menu" id="cekDownloadMenu">
@@ -2552,12 +2553,16 @@
             }
             html += '</tbody></table></div>';
             document.getElementById('cekTempoModalConclusion').innerHTML = html +
-                '<div style="margin-top:10px;padding:9px 10px;border-radius:8px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);">Faktur ini ada di <b>Data Penjualan</b>, tetapi sampai saat ini tidak ditemukan pencatatan uang masuk untuk faktur ini di <b>Data Uang Masuk</b>. Kalau ternyata faktur ini <b>batal/dibatalkan</b> (bukan lupa dicatat), tandai BATAL di bawah supaya tidak lagi dianggap anomali dan tidak ikut dihitung ke Total Penjualan/Profit.</div>';
+                '<div style="margin-top:10px;padding:9px 10px;border-radius:8px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);">Faktur ini ada di <b>Data Penjualan</b>, tetapi sampai saat ini tidak ditemukan pencatatan uang masuk untuk faktur ini di <b>Data Uang Masuk</b>. Ada 2 kemungkinan tindak lanjut:<br>' +
+                '&nbsp;&nbsp;• Kalau ternyata faktur ini <b>sudah dibayar</b> (misal No.Faktur di Uang Masuk salah ketik / beda jauh sehingga tidak ketemu otomatis), klik <b>✅ Tandai Lunas Manual</b> di bawah supaya masuk hitungan Lunas dan hilang dari daftar Anomali ini.<br>' +
+                '&nbsp;&nbsp;• Kalau ternyata faktur ini <b>batal/dibatalkan</b> (bukan lupa dicatat), tandai <b>🚫 BATAL</b> supaya tidak lagi dianggap anomali dan tidak ikut dihitung ke Total Penjualan/Profit.</div>';
 
             const actionsEl = document.getElementById('cekTempoModalActions');
             if (actionsEl) {
-                actionsEl.innerHTML = '<button class="btn btn-outline" style="border-color:var(--red);color:var(--red);" onclick="markFakturBatalFromModal(encodeURIComponent(\'' +
-                    String(faktur).replace(/'/g, "\\'") + '\'))">🚫 Tandai BATAL</button>';
+                const fakturEscAnomali = String(faktur).replace(/'/g, "\\'");
+                actionsEl.innerHTML =
+                    '<button class="btn btn-outline" style="border-color:var(--green,#16a34a);color:var(--green,#16a34a);margin-right:8px;" onclick="markFakturLunasManualFromModal(encodeURIComponent(\'' + fakturEscAnomali + '\'))">✅ Tandai Lunas Manual</button>' +
+                    '<button class="btn btn-outline" style="border-color:var(--red);color:var(--red);" onclick="markFakturBatalFromModal(encodeURIComponent(\'' + fakturEscAnomali + '\'))">🚫 Tandai BATAL</button>';
             }
             document.getElementById('cekTempoDetailModal').classList.add('open');
         }
@@ -2635,7 +2640,10 @@
                     <td>${esc(r.tipeBayar || '—')}</td>
                     <td class="num">${fmt(r.nominal || 0)}</td>
                     ${showJt ? '<td class="num" style="color:var(--red)"><strong>' + daysOverdue + '+ hari</strong></td>' : ''}
-                    <td><button class="btn btn-outline" style="border-color:var(--red);color:var(--red);padding:3px 8px;font-size:0.72rem;white-space:nowrap;" title="Tandai faktur ini BATAL (kalau ternyata transaksi penjualannya batal)" onclick="markFakturBatalFromCardModal(encodeURIComponent('${fakturEsc}'), '${type}')">🚫 Batal</button></td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn btn-outline" style="border-color:var(--green,#16a34a);color:var(--green,#16a34a);padding:3px 8px;font-size:0.72rem;white-space:nowrap;margin-right:4px;" title="Tandai faktur ini LUNAS manual (kalau ternyata sudah dibayar, misal No.Faktur di Uang Masuk salah ketik)" onclick="markFakturLunasManualFromCardModal(encodeURIComponent('${fakturEsc}'), '${type}')">✅ Lunas</button>
+                        <button class="btn btn-outline" style="border-color:var(--red);color:var(--red);padding:3px 8px;font-size:0.72rem;white-space:nowrap;" title="Tandai faktur ini BATAL (kalau ternyata transaksi penjualannya batal)" onclick="markFakturBatalFromCardModal(encodeURIComponent('${fakturEsc}'), '${type}')">🚫 Batal</button>
+                    </td>
                 </tr>`;
             });
 
@@ -2643,7 +2651,7 @@
             html += `<div style="margin-top:16px;padding:12px;background:var(--accent-soft);border-radius:8px;font-size:0.9rem;">
                 <strong>Total: ${filtered.length} faktur</strong> — Nominal: <strong>${fmt(filtered.reduce((s,r) => s + (r.nominal || 0), 0))}</strong>
             </div>`;
-            html += `<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Kalau ternyata suatu faktur di atas adalah transaksi penjualan yang <b>batal/dibatalkan</b> (bukan lupa dicatat uang masuknya), klik <b>🚫 Batal</b> di baris tersebut. Faktur akan dikeluarkan dari Total Penjualan, Profit, dan daftar Belum Ada Uang Masuk — data asli tetap tersimpan dan bisa di-undo lewat filter "🚫 Transaksi Batal" di tab Data Penjualan.</div>`;
+            html += `<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Kalau ternyata suatu faktur di atas <b>sudah dibayar</b> (misal No.Faktur di Uang Masuk salah ketik / beda jauh sehingga tidak ketemu otomatis), klik <b>✅ Lunas</b> supaya masuk hitungan Lunas dan hilang dari daftar Belum Ada Uang Masuk ini — bisa di-undo lewat detail faktur di sub-tab Tempo. Kalau ternyata faktur adalah transaksi penjualan yang <b>batal/dibatalkan</b> (bukan lupa dicatat uang masuknya), klik <b>🚫 Batal</b>. Faktur akan dikeluarkan dari Total Penjualan, Profit, dan daftar Belum Ada Uang Masuk — data asli tetap tersimpan dan bisa di-undo lewat filter "🚫 Transaksi Batal" di tab Data Penjualan.</div>`;
 
             document.getElementById('tempoJtContent').innerHTML = html;
             document.getElementById('tempoJtModal').classList.add('open');
@@ -2667,6 +2675,73 @@
 
         function closeTempoJtModal() {
             document.getElementById('tempoJtModal').classList.remove('open');
+        }
+
+        // ---- Riwayat Lunas Manual: daftar semua faktur yang pernah ditandai
+        // LUNAS secara manual (lewat "✅ Tandai Lunas Manual" / "✅ Lunas" di
+        // sub-tab Belum Ada Uang Masuk atau Tempo), lengkap dengan tombol Undo.
+        // Dibaca langsung dari manualLunasMap supaya tetap terlihat/undoable
+        // meskipun faktur tsb sudah "hilang" dari daftar Anomali/Tempo. ----
+        function openManualLunasHistoryModal() {
+            const entries = Object.keys(manualLunasMap).map(k => manualLunasMap[k]).sort((a, b) => {
+                const da = a.date ? new Date(a.date).getTime() : 0;
+                const db = b.date ? new Date(b.date).getTime() : 0;
+                return db - da;
+            });
+            document.getElementById('tempoJtModalTitle').textContent = '✏️ Riwayat Lunas Manual';
+            if (!entries.length) {
+                document.getElementById('tempoJtContent').innerHTML =
+                    '<div style="padding:20px;text-align:center;color:var(--muted);">Belum ada faktur yang ditandai Lunas Manual.</div>';
+                document.getElementById('tempoJtModal').classList.add('open');
+                return;
+            }
+            let html = `<div style="margin-bottom:10px;font-size:0.8rem;color:var(--muted);">Faktur di bawah ini ditandai LUNAS secara manual (bukan hasil matching otomatis dengan Data Uang Masuk), sehingga tidak lagi muncul di daftar "Belum Ada Uang Masuk". Klik <b>↩️ Undo</b> untuk mengembalikan status faktur ke hasil matching otomatis.</div>`;
+            html += `<table class="modal-table"><thead><tr><th>No Faktur</th><th>Catatan</th><th>Ditandai Pada</th><th>Aksi</th></tr></thead><tbody>`;
+            entries.forEach(e => {
+                const fakturEsc = String(e.noFaktur || '').replace(/'/g, "\\'");
+                const tgl = e.date ? fmtCekTanggalTampilan(e.date, new Date(e.date)) : '—';
+                html += `<tr>
+                    <td><strong>${esc(e.noFaktur || '—')}</strong></td>
+                    <td>${esc(e.note || '—')}</td>
+                    <td>${esc(tgl)}</td>
+                    <td><button class="btn btn-outline" style="padding:3px 8px;font-size:0.72rem;white-space:nowrap;" onclick="undoManualLunasFromHistoryModal(encodeURIComponent('${fakturEsc}'))">↩️ Undo</button></td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            html += `<div style="margin-top:12px;padding:10px 12px;background:var(--accent-soft);border-radius:8px;font-size:0.85rem;"><strong>Total: ${entries.length} faktur</strong> ditandai Lunas Manual.</div>`;
+            document.getElementById('tempoJtContent').innerHTML = html;
+            document.getElementById('tempoJtModal').classList.add('open');
+        }
+
+        async function undoManualLunasFromHistoryModal(encodedFaktur) {
+            const faktur = decodeURIComponent(String(encodedFaktur || ''));
+            if (!confirm('Batalkan tanda LUNAS manual untuk faktur ' + faktur + '?\n\nStatus faktur akan kembali mengikuti hasil matching otomatis dengan Data Uang Masuk (bisa muncul lagi di daftar Belum Ada Uang Masuk kalau memang belum ketemu).')) return;
+            const changed = setFakturManualLunas(faktur, false);
+            if (!changed) return;
+            populateSalesFilters();
+            doSalesSearch();
+            if (typeof renderCekTable === 'function') await renderCekTable();
+            openManualLunasHistoryModal();
+            alert('Tanda LUNAS manual untuk faktur ' + faktur + ' sudah dibatalkan.');
+        }
+
+        // Tandai faktur LUNAS MANUAL langsung dari modal detail kartu Anomali
+        // (list "Belum Ada Uang Masuk"), lalu refresh modal & tabel/kartu Cek Data
+        // supaya faktur yang baru ditandai lunas langsung hilang dari daftar
+        // anomali (tidak lagi dianggap belum ada uang masuk).
+        async function markFakturLunasManualFromCardModal(encodedFaktur, type) {
+            const faktur = decodeURIComponent(String(encodedFaktur || ''));
+            const note = prompt('Catatan (opsional) — misal: "Sudah dibayar, No.Faktur di Uang Masuk salah ketik":', '');
+            if (note === null) return; // user cancel
+            if (!confirm('Tandai faktur ' + faktur + ' sebagai LUNAS (manual)?\n\nIni hanya menandai status di aplikasi berdasarkan pengecekan Anda -- TIDAK mengubah Data Uang Masuk asli. Faktur akan dikeluarkan dari daftar "Belum Ada Uang Masuk". Sebaiknya tetap lengkapi/perbaiki Data Uang Masuk supaya rekap tetap akurat. Bisa di-undo kapan saja lewat detail faktur ini di sub-tab Tempo.')) return;
+            const changed = setFakturManualLunas(faktur, true, note.trim());
+            if (!changed) return;
+            populateSalesFilters();
+            doSalesSearch();
+            if (typeof renderCekTable === 'function') await renderCekTable();
+            // Refresh isi modal pakai data anomali terbaru (yang sudah lunas otomatis hilang)
+            openCekAnomaliCardModal(lastCekRows || [], type);
+            alert('Faktur ' + faktur + ' berhasil ditandai LUNAS (manual).');
         }
 
         // ---- Modal Faktur ----
@@ -5240,6 +5315,11 @@
                     const nk = normFakturKey(g.noFaktur);
                     if (nk && umFakturNormMap.has(nk)) continue;
                     if (fuzzyResolved.has(g.noFaktur)) continue;
+                    // Faktur yang sudah ditandai LUNAS MANUAL oleh user (mis. ternyata
+                    // sudah dibayar tapi No.Faktur di Uang Masuk salah ketik / beda jauh)
+                    // dikeluarkan dari daftar Anomali, sama seperti faktur BATAL -- supaya
+                    // "masuk data Lunas" dan tidak terus dianggap belum ada uang masuk.
+                    if (getManualLunasInfo(g.noFaktur)) continue;
                     g.statusCek = 'Anomali';
                     g.pembayaran = g.tipeBayar;
                     // Kategori produk faktur: FITRI, RUPA2, atau CAMPUR (dua-duanya ada
@@ -7197,6 +7277,7 @@
             openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, closeCekTempoDetail,
             openCekAnomaliDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
+            markFakturLunasManualFromCardModal, openManualLunasHistoryModal, undoManualLunasFromHistoryModal,
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
             downloadFakturExcel,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
