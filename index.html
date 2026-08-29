@@ -697,13 +697,6 @@
             <div class="sales-cards-grid" id="salesCardsGrid"></div>
 
             <!-- RINGKASAN -->
-            <div class="ringkasan-rupa-controls" id="ringkasanDateWrap" style="margin-bottom:10px;">
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--muted);white-space:nowrap;">
-                    📅 Filter Tanggal
-                    <input type="date" id="ringkasanDateFilter" onchange="onRingkasanDateFilterChange()">
-                </label>
-                <button type="button" class="btn btn-outline" id="ringkasanDateClearBtn" style="font-size:0.72rem;padding:5px 10px;display:none;" onclick="clearRingkasanDateFilter()">✕ Hapus Filter Tanggal</button>
-            </div>
             <div class="sales-cards" id="ringkasanSalesCards" style="margin-bottom:10px;"></div>
 
             <div class="profit-wrap show" id="ringkasanLastDayWrap">
@@ -712,6 +705,14 @@
                     <span class="muted" id="ringkasanLastDayMeta">—</span>
                 </div>
                 <div id="ringkasanLastDayBody"></div>
+            </div>
+
+            <div class="ringkasan-rupa-controls" id="ringkasanDateWrap" style="margin-bottom:10px;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--muted);white-space:nowrap;">
+                    📅 Filter Tanggal
+                    <input type="date" id="ringkasanDateFilter" onchange="onRingkasanDateFilterChange()">
+                </label>
+                <button type="button" class="btn btn-outline" id="ringkasanDateClearBtn" style="font-size:0.72rem;padding:5px 10px;display:none;" onclick="clearRingkasanDateFilter()">✕ Hapus Filter Tanggal</button>
             </div>
 
             <div class="profit-wrap show" id="ringkasanFitriWrap">
@@ -3411,23 +3412,25 @@
 
         function renderRingkasan(rows) {
             if (rows) ringkasanBaseRows = rows;
-            let baseRows = ringkasanBaseRows;
-            if (ringkasanFilterDate) {
-                baseRows = baseRows.filter(r => ringkasanDateToISO(parseSalesDate(r.tanggal)) === ringkasanFilterDate);
-            }
-            const fitriRows = baseRows.filter(r => isFitriProduk(r.produk));
-            const rupaRows = baseRows.filter(r => !isFitriProduk(r.produk));
-            const pivotFitriFull = buildRingkasanPivot(fitriRows);
+            const allRows = ringkasanBaseRows;
+            const fitriRowsAll = allRows.filter(r => isFitriProduk(r.produk));
+
+            // Kartu & "Hari Terakhir" selalu memakai data periode penuh (tidak ikut filter tanggal)
+            const pivotFitriFull = buildRingkasanPivot(fitriRowsAll);
             renderRingkasanCards(pivotFitriFull);
-            const lastDayWrap = document.getElementById('ringkasanLastDayWrap');
+            renderRingkasanLastDay(fitriRowsAll);
+
+            // Filter tanggal HANYA berlaku untuk tabel PENJUALAN FITRI & RUPA RUPA
+            let filteredRows = allRows;
             if (ringkasanFilterDate) {
-                if (lastDayWrap) lastDayWrap.classList.remove('show');
-            } else {
-                if (lastDayWrap) lastDayWrap.classList.add('show');
-                renderRingkasanLastDay(fitriRows);
+                filteredRows = filteredRows.filter(r => ringkasanDateToISO(parseSalesDate(r.tanggal)) === ringkasanFilterDate);
             }
+            const fitriRows = filteredRows.filter(r => isFitriProduk(r.produk));
+            const rupaRows = filteredRows.filter(r => !isFitriProduk(r.produk));
+
+            const pivotFitriTable = buildRingkasanPivot(fitriRows);
             const fitriBody = document.getElementById('ringkasanFitriBody');
-            if (fitriBody) fitriBody.innerHTML = renderRingkasanPivotTable(pivotFitriFull);
+            if (fitriBody) fitriBody.innerHTML = renderRingkasanPivotTable(pivotFitriTable);
             const fitriPeriod = document.getElementById('ringkasanFitriPeriod');
             if (fitriPeriod) {
                 if (ringkasanFilterDate) {
