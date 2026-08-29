@@ -3291,7 +3291,7 @@
                     fmt(Math.ceil(marginFlag.minHargaJual)) + ' (toleransi Rp' + fmt(marginFlag.tolerance) + ', batas bawah ' +
                     fmt(Math.ceil(marginFlag.batasBawah)) + ')">' + fmt(r.hargaJual) + ' ⚠️</td>')
                 : ('<td class="num">' + fmt(r.hargaJual) + '</td>');
-            return '<tr' + (isBatalRow(r) ? ' style="opacity:0.65;"' : (marginFlag ? ' style="background:rgba(220,38,38,.06);"' : '')) + '>' +
+            return '<tr' + (isBatalRow(r) ? ' style="background:rgba(236,72,153,.16);"' : (marginFlag ? ' style="background:rgba(220,38,38,.06);"' : '')) + '>' +
                 '<td>' + esc(r.tanggal) + '<br><span class="muted" style="font-size:0.7rem">' + esc(r.sheet) +
                 '</span></td>' +
                 '<td class="faktur">' + esc(r.noFaktur) + batalHtml + '</td>' +
@@ -4445,6 +4445,8 @@
                 const payBadge = isCash
                     ? '<span class="sc-badge sc-badge-cash">CASH</span>'
                     : '<span class="sc-badge sc-badge-tempo">' + esc(inv.pembayaran || 'Tempo') + '</span>';
+                const invIsBatal = inv.items.some(isBatalRow);
+                const batalBadge = invIsBatal ? '<span class="sc-badge" style="background:rgba(236,72,153,.22);color:#be185d;">🚫 BATAL</span>' : '';
                 let itemsHtml = '';
                 for (const it of inv.items) {
                     const disc = Number(it.disc) || 0;
@@ -4465,7 +4467,7 @@
                         '<td class="num">' + (Number(it.total) || 0).toLocaleString('id-ID') + '</td>' +
                         '</tr>';
                 }
-                html += '<div class="sc-invoice">' +
+                html += '<div class="sc-invoice"' + (invIsBatal ? ' style="background:rgba(236,72,153,.14);"' : '') + '>' +
                     '<div class="sc-inv-head">' +
                     '<span class="sc-inv-faktur">' + esc(inv.noFaktur) + '</span>' +
                     '<div><div class="sc-inv-toko">' + esc(inv.customer || '—') + '</div>' +
@@ -4473,6 +4475,7 @@
                     '<div class="sc-inv-badges">' +
                     (inv.sales ? '<span class="sc-badge sc-badge-sales">' + esc(inv.sales) + '</span>' : '') +
                     payBadge +
+                    batalBadge +
                     '</div></div>' +
                     '<div class="sc-inv-body"><table class="sc-inv-table"><thead><tr>' +
                     '<th>Item</th><th>Qty</th><th>Harga</th><th style="text-align:right">Subtotal</th>' +
