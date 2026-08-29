@@ -2681,14 +2681,16 @@
         function markFakturBatalFromModal(encodedFaktur) {
             const faktur = decodeURIComponent(String(encodedFaktur || ''));
             if (!confirm('Tandai faktur ' + faktur + ' sebagai BATAL?\n\nFaktur ini akan dikeluarkan dari Total Penjualan, Profit, dan daftar "Belum Ada Uang Masuk". Data asli TIDAK dihapus — bisa dilihat dan di-undo lewat filter "🚫 Transaksi Batal" di tab Data Penjualan.')) return;
-            const changed = setFakturBatalStatus(faktur, true);
-            if (changed) {
-                closeCekTempoDetail();
-                populateSalesFilters();
-                doSalesSearch();
-                if (typeof renderCekTable === 'function') renderCekTable();
-                alert('Faktur ' + faktur + ' berhasil ditandai BATAL.');
+            const result = setFakturBatalStatus(faktur, true);
+            if (!result.found) {
+                alert('Faktur ' + faktur + ' tidak ditemukan persis di Data Penjualan, jadi belum bisa ditandai BATAL otomatis. Cek No.Faktur-nya lewat tab Data Penjualan → Transaksi, atau muat ulang halaman dulu lalu coba lagi.');
+                return;
             }
+            closeCekTempoDetail();
+            populateSalesFilters();
+            doSalesSearch();
+            if (typeof renderCekTable === 'function') renderCekTable();
+            alert('Faktur ' + faktur + ' berhasil ditandai BATAL.');
         }
 
         // ---- Modal Tempo Sudah JT (dan detail kartu Anomali lain: Jml/Nominal/Cash) ----
@@ -2774,8 +2776,11 @@
         async function markFakturBatalFromCardModal(encodedFaktur, type) {
             const faktur = decodeURIComponent(String(encodedFaktur || ''));
             if (!confirm('Tandai faktur ' + faktur + ' sebagai BATAL?\n\nFaktur ini akan dikeluarkan dari Total Penjualan, Profit, dan daftar "Belum Ada Uang Masuk". Data asli TIDAK dihapus — bisa dilihat dan di-undo lewat filter "🚫 Transaksi Batal" di tab Data Penjualan.')) return;
-            const changed = setFakturBatalStatus(faktur, true);
-            if (!changed) return;
+            const result = setFakturBatalStatus(faktur, true);
+            if (!result.found) {
+                alert('Faktur ' + faktur + ' tidak ditemukan persis di Data Penjualan, jadi belum bisa ditandai BATAL otomatis. Cek No.Faktur-nya lewat tab Data Penjualan → Transaksi, atau muat ulang halaman dulu lalu coba lagi.');
+                return;
+            }
             populateSalesFilters();
             doSalesSearch();
             if (typeof renderCekTable === 'function') await renderCekTable();
@@ -3206,15 +3211,23 @@
         }
         function setFakturBatalStatus(noFaktur, batal) {
             const fk = String(noFaktur || '').trim();
-            if (!fk) return false;
+            if (!fk) return { changed: false, found: false };
+            // 1) Coba cocokkan persis (exact match) dulu.
+            let matches = salesRows.filter(r => String(r.noFaktur || '').trim() === fk);
+            // 2) Kalau tidak ketemu sama sekali, coba cocokkan pakai kunci ternormalisasi
+            //    (buang spasi/strip/leading-zero) -- sama seperti pencocokan Tandai Lunas Manual,
+            //    supaya beda format kecil (mis. karakter tersembunyi/leading zero) tidak bikin gagal diam-diam.
+            if (!matches.length) {
+                const nk = normFakturKey(fk);
+                if (nk) matches = salesRows.filter(r => normFakturKey(r.noFaktur) === nk);
+            }
+            if (!matches.length) return { changed: false, found: false };
             let changed = false;
-            for (const r of salesRows) {
-                if (String(r.noFaktur || '').trim() === fk) {
-                    const next = batal ? 'BATAL' : undefined;
-                    if (r.statusTransaksi !== next) changed = true;
-                    if (batal) r.statusTransaksi = 'BATAL';
-                    else delete r.statusTransaksi;
-                }
+            for (const r of matches) {
+                const next = batal ? 'BATAL' : undefined;
+                if (r.statusTransaksi !== next) changed = true;
+                if (batal) r.statusTransaksi = 'BATAL';
+                else delete r.statusTransaksi;
             }
             if (changed) {
                 cekFakturCacheDirty.cash = true;
@@ -3223,19 +3236,21 @@
                 cekFakturCacheDirty.nosales = true;
                 saveRowsToDBAndSync(salesRows, DB_KEY_SALES);
             }
-            return changed;
+            return { changed, found: true };
         }
 
         function undoFakturBatal(encodedFaktur) {
             const faktur = decodeURIComponent(String(encodedFaktur || ''));
             if (!confirm('Batalkan status BATAL untuk faktur ' + faktur + '?\n\nFaktur akan kembali dihitung normal di Total Penjualan, Profit, dan Belum Ada Uang Masuk (jika belum ada uang masuk).')) return;
-            const changed = setFakturBatalStatus(faktur, false);
-            if (changed) {
-                populateSalesFilters();
-                doSalesSearch();
-                if (typeof renderCekTable === 'function') renderCekTable();
-                alert('Status BATAL untuk faktur ' + faktur + ' sudah dibatalkan (kembali normal).');
+            const result = setFakturBatalStatus(faktur, false);
+            if (!result.found) {
+                alert('Faktur ' + faktur + ' tidak ditemukan di Data Penjualan. Coba muat ulang halaman lalu ulangi.');
+                return;
             }
+            populateSalesFilters();
+            doSalesSearch();
+            if (typeof renderCekTable === 'function') renderCekTable();
+            alert('Status BATAL untuk faktur ' + faktur + ' sudah dibatalkan (kembali normal).');
         }
 
         // ---- Sales cached aggregation ----
