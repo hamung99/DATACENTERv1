@@ -783,7 +783,7 @@
                     <span>🔎 CEK BEDA — TOTAL PENJUALAN vs OUTPUT GUDANG</span>
                 </div>
                 <div style="margin-bottom:12px;font-size:0.8rem;color:var(--muted);">
-                    <p>Daftar <strong>tanggal &amp; produk</strong> yang jumlah Total Penjualan-nya beda dengan Output Gudang, lengkap dengan <strong>No Faktur · Sales · Qty</strong> yang tercatat di tanggal itu — supaya gampang dicocokkan ke nota fisik.</p>
+                    <p>Daftar <strong>tanggal &amp; produk</strong> yang jumlah Total Penjualan-nya beda dengan Output Gudang. <strong>Jangan menilai hanya dari total NET</strong>, karena selisih positif dan negatif antar produk bisa saling menutup. Untuk audit gunakan <strong>BEDA ABSOLUT</strong> dan rincian per tanggal × produk.</p>
                 </div>
                 <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
                     <div id="ringkasanCekSummary" style="font-size:0.82rem;font-weight:600;"></div>
@@ -3579,10 +3579,16 @@
             const thead = '<tr><th>PRODUK</th>' +
                 pivot.salesList.map(s => '<th class="num">' + esc(s) + '</th>').join('') +
                 '<th class="num">TOTAL</th>' +
-                (withGudang ? '<th class="num">OUTPUT GUDANG</th><th>KET</th>' : '') +
+                // PENTING: tampilkan SELISIH per produk agar selisih antar produk
+                // tidak saling menutup saat dijumlahkan di baris TOTAL.
+                (withGudang ? '<th class="num">OUTPUT GUDANG</th><th class="num">SELISIH</th><th>KET</th>' : '') +
                 '</tr>';
             let sumOutputGudang = 0;
             let anyOutputGudang = false;
+            let sumSelisihNet = 0;
+            let sumSelisihAbs = 0;
+            let sumLebihGudang = 0;
+            let sumKurangGudang = 0;
             const bodyRows = products.map(p => {
                 const cells = pivot.salesList.map(s => {
                     const v = (pivot.prodMap[p] && pivot.prodMap[p][s]) || 0;
@@ -3592,19 +3598,40 @@
                 let gudangCells = '';
                 if (withGudang) {
                     const outputVal = getAutoOutputGudang(p);
-                    if (outputVal !== null) { sumOutputGudang += outputVal; anyOutputGudang = true; }
+                    let selisihHtml = '<span class="muted">—</span>';
+                    if (outputVal !== null) {
+                        sumOutputGudang += outputVal;
+                        anyOutputGudang = true;
+                        const selisih = outputVal - tot; // (+) gudang lebih banyak, (-) gudang lebih sedikit
+                        sumSelisihNet += selisih;
+                        sumSelisihAbs += Math.abs(selisih);
+                        if (selisih > 0) sumLebihGudang += selisih;
+                        if (selisih < 0) sumKurangGudang += Math.abs(selisih);
+                        if (selisih > 0) selisihHtml = '<strong style="color:var(--yellow)">+' + selisih.toLocaleString('id-ID') + '</strong>';
+                        else if (selisih < 0) selisihHtml = '<strong style="color:var(--red)">' + selisih.toLocaleString('id-ID') + '</strong>';
+                        else selisihHtml = '<strong style="color:var(--green)">0</strong>';
+                    }
                     gudangCells = '<td class="num">' +
                         (outputVal !== null ? outputVal.toLocaleString('id-ID', { maximumFractionDigits: 2 }) : '<span class="muted">—</span>') +
-                        '</td>' + '<td>' + renderRingkasanKetCell(outputVal, tot) + '</td>';
+                        '</td><td class="num">' + selisihHtml +
+                        '</td><td>' + renderRingkasanKetCell(outputVal, tot) + '</td>';
                 }
                 return '<tr><td>' + esc(p) + '</td>' + cells + '<td class="num"><strong>' + tot.toLocaleString('id-ID') +
                     '</strong></td>' + gudangCells + '</tr>';
             }).join('');
             const totalCells = pivot.salesList.map(s => '<td class="num">' + (pivot.salesTotals[s] || 0).toLocaleString(
                 'id-ID') + '</td>').join('');
+            // Jangan hanya memakai NET SELISIH sebagai indikator utama: +2 dan -2 bisa
+            // saling menghapus. Karena itu tampilkan juga BEDA ABSOLUT (total masalah nyata).
             const totalGudangCells = withGudang ?
                 '<td class="num">' + (anyOutputGudang ? sumOutputGudang.toLocaleString('id-ID') : '—') + '</td>' +
-                '<td>' + renderRingkasanKetCell(anyOutputGudang ? sumOutputGudang : null, pivot.grandTotal) + '</td>' : '';
+                '<td class="num"><strong>' + (anyOutputGudang ? (sumSelisihNet > 0 ? '+' : '') + sumSelisihNet.toLocaleString('id-ID') : '—') + '</strong></td>' +
+                '<td style="font-size:0.72rem;white-space:nowrap;">' + (anyOutputGudang
+                    ? ('NET ' + (sumSelisihNet > 0 ? '+' : '') + sumSelisihNet.toLocaleString('id-ID') +
+                       ' · BEDA ABS ' + sumSelisihAbs.toLocaleString('id-ID') +
+                       ' <span style="color:var(--yellow)">(Gudang lebih ' + sumLebihGudang.toLocaleString('id-ID') +
+                       ' / kurang ' + sumKurangGudang.toLocaleString('id-ID') + ')</span>')
+                    : '—') + '</td>' : '';
             const totalRow = '<tr class="total-row"><td>TOTAL</td>' + totalCells + '<td class="num">' + pivot.grandTotal
                 .toLocaleString('id-ID') + '</td>' + totalGudangCells + '</tr>';
             return '<table class="profit-table"><thead>' + thead + '</thead><tbody>' + bodyRows + totalRow +
@@ -4016,6 +4043,8 @@
 
             let rowsHtml = '';
             let mismatchCount = 0;
+            // Statistik rekonsiliasi: NET saja tidak cukup karena selisih + dan - bisa saling menutup.
+            let statSales = 0, statGudang = 0, statNet = 0, statAbs = 0, statLebih = 0, statKurang = 0, statCompared = 0;
 
             scopeDates.forEach(iso => {
                 const dObj = new Date(iso + 'T00:00:00');
@@ -4041,6 +4070,15 @@
                     if (!showAll && status !== 'mismatch') return; // default: hanya tampilkan yang beda
 
                     const selisih = (outputGudang !== null) ? (outputGudang - totalPenjualan) : null;
+                    if (outputGudang !== null) {
+                        statCompared++;
+                        statSales += totalPenjualan;
+                        statGudang += outputGudang;
+                        statNet += selisih;
+                        statAbs += Math.abs(selisih);
+                        if (selisih > 0) statLebih += selisih;
+                        if (selisih < 0) statKurang += Math.abs(selisih);
+                    }
                     const totalTx = txs.reduce((s, t) => s + t.qty, 0);
 
                     let rowStyle = '', statusHtml;
@@ -4124,7 +4162,7 @@
                 });
             });
 
-            return { rowsHtml, mismatchCount, produkList };
+            return { rowsHtml, mismatchCount, produkList, stats: { sales: statSales, gudang: statGudang, net: statNet, abs: statAbs, lebih: statLebih, kurang: statKurang, compared: statCompared } };
         }
 
         function performRingkasanInvestigation() {
@@ -4228,7 +4266,7 @@
             const showAll = showAllChk ? showAllChk.checked : false;
             const filterSel = document.getElementById('ringkasanCekFilterProduk');
             const filterProduk = filterSel ? filterSel.value : 'all';
-            const { rowsHtml, mismatchCount, produkList } = buildRingkasanCekRows(showAll, filterProduk);
+            const { rowsHtml, mismatchCount, produkList, stats } = buildRingkasanCekRows(showAll, filterProduk);
 
             if (filterSel) {
                 const currentVal = filterSel.value || 'all';
@@ -4244,9 +4282,18 @@
             const tbody = document.getElementById('ringkasanCekBody');
             const summaryEl = document.getElementById('ringkasanCekSummary');
             if (summaryEl) {
-                summaryEl.innerHTML = mismatchCount > 0
-                    ? ('⚠ Ditemukan <span style="color:var(--yellow);">' + mismatchCount + ' baris (tanggal × produk)</span> dengan selisih' + (!showAll ? ' — hanya baris beda yang ditampilkan di bawah.' : '.'))
-                    : '✅ Tidak ada selisih ditemukan untuk periode ini.';
+                if (mismatchCount > 0) {
+                    const netTxt = (stats.net > 0 ? '+' : '') + stats.net.toLocaleString('id-ID');
+                    summaryEl.innerHTML =
+                        '⚠ <span style="color:var(--yellow);">' + mismatchCount + ' baris beda</span> · ' +
+                        'Penjualan <strong>' + stats.sales.toLocaleString('id-ID') + '</strong> vs Gudang <strong>' + stats.gudang.toLocaleString('id-ID') + '</strong> · ' +
+                        'NET <strong>' + netTxt + '</strong> · ' +
+                        '<strong style="color:var(--red);">BEDA ABSOLUT ' + stats.abs.toLocaleString('id-ID') + '</strong> ' +
+                        '<span class="muted">(Gudang lebih ' + stats.lebih.toLocaleString('id-ID') + ' / kurang ' + stats.kurang.toLocaleString('id-ID') + ')</span>' +
+                        (!showAll ? '<div style="font-weight:400;margin-top:3px;color:var(--muted);">Catatan: NET bisa kecil karena selisih positif dan negatif saling menutup. Untuk audit, lihat BEDA ABSOLUT dan rincian per tanggal × produk.</div>' : '');
+                } else {
+                    summaryEl.innerHTML = '✅ Tidak ada selisih ditemukan untuk periode ini.';
+                }
             }
             if (tbody) {
                 tbody.innerHTML = rowsHtml || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);">' +
