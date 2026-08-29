@@ -134,6 +134,7 @@
         .modal-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         .modal-table th, .modal-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
         .modal-table th { background: var(--th-bg); font-weight: 600; color: var(--muted); }
+        #ringkasanCekWrap .modal-table thead th { position: sticky; top: 0; z-index: 1; }
         .modal-table tr:hover { background: var(--table-hover); }
 
         .subtabs { display: none; align-items: center; gap: 0; margin-bottom: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
@@ -5246,7 +5247,7 @@
             } else if (currentSalesSub === 'pay') {
                 if (!lastProfitPayRows.length) renderProfitPay(lastSalesFiltered.length ? lastSalesFiltered :
                     salesRows);
-                sheetName = 'Profit Produk Per Pembayaran';
+                sheetName = 'Profit Per Produk Per Pembayaran';
                 fileName = 'Profit_Per_Produk_Per_Pembayaran_' + safePeriod + '.xlsx';
                 aoa = [
                     ['PROFIT PER PRODUK PER PEMBAYARAN', '', '', '', '', '', period]
