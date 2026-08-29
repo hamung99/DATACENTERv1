@@ -3971,7 +3971,9 @@
         // Dipakai bersama oleh Modal "Investigasi Perbedaan" DAN tab "🔎 Cek Beda".
         function buildRingkasanCekRows(showAll, filterProduk) {
             const allRows = ringkasanBaseRows || [];
-            const fitriRowsAll = allRows.filter(r => isFitriProduk(r.produk) && !isBatalRow(r));
+            const fitriRowsAll = allRows.filter(r => isFitriProduk(r.produk));
+            const fitriRowsAktif = fitriRowsAll.filter(r => !isBatalRow(r));
+            const fitriRowsBatal = fitriRowsAll.filter(r => isBatalRow(r));
 
             // ---- Tentukan tanggal-tanggal yang perlu dicek ----
             let scopeDates = (ringkasanDateScopeISO && ringkasanDateScopeISO.length) ? ringkasanDateScopeISO.slice() : null;
@@ -4023,7 +4025,7 @@
             // ke produk (kanonis) yang sama.
             const txByDateProduk = {};    // iso -> normKey -> [{noFaktur, sales, qty}]
             const totalByDateProduk = {}; // iso -> normKey -> total qty
-            fitriRowsAll.forEach(r => {
+            fitriRowsAktif.forEach(r => {
                 const iso = ringkasanDateToISO(parseSalesDate(r.tanggal));
                 const produkRaw = (r.produk || '').trim();
                 const normKey = normalizeGudangName(produkRaw);
@@ -4037,7 +4039,27 @@
                     noFaktur: (r.noFaktur || '').trim() || '—',
                     sales: (r.sales || '').trim() || '—',
                     satuan: (r.satuan || '').trim() || 'pcs',
-                    qty
+                    qty,
+                    batal: false
+                });
+            });
+            // Transaksi BATAL tidak menambah Total Penjualan, tetapi tetap ditampilkan
+            // sebagai informasi audit karena bisa menjelaskan barang yang masih keluar gudang.
+            const batalByDateProduk = {};
+            fitriRowsBatal.forEach(r => {
+                const iso = ringkasanDateToISO(parseSalesDate(r.tanggal));
+                const produkRaw = (r.produk || '').trim();
+                const normKey = normalizeGudangName(produkRaw);
+                if (!iso || !normKey) return;
+                const qty = Number(r.jumlah) || 0;
+                batalByDateProduk[iso] = batalByDateProduk[iso] || {};
+                batalByDateProduk[iso][normKey] = batalByDateProduk[iso][normKey] || [];
+                batalByDateProduk[iso][normKey].push({
+                    noFaktur: (r.noFaktur || '').trim() || '—',
+                    sales: (r.sales || '').trim() || '—',
+                    satuan: (r.satuan || '').trim() || 'pcs',
+                    qty,
+                    batal: true
                 });
             });
 
@@ -4057,10 +4079,12 @@
                     const outputGudang = gp ? getGudangKeluarForDate(gp, iso) : null;
                     const totalPenjualan = (totalByDateProduk[iso] && totalByDateProduk[iso][normKey]) || 0;
                     const txs = (txByDateProduk[iso] && txByDateProduk[iso][normKey]) || [];
+                    const batalTxs = (batalByDateProduk[iso] && batalByDateProduk[iso][normKey]) || [];
+                    const auditTxs = txs.concat(batalTxs);
 
                     // Lewati kombinasi tanggal+produk yang memang tidak ada
                     // data sama sekali (tidak ada penjualan & tidak ada data gudang)
-                    if (outputGudang === null && totalPenjualan === 0) return;
+                    if (outputGudang === null && totalPenjualan === 0 && batalTxs.length === 0) return;
 
                     let status;
                     if (outputGudang === null) status = 'nogudang';
@@ -4094,13 +4118,13 @@
                     }
 
                     let detailStr;
-                    if (txs.length) {
+                    if (auditTxs.length) {
                         // ---- Deteksi transaksi yang PALING MUNGKIN jadi penyebab selisih ----
                         // Pola 1: qty transaksi itu PERSIS sama dengan |selisih| -> indikasi kuat.
                         // Pola 2: nomor fakturnya "meloncat jauh" dari urutan faktur lain di
                         //         tanggal & produk yang sama (indikasi transaksi nyasar / salah tanggal).
                         const absSelisih = (status === 'mismatch') ? Math.abs(selisih) : null;
-                        const fakturNums = txs.map(t => {
+                        const fakturNums = auditTxs.map(t => {
                             const digits = String(t.noFaktur).replace(/\D/g, '');
                             return digits ? Number(digits) : null;
                         });
@@ -4113,17 +4137,17 @@
                             medianGap = gaps[Math.floor(gaps.length / 2)] || 0;
                         }
                         // Urutkan transaksi berdasarkan nomor faktur supaya lompatan langsung kelihatan
-                        const order = txs.map((t, i) => i).sort((a, b) => {
+                        const order = auditTxs.map((t, i) => i).sort((a, b) => {
                             const na = fakturNums[a], nb = fakturNums[b];
                             if (na === null || nb === null) return 0;
                             return na - nb;
                         });
                         const lines = order.map(i => {
-                            const t = txs[i];
+                            const t = auditTxs[i];
                             const n = fakturNums[i];
                             let suspect = false, reason = '';
                             if (absSelisih !== null && absSelisih > 0 && t.qty === absSelisih) {
-                                suspect = true; reason = 'qty = selisih';
+                                suspect = true; reason = t.batal ? 'qty transaksi BATAL = selisih' : 'qty = selisih';
                             }
                             if (!suspect && n !== null && validNums.length > 2 && medianGap > 0) {
                                 const idx = validNums.indexOf(n);
@@ -4135,17 +4159,23 @@
                             const fakturLinkHtml = (t.noFaktur && t.noFaktur !== '—')
                                 ? ('<span class="faktur-link" title="Klik untuk lihat detail faktur" onclick="openCekBedaFakturDetail(\'' + encodeURIComponent(String(t.noFaktur).trim()) + '\')">' + esc(t.noFaktur) + '</span>')
                                 : esc(t.noFaktur);
-                            const line = fakturLinkHtml + ' · ' + esc(t.sales) + ' · Penjualan di Faktur: <strong>' + t.qty + ' ' + esc(t.satuan) + '</strong>';
+                            const line = (t.batal
+                                ? '<span style="color:var(--red,#dc2626);font-weight:700;">🚫 BATAL</span> ' + fakturLinkHtml
+                                : fakturLinkHtml) + ' · ' + esc(t.sales) + ' · ' +
+                                (t.batal ? 'Qty Faktur Batal: ' : 'Penjualan di Faktur: ') + '<strong>' + t.qty + ' ' + esc(t.satuan) + '</strong>';
                             return suspect
                                 ? ('<span style="background:rgba(220,38,38,.16);border-radius:4px;padding:1px 5px;" title="Kemungkinan penyebab: ' + reason + '">🎯 ' + line + '</span>')
                                 : line;
                         });
                         detailStr = lines.join('<br>') +
-                            '<div style="margin-top:4px;color:var(--muted);">Total dari faktur: <strong>' + totalTx.toLocaleString('id-ID') + 'x</strong>' +
+                            '<div style="margin-top:4px;color:var(--muted);">Total penjualan aktif: <strong>' + totalTx.toLocaleString('id-ID') + 'x</strong>' +
+                            (batalTxs.length ? ' &nbsp;·&nbsp; <span style="color:var(--red,#dc2626);">🚫 Ada ' + batalTxs.length + ' baris transaksi BATAL — tidak dihitung ke Total Penjualan.</span>' : '') +
                             (lines.some(l => l.indexOf('🎯') !== -1) ? ' &nbsp;·&nbsp; <span style="color:#dc2626;">🎯 = kemungkinan penyebab selisih</span>' : '') +
                             '</div>';
                     } else if (status === 'mismatch') {
-                        detailStr = '<span class="muted">Tidak ada transaksi penjualan tercatat pada tanggal ini — cek apakah output gudang salah tanggal / salah produk.</span>';
+                        detailStr = batalTxs.length
+                            ? '<span style="color:var(--red,#dc2626);"><strong>🚫 Ada transaksi BATAL</strong>, tetapi tidak dihitung sebagai penjualan aktif. Cek apakah barang tetap keluar dari gudang atau transaksi batal tersebut seharusnya tidak ikut Output Gudang.</span>'
+                            : '<span class="muted">Tidak ada transaksi penjualan aktif tercatat pada tanggal ini — cek apakah output gudang salah tanggal / salah produk.</span>';
                     } else {
                         detailStr = '<span class="muted">—</span>';
                     }
