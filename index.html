@@ -756,6 +756,7 @@
                     <span>🏭 DATA GUDANG — STOK MINYAK</span>
                     <span class="muted" id="ringkasanGudangPeriod">—</span>
                 </div>
+                <div class="sales-cards" id="ringkasanGudangCards" style="margin-bottom:10px;"></div>
                 <div id="ringkasanGudangBody"></div>
             </div>
 
@@ -3318,6 +3319,7 @@
             const clearBtn = document.getElementById('ringkasanDateClearBtn');
             if (clearBtn) clearBtn.style.display = ringkasanFilterDate ? 'inline-flex' : 'none';
             renderRingkasan();
+            renderGudangCards();
         }
 
         function clearRingkasanDateFilter() {
@@ -3327,6 +3329,7 @@
             const clearBtn = document.getElementById('ringkasanDateClearBtn');
             if (clearBtn) clearBtn.style.display = 'none';
             renderRingkasan();
+            renderGudangCards();
         }
 
         function isFitriProduk(produk) { return (produk || '').toUpperCase().includes('FITRI'); }
@@ -3683,6 +3686,60 @@
             bodyEl.innerHTML = '<div style="overflow-x:auto;"><table class="profit-table">' +
                 '<thead>' + thead + '</thead><tbody>' + bodyRows + '</tbody></table></div>';
             gudangRendered = true;
+            renderGudangCards();
+        }
+
+        // Kartu ringkasan per produk untuk tab Data Gudang: Keluar, Masuk, dan
+        // Stok Akhir dalam periode yang sedang aktif (ikut "Filter Tanggal" yang
+        // sama dengan tabel Ringkasan -- 1 tanggal spesifik, atau 1 bulan penuh
+        // kalau filter tanggal kosong), plus 1 kartu TOTAL untuk semua produk aktif.
+        function renderGudangCards() {
+            const el = document.getElementById('ringkasanGudangCards');
+            if (!el) return;
+            const d = GUDANG_DATA;
+            const products = getActiveGudangProducts();
+            if (!products.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
+            el.classList.add('show');
+
+            // Baris (tanggal) yang termasuk cakupan kartu, ikut filter tanggal aktif.
+            let scopeRows = ringkasanFilterDate ? d.rows.filter(r => r[0] === ringkasanFilterDate) : d.rows;
+            const num = v => (v === null || v === undefined || v === '') ? 0 : Number(v);
+
+            let totalMasuk = 0,
+                totalKeluar = 0,
+                totalStok = 0;
+            let html = products.map(p => {
+                let masuk = 0,
+                    keluar = 0;
+                scopeRows.forEach(r => { masuk += num(r[p.col]); keluar += num(r[p.col + 1]); });
+                // Stok akhir = stok pada tanggal terakhir dalam cakupan; kalau tanggal
+                // yang difilter tidak ada di data gudang, pakai Saldo Awal sebagai fallback.
+                const stokAkhir = scopeRows.length ?
+                    num(scopeRows[scopeRows.length - 1][p.col + 2]) :
+                    num(d.saldo[p.col + 2]);
+                totalMasuk += masuk;
+                totalKeluar += keluar;
+                totalStok += stokAkhir;
+                return '<div class="scard accent-fitri">' +
+                    '<div class="sc-label">' + esc(p.name) + '</div>' +
+                    '<div class="sc-value" style="font-size:1.15rem">' + keluar.toLocaleString('id-ID') + '</div>' +
+                    '<div class="sc-label" style="margin-top:2px;text-transform:none;font-weight:400">Keluar</div>' +
+                    '<div style="display:flex;gap:10px;margin-top:6px;font-size:0.74rem;color:var(--muted)">' +
+                    '<span>Masuk: <strong style="color:var(--text)">' + masuk.toLocaleString('id-ID') + '</strong></span>' +
+                    '<span>Stok Akhir: <strong style="color:var(--text)">' + stokAkhir.toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '</strong></span>' +
+                    '</div></div>';
+            }).join('');
+
+            html += '<div class="scard accent-total">' +
+                '<div class="sc-label">TOTAL (' + products.length + ' PRODUK)</div>' +
+                '<div class="sc-value" style="font-size:1.15rem">' + totalKeluar.toLocaleString('id-ID') + '</div>' +
+                '<div class="sc-label" style="margin-top:2px;text-transform:none;font-weight:400">Keluar</div>' +
+                '<div style="display:flex;gap:10px;margin-top:6px;font-size:0.74rem;color:var(--muted)">' +
+                '<span>Masuk: <strong style="color:var(--text)">' + totalMasuk.toLocaleString('id-ID') + '</strong></span>' +
+                '<span>Stok Akhir: <strong style="color:var(--text)">' + totalStok.toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '</strong></span>' +
+                '</div></div>';
+
+            el.innerHTML = html;
         }
 
         // Versi tabel Data Gudang untuk di-download ke Excel (aoa: array of array),
@@ -3728,7 +3785,10 @@
             if (top) top.style.display = isGudang ? 'none' : '';
             if (bottom) bottom.style.display = isGudang ? 'none' : '';
             if (gudang) gudang.style.display = isGudang ? 'block' : 'none';
-            if (isGudang && !gudangRendered) renderGudangTable();
+            if (isGudang) {
+                if (!gudangRendered) renderGudangTable();
+                else renderGudangCards();
+            }
         }
 
         function renderRingkasan(rows) {
