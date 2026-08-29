@@ -4004,7 +4004,10 @@
                     let rowStyle = '', statusHtml;
                     if (status === 'mismatch') {
                         rowStyle = ' style="background-color:var(--yellow-bg);color:var(--yellow);"';
-                        statusHtml = '<strong>⚠ Beda</strong>';
+                        const bedaAbs = Math.abs(selisih).toLocaleString('id-ID');
+                        statusHtml = (selisih > 0)
+                            ? ('<strong>⚠ Keluar Gudang LEBIH BANYAK ' + bedaAbs + ' dibanding Data Penjualan</strong>')
+                            : ('<strong>⚠ Keluar Gudang LEBIH SEDIKIT ' + bedaAbs + ' dibanding Data Penjualan</strong>');
                     } else if (status === 'match') {
                         statusHtml = '<span style="color:var(--green,#16a34a);">✅ Cocok</span>';
                     } else {
@@ -4013,8 +4016,52 @@
 
                     let detailStr;
                     if (txs.length) {
-                        detailStr = txs.map(t => esc(t.noFaktur) + ' · ' + esc(t.sales) + ' (' + t.qty + 'x)').join('<br>') +
-                            '<div style="margin-top:4px;color:var(--muted);">Total dari faktur: <strong>' + totalTx.toLocaleString('id-ID') + 'x</strong></div>';
+                        // ---- Deteksi transaksi yang PALING MUNGKIN jadi penyebab selisih ----
+                        // Pola 1: qty transaksi itu PERSIS sama dengan |selisih| -> indikasi kuat.
+                        // Pola 2: nomor fakturnya "meloncat jauh" dari urutan faktur lain di
+                        //         tanggal & produk yang sama (indikasi transaksi nyasar / salah tanggal).
+                        const absSelisih = (status === 'mismatch') ? Math.abs(selisih) : null;
+                        const fakturNums = txs.map(t => {
+                            const digits = String(t.noFaktur).replace(/\D/g, '');
+                            return digits ? Number(digits) : null;
+                        });
+                        const validNums = fakturNums.filter(n => n !== null).slice().sort((a, b) => a - b);
+                        let medianGap = 0;
+                        if (validNums.length > 2) {
+                            const gaps = [];
+                            for (let i = 1; i < validNums.length; i++) gaps.push(validNums[i] - validNums[i - 1]);
+                            gaps.sort((a, b) => a - b);
+                            medianGap = gaps[Math.floor(gaps.length / 2)] || 0;
+                        }
+                        // Urutkan transaksi berdasarkan nomor faktur supaya lompatan langsung kelihatan
+                        const order = txs.map((t, i) => i).sort((a, b) => {
+                            const na = fakturNums[a], nb = fakturNums[b];
+                            if (na === null || nb === null) return 0;
+                            return na - nb;
+                        });
+                        const lines = order.map(i => {
+                            const t = txs[i];
+                            const n = fakturNums[i];
+                            let suspect = false, reason = '';
+                            if (absSelisih !== null && absSelisih > 0 && t.qty === absSelisih) {
+                                suspect = true; reason = 'qty = selisih';
+                            }
+                            if (!suspect && n !== null && validNums.length > 2 && medianGap > 0) {
+                                const idx = validNums.indexOf(n);
+                                const prevGap = idx > 0 ? n - validNums[idx - 1] : Infinity;
+                                const nextGap = idx < validNums.length - 1 ? validNums[idx + 1] - n : Infinity;
+                                const minGap = Math.min(prevGap, nextGap);
+                                if (minGap > medianGap * 3 && minGap >= 4) { suspect = true; reason = 'no.faktur meloncat'; }
+                            }
+                            const line = esc(t.noFaktur) + ' · ' + esc(t.sales) + ' (' + t.qty + 'x)';
+                            return suspect
+                                ? ('<span style="background:rgba(220,38,38,.16);border-radius:4px;padding:1px 5px;" title="Kemungkinan penyebab: ' + reason + '">🎯 ' + line + '</span>')
+                                : line;
+                        });
+                        detailStr = lines.join('<br>') +
+                            '<div style="margin-top:4px;color:var(--muted);">Total dari faktur: <strong>' + totalTx.toLocaleString('id-ID') + 'x</strong>' +
+                            (lines.some(l => l.indexOf('🎯') !== -1) ? ' &nbsp;·&nbsp; <span style="color:#dc2626;">🎯 = kemungkinan penyebab selisih</span>' : '') +
+                            '</div>';
                     } else if (status === 'mismatch') {
                         detailStr = '<span class="muted">Tidak ada transaksi penjualan tercatat pada tanggal ini — cek apakah output gudang salah tanggal / salah produk.</span>';
                     } else {
@@ -4027,7 +4074,7 @@
                         '<td class="num">' + totalPenjualan.toLocaleString('id-ID') + '</td>' +
                         '<td class="num">' + (outputGudang !== null ? outputGudang.toLocaleString('id-ID') : '—') + '</td>' +
                         '<td class="num"><strong>' + (selisih !== null ? selisih.toLocaleString('id-ID') : '—') + '</strong></td>' +
-                        '<td style="font-size:0.75rem;white-space:nowrap;">' + statusHtml + '</td>' +
+                        '<td style="font-size:0.75rem;max-width:190px;">' + statusHtml + '</td>' +
                         '<td style="font-size:0.75rem;max-width:280px;word-break:break-word;">' + detailStr + '</td>' +
                         '</tr>';
                 });
