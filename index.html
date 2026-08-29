@@ -697,6 +697,13 @@
             <div class="sales-cards-grid" id="salesCardsGrid"></div>
 
             <!-- RINGKASAN -->
+            <div class="ringkasan-rupa-controls" id="ringkasanDateWrap" style="margin-bottom:10px;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--muted);white-space:nowrap;">
+                    📅 Filter Tanggal
+                    <input type="date" id="ringkasanDateFilter" onchange="onRingkasanDateFilterChange()">
+                </label>
+                <button type="button" class="btn btn-outline" id="ringkasanDateClearBtn" style="font-size:0.72rem;padding:5px 10px;display:none;" onclick="clearRingkasanDateFilter()">✕ Hapus Filter Tanggal</button>
+            </div>
             <div class="sales-cards" id="ringkasanSalesCards" style="margin-bottom:10px;"></div>
 
             <div class="profit-wrap show" id="ringkasanLastDayWrap">
@@ -3127,6 +3134,30 @@
         const RINGKASAN_SALES_ORDER = ['RAJU', 'JOSSY', 'HAFID', 'GC', 'PARIMIN'];
         let ringkasanRupaRowsCache = [];
         let ringkasanRupaShowAll = false;
+        let ringkasanBaseRows = [];
+        let ringkasanFilterDate = ''; // format 'YYYY-MM-DD', kosong = tidak difilter tanggal
+
+        function ringkasanDateToISO(d) {
+            if (!(d instanceof Date) || isNaN(d.getTime())) return '';
+            return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+        }
+
+        function onRingkasanDateFilterChange() {
+            const inp = document.getElementById('ringkasanDateFilter');
+            ringkasanFilterDate = inp ? inp.value : '';
+            const clearBtn = document.getElementById('ringkasanDateClearBtn');
+            if (clearBtn) clearBtn.style.display = ringkasanFilterDate ? 'inline-flex' : 'none';
+            renderRingkasan();
+        }
+
+        function clearRingkasanDateFilter() {
+            const inp = document.getElementById('ringkasanDateFilter');
+            if (inp) inp.value = '';
+            ringkasanFilterDate = '';
+            const clearBtn = document.getElementById('ringkasanDateClearBtn');
+            if (clearBtn) clearBtn.style.display = 'none';
+            renderRingkasan();
+        }
 
         function isFitriProduk(produk) { return (produk || '').toUpperCase().includes('FITRI'); }
 
@@ -3379,15 +3410,34 @@
         }
 
         function renderRingkasan(rows) {
-            const fitriRows = rows.filter(r => isFitriProduk(r.produk));
-            const rupaRows = rows.filter(r => !isFitriProduk(r.produk));
+            if (rows) ringkasanBaseRows = rows;
+            let baseRows = ringkasanBaseRows;
+            if (ringkasanFilterDate) {
+                baseRows = baseRows.filter(r => ringkasanDateToISO(parseSalesDate(r.tanggal)) === ringkasanFilterDate);
+            }
+            const fitriRows = baseRows.filter(r => isFitriProduk(r.produk));
+            const rupaRows = baseRows.filter(r => !isFitriProduk(r.produk));
             const pivotFitriFull = buildRingkasanPivot(fitriRows);
             renderRingkasanCards(pivotFitriFull);
-            renderRingkasanLastDay(fitriRows);
+            const lastDayWrap = document.getElementById('ringkasanLastDayWrap');
+            if (ringkasanFilterDate) {
+                if (lastDayWrap) lastDayWrap.classList.remove('show');
+            } else {
+                if (lastDayWrap) lastDayWrap.classList.add('show');
+                renderRingkasanLastDay(fitriRows);
+            }
             const fitriBody = document.getElementById('ringkasanFitriBody');
             if (fitriBody) fitriBody.innerHTML = renderRingkasanPivotTable(pivotFitriFull);
             const fitriPeriod = document.getElementById('ringkasanFitriPeriod');
-            if (fitriPeriod) fitriPeriod.textContent = getSalesPeriodLabel();
+            if (fitriPeriod) {
+                if (ringkasanFilterDate) {
+                    const parts = ringkasanFilterDate.split('-').map(Number);
+                    const dObj = new Date(parts[0], parts[1] - 1, parts[2]);
+                    fitriPeriod.textContent = 'Tanggal: ' + (fmtDateID(dObj) || ringkasanFilterDate);
+                } else {
+                    fitriPeriod.textContent = getSalesPeriodLabel();
+                }
+            }
             populateRingkasanRupaFilter(rupaRows);
             renderRingkasanRupa(rupaRows);
         }
@@ -3735,6 +3785,8 @@
             }
             const ringkasanCards = document.getElementById('ringkasanSalesCards');
             if (sub !== 'ringkasan' && ringkasanCards) ringkasanCards.classList.remove('show');
+            const ringkasanDateWrap = document.getElementById('ringkasanDateWrap');
+            if (ringkasanDateWrap) ringkasanDateWrap.style.display = sub === 'ringkasan' ? 'flex' : 'none';
             document.getElementById('ringkasanLastDayWrap').classList.toggle('show', sub === 'ringkasan');
             document.getElementById('ringkasanFitriWrap').classList.toggle('show', sub === 'ringkasan');
             document.getElementById('ringkasanRupaWrap').classList.toggle('show', sub === 'ringkasan');
