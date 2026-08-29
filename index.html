@@ -202,11 +202,16 @@
         .profit-wrap { display: none; overflow-x: auto; overflow-y: auto; max-height: 68vh; border: 1px solid var(--border); border-radius: 10px; background: var(--card); box-shadow: var(--shadow); -webkit-overflow-scrolling: touch; }
         .profit-wrap.show { display: block; }
         .profit-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-        .profit-table th { background: var(--th-bg); color: var(--muted); text-align: left; padding: 8px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; position: sticky; top: 0; border-bottom: 1px solid var(--border); }
+        .profit-table th { background: var(--th-bg); color: var(--muted); text-align: left; padding: 8px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; position: sticky; top: 0; border-bottom: 1px solid var(--border); z-index: 2; }
         .profit-table td { padding: 7px 8px; border-top: 1px solid var(--border); vertical-align: top; }
         .profit-table tr:hover td { background: var(--table-hover); }
         .profit-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .profit-table .total-row td { font-weight: 700; border-top: 2px solid var(--border); background: var(--th-bg); }
+        .gudang-scroll-box { max-height: 65vh; overflow-y: auto; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+        .gudang-scroll-box .profit-table td:first-child, .gudang-scroll-box .profit-table th:first-child { position: sticky; left: 0; background: var(--th-bg); z-index: 3; }
+        .gudang-scroll-box .profit-table thead th:first-child { z-index: 4; }
+        .gudang-scroll-box .profit-table thead tr:first-child th { top: 0; }
+        .gudang-scroll-box .profit-table thead tr:last-child th:not([rowspan]) { top: 32px; }
         .hj-clickable { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
         .hj-clickable:hover { color: var(--accent); }
         .profit-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.78rem; font-weight: 700; }
@@ -3801,7 +3806,7 @@
                     '<td class="num" style="font-weight:700;">' + gudangFmtNum(r[38]) + '</td></tr>';
             });
 
-            bodyEl.innerHTML = '<div style="overflow-x:auto;"><table class="profit-table">' +
+            bodyEl.innerHTML = '<div class="gudang-scroll-box"><table class="profit-table">' +
                 '<thead>' + thead + '</thead><tbody>' + bodyRows + '</tbody></table></div>';
             gudangRendered = true;
             renderGudangCards();
