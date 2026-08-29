@@ -4993,6 +4993,86 @@
                 '</tr>';
         }
 
+        // ---- Style helper: bikin header tebal + fill biru, border tipis, dsb ----
+        // Dipakai oleh semua sheet hasil download agar hasilnya rapi & konsisten.
+        function styleSalesExportSheet(ws, aoa, opts) {
+            opts = opts || {};
+            const headerRow = opts.headerRow || 1;
+            const lastDataRow = opts.lastDataRow || (aoa.length - 1);
+            const lastCol = aoa.reduce((m, row) => Math.max(m, row.length), 0) || 1;
+            const headerFill = { patternType: 'solid', fgColor: { rgb: 'FF0284C7' } };
+            const totalFill  = { patternType: 'solid', fgColor: { rgb: 'FF0F766E' } };
+            const whiteBold  = { font: { bold: true, color: { rgb: 'FFFFFFFF' } } };
+            const thin = { style: 'thin', color: { rgb: 'FFD0D0D0' } };
+            const border = { top: thin, bottom: thin, left: thin, right: thin };
+
+            // Header
+            for (let C = 0; C < lastCol; C++) {
+                const addr = XLSX.utils.encode_cell({ r: headerRow, c: C });
+                if (!ws[addr]) continue;
+                ws[addr].s = Object.assign({}, ws[addr].s || {},
+                    whiteBold, { fill: headerFill, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } },
+                    { border: border });
+            }
+            // Border semua sel data + zebra
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            for (let R = range.s.r; R <= range.e.r; R++) {
+                for (let C = range.s.c; C <= range.e.c; C++) {
+                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                    const cell = ws[addr];
+                    if (!cell) continue;
+                    cell.s = Object.assign({}, cell.s || {}, { border: border });
+                    if (R > headerRow && R <= lastDataRow && (R - headerRow) % 2 === 0) {
+                        cell.s.fill = { patternType: 'solid', fgColor: { rgb: 'FFF4F8FB' } };
+                    }
+                }
+            }
+            // Baris TOTAL (jika ada teks TOTAL di kolom kedua)
+            for (let R = headerRow + 1; R <= range.e.r; R++) {
+                const a = XLSX.utils.encode_cell({ r: R, c: 1 });
+                const b = XLSX.utils.encode_cell({ r: R, c: 0 });
+                const aa = ws[a] && ws[a].v;
+                const bb = ws[b] && ws[b].v;
+                if ((typeof aa === 'string' && aa.trim().toUpperCase() === 'TOTAL') ||
+                    (typeof bb === 'string' && bb.trim().toUpperCase() === 'TOTAL')) {
+                    for (let C = 0; C < lastCol; C++) {
+                        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                        const cell = ws[addr];
+                        if (!cell) continue;
+                        cell.s = Object.assign({}, cell.s || {}, whiteBold, { fill: totalFill });
+                        if (C >= 2 && typeof cell.v === 'number') {
+                            cell.z = '"Rp"#,##0';
+                        }
+                    }
+                }
+            }
+            // Alignment default
+            for (let R = headerRow + 1; R <= range.e.r; R++) {
+                for (let C = range.s.c; C <= range.e.c; C++) {
+                    const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                    const cell = ws[addr];
+                    if (!cell) continue;
+                    if (C === 0) {
+                        cell.s.alignment = { horizontal: 'center', vertical: 'center' };
+                    } else if (C === 1) {
+                        cell.s.alignment = { horizontal: 'left', vertical: 'center' };
+                    } else if (typeof cell.v === 'number') {
+                        cell.s.alignment = { horizontal: 'right', vertical: 'center' };
+                        // Format Rupiah untuk nilai uang
+                        if (cell.s && (!cell.z || cell.z === '#,##0' || cell.z === '#,##0.##')) {
+                            // kolom No & Qty tetap "qty style" (tanpa Rp)
+                            cell.z = (C === 2) ? '#,##0' : '"Rp"#,##0';
+                        }
+                    }
+                }
+            }
+            // Freeze panes di bawah header
+            ws['!freeze'] = { xSplit: 0, ySplit: headerRow + 1 };
+            // Auto-filter
+            const lastColLetter = XLSX.utils.encode_col(lastCol - 1);
+            ws['!autofilter'] = { ref: XLSX.utils.encode_range(headerRow, headerRow, range.s.c, range.e.c) };
+        }
+
         // ---- Hitung lebar kolom otomatis supaya isi sel tidak terpotong/bertumpuk ----
         function computeAutoColWidths(aoa) {
             const colCount = aoa.reduce((m, row) => Math.max(m, row.length), 0);
@@ -5261,6 +5341,9 @@
             // Lebar kolom menyesuaikan isi terpanjang (header/data/total) supaya angka & teks
             // (mis. rentang harga jual "4.400 - 4.237") tidak terpotong/bertumpuk dengan kolom sebelahnya.
             ws['!cols'] = computeAutoColWidths(aoa);
+            // Style rapi: header tebal fill biru, border tipis, zebra, freeze panes,
+            // auto-filter, dan format "Rp" untuk kolom uang. Konsisten di semua tab.
+            try { styleSalesExportSheet(ws, aoa, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, sheetName);
             // Sheet-sheet tambahan (mis. Rupa Rupa & Data Gudang di sub-tab Ringkasan),
@@ -5285,6 +5368,7 @@
                     wsExtra['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoaX[0].length - 2 } });
                 }
                 wsExtra['!cols'] = computeAutoColWidths(aoaX);
+                try { styleSalesExportSheet(wsExtra, aoaX, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
                 XLSX.utils.book_append_sheet(wb, wsExtra, (extra.name || 'Sheet').slice(0, 31));
             });
             XLSX.writeFile(wb, fileName);
@@ -8070,5 +8154,6 @@
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 </body>
 </html>
