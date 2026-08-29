@@ -3955,24 +3955,43 @@
             scopeDates.sort();
 
             // ---- Kumpulkan semua produk Fitri (dari penjualan & dari gudang) ----
-            const produkSet = new Set();
-            fitriRowsAll.forEach(r => { const p = (r.produk || '').trim(); if (p) produkSet.add(p); });
-            (GUDANG_DATA.products || []).forEach(p => produkSet.add(p.name));
-            const produkList = Array.from(produkSet).sort();
+            // PENTING: disatukan berdasarkan nama yang SUDAH DINORMALISASI
+            // (normalizeGudangName -> huruf besar & tanpa spasi/simbol), supaya
+            // varian ejaan seperti "FITRI BOTOL 800ML" (dari Data Penjualan)
+            // vs "FITRI BOTOL 800 ML" (dari Data Gudang) tidak dianggap 2
+            // produk berbeda -- karena kalau dianggap beda, akan muncul baris
+            // "hantu" (Total Penjualan 0 vs Output Gudang X) padahal
+            // penjualannya sebenarnya sudah tercatat, cuma di bawah ejaan lain.
+            const produkCanon = {}; // normKey -> nama tampilan (canonical)
+            // Prioritaskan nama dari Data Gudang sebagai nama tampilan resmi
+            (GUDANG_DATA.products || []).forEach(p => {
+                const norm = normalizeGudangName(p.name);
+                if (norm && !produkCanon[norm]) produkCanon[norm] = p.name;
+            });
+            fitriRowsAll.forEach(r => {
+                const p = (r.produk || '').trim();
+                const norm = normalizeGudangName(p);
+                if (norm && !produkCanon[norm]) produkCanon[norm] = p;
+            });
+            const produkList = Object.keys(produkCanon).map(k => produkCanon[k]).sort();
 
             // ---- Index transaksi & total penjualan per tanggal + produk ----
-            const txByDateProduk = {};    // iso -> produk -> [{noFaktur, sales, qty}]
-            const totalByDateProduk = {}; // iso -> produk -> total qty
+            // Key produk yang dipakai di sini JUGA dinormalisasi, biar
+            // penjualan dengan ejaan produk yang sedikit beda tetap ke-index
+            // ke produk (kanonis) yang sama.
+            const txByDateProduk = {};    // iso -> normKey -> [{noFaktur, sales, qty}]
+            const totalByDateProduk = {}; // iso -> normKey -> total qty
             fitriRowsAll.forEach(r => {
                 const iso = ringkasanDateToISO(parseSalesDate(r.tanggal));
-                const produk = (r.produk || '').trim();
-                if (!iso || !produk) return;
+                const produkRaw = (r.produk || '').trim();
+                const normKey = normalizeGudangName(produkRaw);
+                if (!iso || !normKey) return;
                 const qty = Number(r.jumlah) || 0;
                 totalByDateProduk[iso] = totalByDateProduk[iso] || {};
-                totalByDateProduk[iso][produk] = (totalByDateProduk[iso][produk] || 0) + qty;
+                totalByDateProduk[iso][normKey] = (totalByDateProduk[iso][normKey] || 0) + qty;
                 txByDateProduk[iso] = txByDateProduk[iso] || {};
-                txByDateProduk[iso][produk] = txByDateProduk[iso][produk] || [];
-                txByDateProduk[iso][produk].push({
+                txByDateProduk[iso][normKey] = txByDateProduk[iso][normKey] || [];
+                txByDateProduk[iso][normKey].push({
                     noFaktur: (r.noFaktur || '').trim() || '—',
                     sales: (r.sales || '').trim() || '—',
                     qty
@@ -3988,10 +4007,11 @@
 
                 produkList.forEach(produk => {
                     if (filterProduk && filterProduk !== 'all' && produk !== filterProduk) return;
+                    const normKey = normalizeGudangName(produk);
                     const gp = findGudangProduct(produk);
                     const outputGudang = gp ? getGudangKeluarForDate(gp, iso) : null;
-                    const totalPenjualan = (totalByDateProduk[iso] && totalByDateProduk[iso][produk]) || 0;
-                    const txs = (txByDateProduk[iso] && txByDateProduk[iso][produk]) || [];
+                    const totalPenjualan = (totalByDateProduk[iso] && totalByDateProduk[iso][normKey]) || 0;
+                    const txs = (txByDateProduk[iso] && txByDateProduk[iso][normKey]) || [];
 
                     // Lewati kombinasi tanggal+produk yang memang tidak ada
                     // data sama sekali (tidak ada penjualan & tidak ada data gudang)
