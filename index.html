@@ -723,6 +723,7 @@
                     <input type="date" id="ringkasanDateFilter" onchange="onRingkasanDateFilterChange()">
                 </label>
                 <button type="button" class="btn btn-outline" id="ringkasanDateClearBtn" style="font-size:0.72rem;padding:5px 10px;display:none;" onclick="clearRingkasanDateFilter()">✕ Hapus Filter Tanggal</button>
+                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;" onclick="openRingkasanInvestigationModal()">🔍 Investigasi Perbedaan</button>
                 <div class="view-toggle" id="ringkasanInnerTabs" style="margin-left:auto;">
                     <button type="button" class="view-toggle-btn active" id="ringkasanTabBtnSummary" onclick="switchRingkasanInner('summary')">📊 Ringkasan</button>
                     <button type="button" class="view-toggle-btn" id="ringkasanTabBtnGudang" onclick="switchRingkasanInner('gudang')">🏭 Data Gudang</button>
@@ -1041,6 +1042,39 @@
             </div>
         </div>
 
+        <!-- Modal Investigasi Perbedaan Ringkasan -->
+        <div class="modal-overlay" id="ringkasanInvestigationModal" onclick="if(event.target===this)closeRingkasanInvestigationModal()">
+            <div class="modal-content" style="max-width:1000px;">
+                <div class="modal-header">
+                    <h2>🔍 Investigasi Perbedaan Total vs Output Gudang</h2>
+                    <button class="modal-close" onclick="closeRingkasanInvestigationModal()">✕</button>
+                </div>
+                <div style="margin-bottom:12px;font-size:0.8rem;color:var(--muted);">
+                    <p><strong>Total Penjualan:</strong> Dihitung dari data transaksi (Tanggal, No Faktur, Produk, Sales)</p>
+                    <p><strong>Output Gudang:</strong> Diambil dari sheet "STOK GUDANG MINYAK FITRI" (data gudang yang terpisah)</p>
+                    <p>Tabel di bawah menampilkan detail perbedaan per produk, termasuk tanggal dan sales yang terlibat.</p>
+                </div>
+                <div style="overflow-x:auto;max-height:500px;overflow-y:auto;">
+                    <table class="modal-table" style="width:100%;font-size:0.8rem;">
+                        <thead>
+                            <tr>
+                                <th>Produk</th>
+                                <th class="num">Total Penjualan</th>
+                                <th class="num">Output Gudang</th>
+                                <th class="num">Selisih</th>
+                                <th>Tanggal & Sales (Penjualan)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ringkasanInvestigationBody">
+                            <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted);">Memuat investigasi...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeRingkasanInvestigationModal()">Tutup</button>
+                </div>
+            </div>
+        </div>
 
         <footer>DATACENTER · Mode terang / gelap · Upload Excel</footer>
     </div>
@@ -3830,6 +3864,102 @@
             }
             populateRingkasanRupaFilter(rupaRows);
             renderRingkasanRupa(rupaRows);
+        }
+
+        // ---- INVESTIGASI PERBEDAAN TOTAL vs OUTPUT GUDANG ----
+        function openRingkasanInvestigationModal() {
+            const modal = document.getElementById('ringkasanInvestigationModal');
+            if (modal) {
+                modal.classList.add('open');
+                performRingkasanInvestigation();
+            }
+        }
+
+        function closeRingkasanInvestigationModal() {
+            const modal = document.getElementById('ringkasanInvestigationModal');
+            if (modal) modal.classList.remove('open');
+        }
+
+        function performRingkasanInvestigation() {
+            // Ambil data yang sedang ditampilkan di tab Ringkasan
+            const allRows = ringkasanBaseRows || [];
+            const fitriRowsAll = allRows.filter(r => isFitriProduk(r.produk));
+
+            // Kelompokkan per produk FITRI dengan detail tanggal & sales
+            const produkMap = {};
+            for (const r of fitriRowsAll) {
+                const produk = (r.produk || '').trim() || '—';
+                const tanggal = parseSalesDate(r.tanggal);
+                const tanggalISO = ringkasanDateToISO(tanggal);
+                const tanggalFormat = fmtDateID(tanggal) || tanggalISO;
+                const sales = (r.sales || '').trim() || '—';
+                const qty = Number(r.jumlah) || 0;
+
+                if (!produkMap[produk]) {
+                    produkMap[produk] = {
+                        total: 0,
+                        details: [] // Array of { tanggal, tanggalISO, sales, qty }
+                    };
+                }
+                produkMap[produk].total += qty;
+                produkMap[produk].details.push({ tanggal: tanggalFormat, tanggalISO, sales, qty });
+            }
+
+            // Build tabel investigasi
+            const rows = Object.keys(produkMap).sort().map(produk => {
+                const totalPenjualan = produkMap[produk].total;
+                const details = produkMap[produk].details;
+
+                // Ambil OUTPUT GUDANG untuk produk ini (mengikuti ringkasanDateScopeISO)
+                const outputGudang = getAutoOutputGudang(produk);
+                const selisih = (outputGudang !== null) ? (outputGudang - totalPenjualan) : null;
+
+                // Detail tanggal & sales (kumpulkan unik)
+                const detailsByDate = {};
+                for (const d of details) {
+                    if (!detailsByDate[d.tanggalISO]) {
+                        detailsByDate[d.tanggalISO] = {};
+                    }
+                    if (!detailsByDate[d.tanggalISO][d.sales]) {
+                        detailsByDate[d.tanggalISO][d.sales] = 0;
+                    }
+                    detailsByDate[d.tanggalISO][d.sales] += d.qty;
+                }
+
+                // Format detail string
+                let detailStr = '';
+                for (const tanggalISO of Object.keys(detailsByDate).sort()) {
+                    const tanggalFormat = details.find(d => d.tanggalISO === tanggalISO)?.tanggal || tanggalISO;
+                    const salesList = Object.entries(detailsByDate[tanggalISO])
+                        .map(([s, q]) => s + ' (' + q + 'x)')
+                        .join(', ');
+                    detailStr += tanggalFormat + ': ' + salesList + ' | ';
+                }
+                detailStr = detailStr.slice(0, -3); // Remove last " | "
+
+                // Row styling berdasarkan selisih
+                let rowStyle = '';
+                let selisihDisplay = '—';
+                if (selisih !== null) {
+                    selisihDisplay = selisih.toLocaleString('id-ID');
+                    if (selisih !== 0) {
+                        rowStyle = ' style="background-color:var(--yellow-bg);color:var(--yellow);"';
+                    }
+                }
+
+                return '<tr' + rowStyle + '>' +
+                    '<td>' + esc(produk) + '</td>' +
+                    '<td class="num"><strong>' + totalPenjualan.toLocaleString('id-ID') + '</strong></td>' +
+                    '<td class="num">' + (outputGudang !== null ? outputGudang.toLocaleString('id-ID') : '—') + '</td>' +
+                    '<td class="num">' + selisihDisplay + '</td>' +
+                    '<td style="font-size:0.75rem;max-width:300px;word-break:break-word;">' + esc(detailStr) + '</td>' +
+                    '</tr>';
+            }).join('');
+
+            const tbody = document.getElementById('ringkasanInvestigationBody');
+            if (tbody) {
+                tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--muted);">Tidak ada data Fitri.</td></tr>';
+            }
         }
 
         function rebuildFakturNominalMap(rows) {
@@ -7646,6 +7776,7 @@
             pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
             installApp, toggleRingkasanRupaShowAll, switchRingkasanInner,
             onRingkasanDateFilterChange, clearRingkasanDateFilter,
+            openRingkasanInvestigationModal, closeRingkasanInvestigationModal, performRingkasanInvestigation,
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal
         });
     </script>
