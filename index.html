@@ -727,6 +727,7 @@
                 <div class="view-toggle" id="ringkasanInnerTabs" style="margin-left:auto;">
                     <button type="button" class="view-toggle-btn active" id="ringkasanTabBtnSummary" onclick="switchRingkasanInner('summary')">📊 Ringkasan</button>
                     <button type="button" class="view-toggle-btn" id="ringkasanTabBtnGudang" onclick="switchRingkasanInner('gudang')">🏭 Data Gudang</button>
+                    <button type="button" class="view-toggle-btn" id="ringkasanTabBtnCek" onclick="switchRingkasanInner('cek')">🔎 Cek Beda</button>
                 </div>
             </div>
 
@@ -759,6 +760,39 @@
                 </div>
                 <div class="sales-cards" id="ringkasanGudangCards" style="margin-bottom:10px;"></div>
                 <div id="ringkasanGudangBody"></div>
+            </div>
+
+            <div class="profit-wrap show" id="ringkasanCekWrap" style="display:none;">
+                <div class="profit-head">
+                    <span>🔎 CEK BEDA — TOTAL PENJUALAN vs OUTPUT GUDANG</span>
+                </div>
+                <div style="margin-bottom:12px;font-size:0.8rem;color:var(--muted);">
+                    <p>Daftar <strong>tanggal &amp; produk</strong> yang jumlah Total Penjualan-nya beda dengan Output Gudang, lengkap dengan <strong>No Faktur · Sales · Qty</strong> yang tercatat di tanggal itu — supaya gampang dicocokkan ke nota fisik.</p>
+                </div>
+                <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div id="ringkasanCekSummary" style="font-size:0.82rem;font-weight:600;"></div>
+                    <label style="font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="ringkasanCekShowAll" onchange="renderRingkasanCekTab()"> Tampilkan semua (termasuk yang Cocok)
+                    </label>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="modal-table" style="width:100%;font-size:0.8rem;">
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>Produk</th>
+                                <th class="num">Total Penjualan</th>
+                                <th class="num">Output Gudang</th>
+                                <th class="num">Selisih</th>
+                                <th>Status</th>
+                                <th>Detail Transaksi (No Faktur · Sales · Qty)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ringkasanCekBody">
+                            <tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);">Memuat...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="profit-wrap" id="profitProdukWrap"><div class="profit-head"><span>PROFIT PENJUALAN / PRODUK</span><span class="muted" id="profitProdukPeriod">—</span></div><table class="profit-table"><thead><tr><th>No</th><th>Produk</th><th class="num">Qty</th><th class="num">Total Penjualan</th><th class="num">Total HPP</th><th class="num">Harga Jual</th><th class="num">Harga Beli</th><th class="num">Profit</th></tr></thead><tbody id="profitProdukBody"></tbody></table></div>
@@ -3362,6 +3396,7 @@
             if (clearBtn) clearBtn.style.display = ringkasanFilterDate ? 'inline-flex' : 'none';
             renderRingkasan();
             renderGudangCards();
+            if (document.getElementById('ringkasanCekWrap') && document.getElementById('ringkasanCekWrap').style.display !== 'none') renderRingkasanCekTab();
         }
 
         function clearRingkasanDateFilter() {
@@ -3372,6 +3407,7 @@
             if (clearBtn) clearBtn.style.display = 'none';
             renderRingkasan();
             renderGudangCards();
+            if (document.getElementById('ringkasanCekWrap') && document.getElementById('ringkasanCekWrap').style.display !== 'none') renderRingkasanCekTab();
         }
 
         function isFitriProduk(produk) { return (produk || '').toUpperCase().includes('FITRI'); }
@@ -3819,18 +3855,23 @@
 
         function switchRingkasanInner(view) {
             const isGudang = view === 'gudang';
-            document.getElementById('ringkasanTabBtnSummary').classList.toggle('active', !isGudang);
+            const isCek = view === 'cek';
+            document.getElementById('ringkasanTabBtnSummary').classList.toggle('active', !isGudang && !isCek);
             document.getElementById('ringkasanTabBtnGudang').classList.toggle('active', isGudang);
+            document.getElementById('ringkasanTabBtnCek').classList.toggle('active', isCek);
             const top = document.getElementById('ringkasanSummaryTop');
             const bottom = document.getElementById('ringkasanSummaryBottom');
             const gudang = document.getElementById('ringkasanGudangWrap');
-            if (top) top.style.display = isGudang ? 'none' : '';
-            if (bottom) bottom.style.display = isGudang ? 'none' : '';
+            const cek = document.getElementById('ringkasanCekWrap');
+            if (top) top.style.display = (isGudang || isCek) ? 'none' : '';
+            if (bottom) bottom.style.display = (isGudang || isCek) ? 'none' : '';
             if (gudang) gudang.style.display = isGudang ? 'block' : 'none';
+            if (cek) cek.style.display = isCek ? 'block' : 'none';
             if (isGudang) {
                 if (!gudangRendered) renderGudangTable();
                 else renderGudangCards();
             }
+            if (isCek) renderRingkasanCekTab();
         }
 
         function renderRingkasan(rows) {
@@ -3888,17 +3929,14 @@
             if (modal) modal.classList.remove('open');
         }
 
-        function performRingkasanInvestigation() {
-            // Ambil data yang sedang ditampilkan di tab Ringkasan (kecuali transaksi BATAL)
+        // Fungsi inti: hitung baris investigasi (tanggal x produk) dengan opsi
+        // showAll (true = tampilkan semua termasuk yang Cocok, false = hanya beda).
+        // Dipakai bersama oleh Modal "Investigasi Perbedaan" DAN tab "🔎 Cek Beda".
+        function buildRingkasanCekRows(showAll) {
             const allRows = ringkasanBaseRows || [];
             const fitriRowsAll = allRows.filter(r => isFitriProduk(r.produk) && !isBatalRow(r));
 
             // ---- Tentukan tanggal-tanggal yang perlu dicek ----
-            // Kalau tabel Ringkasan sedang difilter ke 1 tanggal / 1 periode
-            // (ringkasanDateScopeISO), ikuti scope itu. Kalau tidak difilter
-            // sama sekali, cek gabungan seluruh tanggal yang muncul di data
-            // penjualan Fitri ATAU di data gudang, supaya tidak ada tanggal
-            // yang kelewat.
             let scopeDates = (ringkasanDateScopeISO && ringkasanDateScopeISO.length) ? ringkasanDateScopeISO.slice() : null;
             if (!scopeDates) {
                 const dateSet = new Set();
@@ -3936,9 +3974,6 @@
                 });
             });
 
-            const showAllChk = document.getElementById('ringkasanInvestigationShowAll');
-            const showAll = showAllChk ? showAllChk.checked : false;
-
             let rowsHtml = '';
             let mismatchCount = 0;
 
@@ -3964,6 +3999,7 @@
                     if (!showAll && status !== 'mismatch') return; // default: hanya tampilkan yang beda
 
                     const selisih = (outputGudang !== null) ? (outputGudang - totalPenjualan) : null;
+                    const totalTx = txs.reduce((s, t) => s + t.qty, 0);
 
                     let rowStyle = '', statusHtml;
                     if (status === 'mismatch') {
@@ -3977,7 +4013,8 @@
 
                     let detailStr;
                     if (txs.length) {
-                        detailStr = txs.map(t => esc(t.noFaktur) + ' · ' + esc(t.sales) + ' (' + t.qty + 'x)').join('<br>');
+                        detailStr = txs.map(t => esc(t.noFaktur) + ' · ' + esc(t.sales) + ' (' + t.qty + 'x)').join('<br>') +
+                            '<div style="margin-top:4px;color:var(--muted);">Total dari faktur: <strong>' + totalTx.toLocaleString('id-ID') + 'x</strong></div>';
                     } else if (status === 'mismatch') {
                         detailStr = '<span class="muted">Tidak ada transaksi penjualan tercatat pada tanggal ini — cek apakah output gudang salah tanggal / salah produk.</span>';
                     } else {
@@ -3996,8 +4033,36 @@
                 });
             });
 
+            return { rowsHtml, mismatchCount };
+        }
+
+        function performRingkasanInvestigation() {
+            const showAllChk = document.getElementById('ringkasanInvestigationShowAll');
+            const showAll = showAllChk ? showAllChk.checked : false;
+            const { rowsHtml, mismatchCount } = buildRingkasanCekRows(showAll);
+
             const tbody = document.getElementById('ringkasanInvestigationBody');
             const summaryEl = document.getElementById('ringkasanInvestigationSummary');
+            if (summaryEl) {
+                summaryEl.innerHTML = mismatchCount > 0
+                    ? ('⚠ Ditemukan <span style="color:var(--yellow);">' + mismatchCount + ' baris (tanggal × produk)</span> dengan selisih' + (!showAll ? ' — hanya baris beda yang ditampilkan di bawah.' : '.'))
+                    : '✅ Tidak ada selisih ditemukan untuk periode ini.';
+            }
+            if (tbody) {
+                tbody.innerHTML = rowsHtml || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);">' +
+                    (showAll ? 'Tidak ada data untuk periode ini.' : 'Tidak ada perbedaan ditemukan untuk periode ini. 🎉') + '</td></tr>';
+            }
+        }
+
+        // ---- TAB "🔎 Cek Beda" — sama isinya dengan modal Investigasi, tapi
+        // ditampilkan langsung sebagai tab (tidak perlu buka modal) ----
+        function renderRingkasanCekTab() {
+            const showAllChk = document.getElementById('ringkasanCekShowAll');
+            const showAll = showAllChk ? showAllChk.checked : false;
+            const { rowsHtml, mismatchCount } = buildRingkasanCekRows(showAll);
+
+            const tbody = document.getElementById('ringkasanCekBody');
+            const summaryEl = document.getElementById('ringkasanCekSummary');
             if (summaryEl) {
                 summaryEl.innerHTML = mismatchCount > 0
                     ? ('⚠ Ditemukan <span style="color:var(--yellow);">' + mismatchCount + ' baris (tanggal × produk)</span> dengan selisih' + (!showAll ? ' — hanya baris beda yang ditampilkan di bawah.' : '.'))
@@ -7824,6 +7889,7 @@
             installApp, toggleRingkasanRupaShowAll, switchRingkasanInner,
             onRingkasanDateFilterChange, clearRingkasanDateFilter,
             openRingkasanInvestigationModal, closeRingkasanInvestigationModal, performRingkasanInvestigation,
+            renderRingkasanCekTab,
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal
         });
     </script>
