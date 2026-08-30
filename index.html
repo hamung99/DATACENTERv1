@@ -767,7 +767,7 @@
             <div class="profit-wrap" id="profitSalesWrap"><div class="profit-head"><span>PENJUALAN PER SALES PER PRODUK</span><span class="muted" id="profitSalesPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesTable"><thead id="profitSalesHead"></thead><tbody id="profitSalesBody"></tbody></table></div></div>
             <div class="profit-wrap" id="profitSalesProdukWrap"><div class="profit-head"><span>PER SALES PER PRODUK</span><span class="muted" id="profitSalesProdukPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesProdukTable"><thead id="profitSalesProdukHead"></thead><tbody id="profitSalesProdukBody"></tbody></table></div></div>
             <div class="profit-wrap" id="profitLengkapWrap"><div class="profit-head"><span>PENJUALAN PER SALES PER PEMBAYARAN PER PRODUK</span><span class="muted" id="profitLengkapPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitLengkapTable"><thead id="profitLengkapHead"></thead><tbody id="profitLengkapBody"></tbody></table></div></div>
-            <div class="profit-wrap" id="profitBulanWrap"><div class="profit-head"><span>PROFIT PER BULAN</span><span class="muted" id="profitBulanPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table"><thead><tr><th>Bulan</th><th class="num">Total Qty Fitri</th><th class="num">Totl Nominl Fitri</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Total Qty Rupa2</th><th class="num">Total Nominal Rupa2</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Margin</th><th class="num">TOTAL PROFIT</th></tr></thead><tbody id="profitBulanBody"></tbody></table></div></div>
+            <div class="profit-wrap" id="profitBulanWrap"><div class="profit-head"><span>PROFIT PER BULAN</span><span class="muted" id="profitBulanPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table"><thead><tr><th>Bulan</th><th class="num">Total Qty Fitri</th><th class="num">Totl Nominl Fitri</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin Fitri</th><th class="num">Total Qty Rupa2</th><th class="num">Total Nominal Rupa2</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin Rupa2</th><th class="num">Margin Total</th><th class="num">TOTAL PROFIT</th></tr></thead><tbody id="profitBulanBody"></tbody></table></div></div>
 
             <div class="empty-state" id="salesEmptyState" style="display:none;">
                 <div class="big">📦</div>
@@ -6159,8 +6159,8 @@
                 aoa = [
                     ['PROFIT PER BULAN', '', '', '', '', '', '', '', '', '', '', '', 'Semua Bulan (perbandingan)']
                 ];
-                aoa.push(['Bulan', 'Total Qty Fitri', 'Totl Nominl Fitri', 'Totl HPP', 'Profit', 'Margin (%)',
-                    'Total Qty Rupa2', 'Total Nominal Rupa2', 'Totl HPP', 'Profit', 'Margin (%)', 'Margin (%)',
+                aoa.push(['Bulan', 'Total Qty Fitri', 'Totl Nominl Fitri', 'Totl HPP', 'Profit', 'Margin Fitri (%)',
+                    'Total Qty Rupa2', 'Total Nominal Rupa2', 'Totl HPP', 'Profit', 'Margin Rupa2 (%)', 'Margin Total (%)',
                     'TOTAL PROFIT'
                 ]);
                 const pctTxt = v => v.toFixed(1).replace('.', ',') + '%';
