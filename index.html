@@ -207,6 +207,71 @@
         .profit-table tr:hover td { background: var(--table-hover); }
         .profit-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .profit-table .total-row td { font-weight: 700; border-top: 2px solid var(--border); background: var(--th-bg); }
+
+        /* Ringkasan pivot (Fitri / Rupa / Hari Terakhir) — tampilan lebih rapi */
+        .ringkasan-pivot-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table.ringkasan-pivot {
+            width: 100%; border-collapse: separate; border-spacing: 0;
+            font-size: 0.8rem; table-layout: auto;
+        }
+        table.ringkasan-pivot thead th {
+            background: var(--th-bg);
+            color: var(--muted);
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 2;
+        }
+        table.ringkasan-pivot thead th.num { text-align: right; }
+        table.ringkasan-pivot tbody td {
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+            color: var(--text);
+        }
+        table.ringkasan-pivot tbody tr:last-child td { border-bottom: none; }
+        table.ringkasan-pivot tbody tr:hover td { background: var(--table-hover); }
+        table.ringkasan-pivot .num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        table.ringkasan-pivot td.produk-cell {
+            font-weight: 600;
+            white-space: nowrap;
+            min-width: 140px;
+        }
+        table.ringkasan-pivot td.total-cell {
+            font-weight: 700;
+            color: var(--text);
+        }
+        table.ringkasan-pivot tr.total-row td {
+            font-weight: 700;
+            background: var(--th-bg);
+            border-top: 2px solid var(--border);
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+        table.ringkasan-pivot .selisih-pos { color: var(--yellow); font-weight: 700; }
+        table.ringkasan-pivot .selisih-neg { color: var(--red); font-weight: 700; }
+        table.ringkasan-pivot .selisih-zero { color: var(--green); font-weight: 700; }
+        table.ringkasan-pivot .ket-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 6px;
+            font-size: 0.72rem; font-weight: 700;
+            color: var(--green, #16a34a);
+            background: var(--green-bg, rgba(22,163,74,.12));
+            white-space: nowrap;
+        }
+        table.ringkasan-pivot .ket-meta {
+            font-size: 0.72rem; white-space: nowrap; color: var(--muted); font-weight: 500;
+        }
+        table.ringkasan-pivot .ket-meta .warn { color: var(--yellow); }
+
         .gudang-scroll-box { max-height: 65vh; overflow-y: auto; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
         .gudang-scroll-box .profit-table td:first-child, .gudang-scroll-box .profit-table th:first-child { position: sticky; left: 0; background: var(--th-bg); z-index: 3; }
         .gudang-scroll-box .profit-table thead th:first-child { z-index: 4; }
@@ -620,10 +685,7 @@
             <div class="daily-panel" id="dailyPanel" style="display:block;">
                 <div class="daily-head">
                     <strong>📅 Ringkasan Harian</strong>
-                    <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                        <span class="muted" id="dailyHint">Klik baris tanggal untuk filter detail faktur</span>
-                        <button type="button" class="btn btn-outline" id="downloadDailySummaryBtn" onclick="downloadDailySummary()" title="Download tabel Ringkasan Harian ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download Tabel</button>
-                    </span>
+                    <span class="muted" id="dailyHint">Klik baris tanggal untuk filter detail faktur</span>
                 </div>
                 <div class="daily-scroll">
                     <table class="daily-table">
@@ -720,7 +782,10 @@
                 <div class="profit-wrap show" id="ringkasanLastDayWrap">
                     <div class="profit-head">
                         <span>📅 PENJUALAN FITRI — HARI TERAKHIR</span>
-                        <span class="muted" id="ringkasanLastDayMeta">—</span>
+                        <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <span class="muted" id="ringkasanLastDayMeta">—</span>
+                            <button type="button" class="btn btn-outline" onclick="downloadCurrentSalesExcel('filter')" title="Download Ringkasan ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
+                        </span>
                     </div>
                     <div id="ringkasanLastDayBody"></div>
                 </div>
@@ -730,7 +795,10 @@
                 <div class="profit-wrap show" id="ringkasanFitriWrap">
                     <div class="profit-head">
                         <span>🧴 PENJUALAN FITRI</span>
-                        <span class="muted" id="ringkasanFitriPeriod">—</span>
+                        <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <span class="muted" id="ringkasanFitriPeriod">—</span>
+                            <button type="button" class="btn btn-outline" onclick="downloadCurrentSalesExcel('filter')" title="Download Ringkasan ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
+                        </span>
                     </div>
                     <div id="ringkasanFitriBody"></div>
                 </div>
@@ -1164,7 +1232,6 @@
         // ---- Global state ----
         let allRows = [];
         let salesRows = [];
-        let lastDailySummaryList = [];
         // Catatan: data tab Rapikan TIDAK disimpan di variabel module-level di
         // sini. Tab Rapikan pakai `cleanRows` miliknya sendiri di dalam IIFE-nya
         // dan menjembataninya lewat window.cleanRows / window.__rapGetCleanRows /
@@ -2007,7 +2074,7 @@
         }
 
         function buildDailySummary(rows) {
-            if (!rows || !rows.length) { dailyPanel.style.display = 'none'; lastDailySummaryList = []; return; }
+            if (!rows || !rows.length) { dailyPanel.style.display = 'none'; return; }
             const map = {};
             for (const r of rows) {
                 const k = r.sheet;
@@ -2026,7 +2093,6 @@
                 else g.dropping += bayarCash + bayarTf;
             }
             const list = Object.values(map);
-            lastDailySummaryList = list;
             list.sort((a, b) => {
                 const pa = a.date.match(/(\d{1,2})\/(\d{1,2})/);
                 const pb = b.date.match(/(\d{1,2})\/(\d{1,2})/);
@@ -2334,62 +2400,6 @@
             const safeSheet = String(sheet).replace(/[\/\\:*?"<>|]/g, '-');
             exportFakturAoa(aoa, 'Uang Masuk ' + sheet, 'UangMasuk_Harian_' + safeSheet + '.xlsx');
         }
-
-        /** Download seluruh tabel Ringkasan Harian (agregat per hari/sheet) ke Excel */
-        function downloadDailySummary() {
-            if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
-            const list = lastDailySummaryList || [];
-            if (!list.length) { alert('Tidak ada data Ringkasan Harian untuk diunduh.'); return; }
-            const monSel = document.getElementById('filterMonth');
-            const period = (monSel && monSel.value !== 'all') ? monSel.value : 'Semua Bulan';
-            const aoa = [
-                ['RINGKASAN HARIAN — UANG MASUK', '', '', '', '', '', '', '', period],
-                ['Tanggal', 'Sheet', 'Jml Faktur', 'Piutang Tempo', 'Cash Dropping', 'Tagihan', 'Bayar Cash', 'Bayar TF', 'Total Bayar']
-            ];
-            let sumC = 0, sumP = 0, sumD = 0, sumT = 0, sumCash = 0, sumTf = 0;
-            list.forEach(g => {
-                const total = (g.cash || 0) + (g.tf || 0);
-                sumC += g.count || 0;
-                sumP += g.piutang || 0;
-                sumD += g.dropping || 0;
-                sumT += g.tagihan || 0;
-                sumCash += g.cash || 0;
-                sumTf += g.tf || 0;
-                aoa.push([
-                    g.date || '', g.sheet || '', g.count || 0,
-                    g.piutang || 0, g.dropping || 0, g.tagihan || 0,
-                    g.cash || 0, g.tf || 0, total
-                ]);
-            });
-            aoa.push(['TOTAL (' + list.length + ' hari)', '', sumC, sumP, sumD, sumT, sumCash, sumTf, sumCash + sumTf]);
-            const safePeriod = String(period).replace(/\s+/g, '_').replace(/[\/\\:*?"<>|]/g, '-');
-            const stamp = new Date();
-            const pad = n => String(n).padStart(2, '0');
-            const fileName = 'Ringkasan_Harian_' + safePeriod + '_' +
-                stamp.getFullYear() + pad(stamp.getMonth() + 1) + pad(stamp.getDate()) + '.xlsx';
-            try {
-                const ws = XLSX.utils.aoa_to_sheet(aoa);
-                ws['!cols'] = [
-                    { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
-                    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }
-                ];
-                try {
-                    styleSalesExportSheet(ws, aoa, {
-                        titleRow: 0,
-                        headerRow: 1,
-                        intCols: new Set([2]),
-                        currCols: new Set([3, 4, 5, 6, 7, 8])
-                    });
-                } catch (e) { /* style optional */ }
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Ringkasan Harian');
-                XLSX.writeFile(wb, fileName);
-            } catch (err) {
-                console.error(err);
-                alert('Gagal mengunduh Ringkasan Harian: ' + (err && err.message ? err.message : err));
-            }
-        }
-
 
         // ---- Modal detail Cek Data -> Tempo ----
         function openCekUangMasukDetail(encodedFaktur) {
@@ -3027,7 +3037,6 @@
         function clearData() {
             allRows = [];
             lastFakturFiltered = [];
-            lastDailySummaryList = [];
             invalidateFakturIndex();
             saveRowsToDBAndSync([], DB_KEY);
             queueCloudSync();
@@ -3474,7 +3483,7 @@
         function renderRingkasanKetCell(outputVal, totalVal) {
             if (outputVal === null || outputVal === undefined) return '<span class="muted">—</span>';
             if (outputVal === totalVal) {
-                return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;color:var(--green,#16a34a);background:var(--green-bg,rgba(22,163,74,.12));">✅ Cocok</span>';
+                return '<span class="ket-badge">✅ Cocok</span>';
             }
             return '';
         }
@@ -3674,7 +3683,7 @@
             const bodyRows = products.map(p => {
                 const cells = pivot.salesList.map(s => {
                     const v = (pivot.prodMap[p] && pivot.prodMap[p][s]) || 0;
-                    return '<td class="num">' + (v ? v.toLocaleString('id-ID') : '—') + '</td>';
+                    return '<td class="num">' + (v ? v.toLocaleString('id-ID') : '<span class="muted">—</span>') + '</td>';
                 }).join('');
                 const tot = (pivot.prodMap[p] && pivot.prodMap[p].__total) || 0;
                 let gudangCells = '';
@@ -3689,17 +3698,17 @@
                         sumSelisihAbs += Math.abs(selisih);
                         if (selisih > 0) sumLebihGudang += selisih;
                         if (selisih < 0) sumKurangGudang += Math.abs(selisih);
-                        if (selisih > 0) selisihHtml = '<strong style="color:var(--yellow)">+' + selisih.toLocaleString('id-ID') + '</strong>';
-                        else if (selisih < 0) selisihHtml = '<strong style="color:var(--red)">' + selisih.toLocaleString('id-ID') + '</strong>';
-                        else selisihHtml = '<strong style="color:var(--green)">0</strong>';
+                        if (selisih > 0) selisihHtml = '<span class="selisih-pos">+' + selisih.toLocaleString('id-ID') + '</span>';
+                        else if (selisih < 0) selisihHtml = '<span class="selisih-neg">' + selisih.toLocaleString('id-ID') + '</span>';
+                        else selisihHtml = '<span class="selisih-zero">0</span>';
                     }
                     gudangCells = '<td class="num">' +
                         (outputVal !== null ? outputVal.toLocaleString('id-ID', { maximumFractionDigits: 2 }) : '<span class="muted">—</span>') +
                         '</td><td class="num">' + selisihHtml +
                         '</td><td>' + renderRingkasanKetCell(outputVal, tot) + '</td>';
                 }
-                return '<tr><td>' + esc(p) + '</td>' + cells + '<td class="num"><strong>' + tot.toLocaleString('id-ID') +
-                    '</strong></td>' + gudangCells + '</tr>';
+                return '<tr><td class="produk-cell">' + esc(p) + '</td>' + cells +
+                    '<td class="num total-cell">' + tot.toLocaleString('id-ID') + '</td>' + gudangCells + '</tr>';
             }).join('');
             const totalCells = pivot.salesList.map(s => '<td class="num">' + (pivot.salesTotals[s] || 0).toLocaleString(
                 'id-ID') + '</td>').join('');
@@ -3707,17 +3716,20 @@
             // saling menghapus. Karena itu tampilkan juga BEDA ABSOLUT (total masalah nyata).
             const totalGudangCells = withGudang ?
                 '<td class="num">' + (anyOutputGudang ? sumOutputGudang.toLocaleString('id-ID') : '—') + '</td>' +
-                '<td class="num"><strong>' + (anyOutputGudang ? (sumSelisihNet > 0 ? '+' : '') + sumSelisihNet.toLocaleString('id-ID') : '—') + '</strong></td>' +
-                '<td style="font-size:0.72rem;white-space:nowrap;">' + (anyOutputGudang
+                '<td class="num">' + (anyOutputGudang
+                    ? ('<span class="' + (sumSelisihNet > 0 ? 'selisih-pos' : (sumSelisihNet < 0 ? 'selisih-neg' : 'selisih-zero')) + '">' +
+                       (sumSelisihNet > 0 ? '+' : '') + sumSelisihNet.toLocaleString('id-ID') + '</span>')
+                    : '—') + '</td>' +
+                '<td class="ket-meta">' + (anyOutputGudang
                     ? ('NET ' + (sumSelisihNet > 0 ? '+' : '') + sumSelisihNet.toLocaleString('id-ID') +
                        ' · BEDA ABS ' + sumSelisihAbs.toLocaleString('id-ID') +
-                       ' <span style="color:var(--yellow)">(Gudang lebih ' + sumLebihGudang.toLocaleString('id-ID') +
+                       ' <span class="warn">(Gudang lebih ' + sumLebihGudang.toLocaleString('id-ID') +
                        ' / kurang ' + sumKurangGudang.toLocaleString('id-ID') + ')</span>')
                     : '—') + '</td>' : '';
-            const totalRow = '<tr class="total-row"><td>TOTAL</td>' + totalCells + '<td class="num">' + pivot.grandTotal
-                .toLocaleString('id-ID') + '</td>' + totalGudangCells + '</tr>';
-            return '<table class="profit-table"><thead>' + thead + '</thead><tbody>' + bodyRows + totalRow +
-                '</tbody></table>';
+            const totalRow = '<tr class="total-row"><td class="produk-cell">TOTAL</td>' + totalCells +
+                '<td class="num total-cell">' + pivot.grandTotal.toLocaleString('id-ID') + '</td>' + totalGudangCells + '</tr>';
+            return '<div class="ringkasan-pivot-wrap"><table class="ringkasan-pivot profit-table"><thead>' + thead +
+                '</thead><tbody>' + bodyRows + totalRow + '</tbody></table></div>';
         }
 
         function renderRingkasanCards(pivotFitri) {
@@ -4887,9 +4899,8 @@
                 const tot = r.total || 0;
                 const cost = (r.hargaBeli || 0) * qty;
                 const profit = tot - cost;
-                const pay = String(r.pembayaran || '').trim().toUpperCase();
-                const isCash = pay === 'CASH' || pay.startsWith('CASH') || pay === 'TUNAI';
-                if (isCash) {
+                const pay = (r.pembayaran || '').toUpperCase();
+                if (pay === 'CASH') {
                     g.nomCash += tot;
                     g.profitCash += profit;
                 } else {
@@ -5328,23 +5339,37 @@
                 sheetName = 'Ringkasan Fitri';
                 fileName = 'Ringkasan_Penjualan_Fitri_' + safePeriod + '.xlsx';
                 aoa = [
-                    ['RINGKASAN PENJUALAN FITRI'].concat(pivot.salesList.map(() => '')).concat(['', '', periodExport])
+                    ['RINGKASAN PENJUALAN FITRI'].concat(pivot.salesList.map(() => '')).concat(['', '', '', periodExport])
                 ];
-                aoa.push(['Produk'].concat(pivot.salesList).concat(['Total', 'Output Gudang', 'Ket']));
+                aoa.push(['Produk'].concat(pivot.salesList).concat(['Total', 'Output Gudang', 'Selisih', 'Ket']));
+                let sumSelNet = 0, sumSelAbs = 0, sumLebih = 0, sumKurang = 0;
                 pivot.products.forEach(p => {
                     const tot = pivot.prodMap[p].__total;
                     const outputVal = getAutoOutputGudang(p);
+                    let selisih = '';
+                    let ket = '';
+                    if (outputVal !== null) {
+                        const s = outputVal - tot;
+                        selisih = s;
+                        sumSelNet += s;
+                        sumSelAbs += Math.abs(s);
+                        if (s > 0) sumLebih += s;
+                        if (s < 0) sumKurang += Math.abs(s);
+                        ket = (s === 0) ? 'Cocok' : '';
+                    }
                     aoa.push([p].concat(pivot.salesList.map(s => (pivot.prodMap[p][s] || 0))).concat([
-                        tot, outputVal !== null ? outputVal : '',
-                        outputVal !== null && outputVal === tot ? 'Cocok' : ''
+                        tot, outputVal !== null ? outputVal : '', selisih, ket
                     ]));
                 });
                 {
                     let sumOut = 0, anyOut = false;
                     pivot.products.forEach(p => { const v = getAutoOutputGudang(p); if (v !== null) { sumOut += v; anyOut = true; } });
+                    const ketTotal = anyOut
+                        ? ('NET ' + (sumSelNet > 0 ? '+' : '') + sumSelNet + ' · BEDA ABS ' + sumSelAbs +
+                           ' (Gudang lebih ' + sumLebih + ' / kurang ' + sumKurang + ')')
+                        : '';
                     aoa.push(['TOTAL'].concat(pivot.salesList.map(s => (pivot.salesTotals[s] || 0))).concat([
-                        pivot.grandTotal, anyOut ? sumOut : '',
-                        anyOut && sumOut === pivot.grandTotal ? 'Cocok' : ''
+                        pivot.grandTotal, anyOut ? sumOut : '', anyOut ? sumSelNet : '', ketTotal
                     ]));
                 }
 
@@ -5354,23 +5379,37 @@
                 const rupaRows = rows.filter(r => !isFitriProduk(r.produk));
                 const pivotRupa = buildRingkasanPivot(rupaRows);
                 const aoaRupa = [
-                    ['RINGKASAN PENJUALAN RUPA RUPA'].concat(pivotRupa.salesList.map(() => '')).concat(['', '', periodExport])
+                    ['RINGKASAN PENJUALAN RUPA RUPA'].concat(pivotRupa.salesList.map(() => '')).concat(['', '', '', periodExport])
                 ];
-                aoaRupa.push(['Produk'].concat(pivotRupa.salesList).concat(['Total', 'Output Gudang', 'Ket']));
+                aoaRupa.push(['Produk'].concat(pivotRupa.salesList).concat(['Total', 'Output Gudang', 'Selisih', 'Ket']));
+                let sumSelNetR = 0, sumSelAbsR = 0, sumLebihR = 0, sumKurangR = 0;
                 pivotRupa.products.forEach(p => {
                     const tot = pivotRupa.prodMap[p].__total;
                     const outputVal = getAutoOutputGudang(p);
+                    let selisih = '';
+                    let ket = '';
+                    if (outputVal !== null) {
+                        const s = outputVal - tot;
+                        selisih = s;
+                        sumSelNetR += s;
+                        sumSelAbsR += Math.abs(s);
+                        if (s > 0) sumLebihR += s;
+                        if (s < 0) sumKurangR += Math.abs(s);
+                        ket = (s === 0) ? 'Cocok' : '';
+                    }
                     aoaRupa.push([p].concat(pivotRupa.salesList.map(s => (pivotRupa.prodMap[p][s] || 0))).concat([
-                        tot, outputVal !== null ? outputVal : '',
-                        outputVal !== null && outputVal === tot ? 'Cocok' : ''
+                        tot, outputVal !== null ? outputVal : '', selisih, ket
                     ]));
                 });
                 {
                     let sumOut2 = 0, anyOut2 = false;
                     pivotRupa.products.forEach(p => { const v = getAutoOutputGudang(p); if (v !== null) { sumOut2 += v; anyOut2 = true; } });
+                    const ketTotalR = anyOut2
+                        ? ('NET ' + (sumSelNetR > 0 ? '+' : '') + sumSelNetR + ' · BEDA ABS ' + sumSelAbsR +
+                           ' (Gudang lebih ' + sumLebihR + ' / kurang ' + sumKurangR + ')')
+                        : '';
                     aoaRupa.push(['TOTAL'].concat(pivotRupa.salesList.map(s => (pivotRupa.salesTotals[s] || 0))).concat([
-                        pivotRupa.grandTotal, anyOut2 ? sumOut2 : '',
-                        anyOut2 && sumOut2 === pivotRupa.grandTotal ? 'Cocok' : ''
+                        pivotRupa.grandTotal, anyOut2 ? sumOut2 : '', anyOut2 ? sumSelNetR : '', ketTotalR
                     ]));
                 }
                 extraSheets.push({ name: 'Ringkasan Rupa Rupa', aoa: aoaRupa });
@@ -5407,7 +5446,7 @@
             } else if (currentSalesSub === 'pay') {
                 if (!lastProfitPayRows.length) renderProfitPay(lastSalesFiltered.length ? lastSalesFiltered :
                     salesRows);
-                sheetName = 'Profit Per Produk Per Bayar';
+                sheetName = 'Profit Per Produk Per Pembayaran';
                 fileName = 'Profit_Per_Produk_Per_Pembayaran_' + safePeriod + '.xlsx';
                 aoa = [
                     ['PROFIT PER PRODUK PER PEMBAYARAN', '', '', '', '', '', period]
@@ -5553,43 +5592,34 @@
             // Style rapi: header tebal fill biru, border tipis, zebra, freeze panes,
             // auto-filter, dan format "Rp" untuk kolom uang. Konsisten di semua tab.
             try { styleSalesExportSheet(ws, aoa, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
-            try {
-                if (!aoa || !aoa.length) {
-                    alert('Tidak ada data untuk diunduh.');
-                    return;
-                }
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, String(sheetName || 'Data').slice(0, 31));
-                // Sheet-sheet tambahan (mis. Rupa Rupa & Data Gudang di sub-tab Ringkasan),
-                // dirapikan dengan format angka, merge judul, dan lebar kolom yang sama
-                // seperti sheet utama supaya seluruh file download konsisten & rapi.
-                extraSheets.forEach(extra => {
-                    const aoaX = extra.aoa;
-                    if (!aoaX || !aoaX.length) return;
-                    const wsExtra = XLSX.utils.aoa_to_sheet(aoaX);
-                    const rangeExtra = XLSX.utils.decode_range(wsExtra['!ref']);
-                    for (let R = rangeExtra.s.r; R <= rangeExtra.e.r; R++) {
-                        for (let C = rangeExtra.s.c; C <= rangeExtra.e.c; C++) {
-                            const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                            const cell = wsExtra[addr];
-                            if (cell && cell.t === 'n' && typeof cell.v === 'number') {
-                                cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.##';
-                            }
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            // Sheet-sheet tambahan (mis. Rupa Rupa & Data Gudang di sub-tab Ringkasan),
+            // dirapikan dengan format angka, merge judul, dan lebar kolom yang sama
+            // seperti sheet utama supaya seluruh file download konsisten & rapi.
+            extraSheets.forEach(extra => {
+                const aoaX = extra.aoa;
+                if (!aoaX || !aoaX.length) return;
+                const wsExtra = XLSX.utils.aoa_to_sheet(aoaX);
+                const rangeExtra = XLSX.utils.decode_range(wsExtra['!ref']);
+                for (let R = rangeExtra.s.r; R <= rangeExtra.e.r; R++) {
+                    for (let C = rangeExtra.s.c; C <= rangeExtra.e.c; C++) {
+                        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                        const cell = wsExtra[addr];
+                        if (cell && cell.t === 'n' && typeof cell.v === 'number') {
+                            cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.##';
                         }
                     }
-                    if (aoaX[0] && aoaX[0].length > 2) {
-                        wsExtra['!merges'] = wsExtra['!merges'] || [];
-                        wsExtra['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoaX[0].length - 2 } });
-                    }
-                    wsExtra['!cols'] = computeAutoColWidths(aoaX);
-                    try { styleSalesExportSheet(wsExtra, aoaX, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
-                    XLSX.utils.book_append_sheet(wb, wsExtra, String(extra.name || 'Sheet').slice(0, 31));
-                });
-                XLSX.writeFile(wb, fileName);
-            } catch (err) {
-                console.error('downloadCurrentSalesExcel error', err);
-                alert('Gagal mengunduh Excel: ' + (err && err.message ? err.message : err));
-            }
+                }
+                if (aoaX[0] && aoaX[0].length > 2) {
+                    wsExtra['!merges'] = wsExtra['!merges'] || [];
+                    wsExtra['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoaX[0].length - 2 } });
+                }
+                wsExtra['!cols'] = computeAutoColWidths(aoaX);
+                try { styleSalesExportSheet(wsExtra, aoaX, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
+                XLSX.utils.book_append_sheet(wb, wsExtra, (extra.name || 'Sheet').slice(0, 31));
+            });
+            XLSX.writeFile(wb, fileName);
         }
 
         // ---- Clear sales data ----
@@ -8375,7 +8405,7 @@
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
             markFakturLunasManualFromCardModal, openManualLunasHistoryModal, undoManualLunasFromHistoryModal,
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
-            downloadFakturExcel, downloadFakturDay, downloadDailySummary,
+            downloadFakturExcel,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
             downloadCurrentSalesExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
             switchCekSub, toggleCekBulanPanel, onCekBulanAllChange, onCekBulanItemChange,
