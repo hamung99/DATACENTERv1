@@ -212,6 +212,7 @@
         .gudang-scroll-box .profit-table thead th:first-child { z-index: 4; }
         .gudang-scroll-box .profit-table thead tr:first-child th { top: 0; }
         .gudang-scroll-box .profit-table thead tr:last-child th:not([rowspan]) { top: 32px; }
+        #profitSalesTable thead tr:last-child th:not([rowspan]) { top: 32px; }
         .hj-clickable { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
         .hj-clickable:hover { color: var(--accent); }
         .profit-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 0.78rem; font-weight: 700; }
@@ -762,9 +763,9 @@
 
             <div class="profit-wrap" id="profitProdukWrap"><div class="profit-head"><span>PROFIT PENJUALAN / PRODUK</span><span class="muted" id="profitProdukPeriod">—</span></div><table class="profit-table"><thead><tr><th>No</th><th>Produk</th><th class="num">Qty</th><th class="num">Total Penjualan</th><th class="num">Total HPP</th><th class="num">Harga Jual</th><th class="num">Harga Beli</th><th class="num">Profit</th></tr></thead><tbody id="profitProdukBody"></tbody></table></div>
             <div class="profit-wrap" id="profitPayWrap"><div class="profit-head"><span>PROFIT PER PRODUK PER PEMBAYARAN</span><span class="muted" id="profitPayPeriod">—</span></div><table class="profit-table"><thead><tr><th>Produk</th><th class="num">Nominal Penjualan Cash</th><th class="num">Nominal Penjualan Tempo</th><th class="num">Profit Tempo</th><th class="num">Profit Cash</th><th class="num">Total Nominal Penjualan</th><th class="num">Total Profit</th></tr></thead><tbody id="profitPayBody"></tbody></table></div>
-            <div class="profit-wrap" id="profitSalesWrap"><div class="profit-head"><span>PROFIT PER SALES</span><span class="muted" id="profitSalesPeriod">—</span></div><table class="profit-table"><thead><tr><th>No</th><th>Sales</th><th class="num">Qty Fitri</th><th class="num">Qty Rupa Rupa</th><th class="num">Nominal Fitri</th><th class="num">Nominal Rupa Rupa</th><th class="num">Profit Fitri</th><th class="num">Profit Rupa Rupa</th><th class="num">Total Profit</th></tr></thead><tbody id="profitSalesBody"></tbody></table></div>
+            <div class="profit-wrap" id="profitSalesWrap"><div class="profit-head"><span>PENJUALAN PER SALES PER PRODUK</span><span class="muted" id="profitSalesPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesTable"><thead id="profitSalesHead"></thead><tbody id="profitSalesBody"></tbody></table></div></div>
             <div class="profit-wrap" id="profitSalesProdukWrap"><div class="profit-head"><span>PER SALES PER PRODUK</span><span class="muted" id="profitSalesProdukPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesProdukTable"><thead id="profitSalesProdukHead"></thead><tbody id="profitSalesProdukBody"></tbody></table></div></div>
-            <div class="profit-wrap" id="profitBulanWrap"><div class="profit-head"><span>PROFIT PER BULAN</span><span class="muted" id="profitBulanPeriod">—</span></div><table class="profit-table"><thead><tr><th>Bulan</th><th class="num">Total Qty Fitri</th><th class="num">Total Qty Rupa2</th><th class="num">Totl Nominl Fitri</th><th class="num">Total Nominal Rupa2</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th></tr></thead><tbody id="profitBulanBody"></tbody></table></div>
+            <div class="profit-wrap" id="profitBulanWrap"><div class="profit-head"><span>PROFIT PER BULAN</span><span class="muted" id="profitBulanPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table"><thead><tr><th>Bulan</th><th class="num">Total Qty Fitri</th><th class="num">Totl Nominl Fitri</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Total Qty Rupa2</th><th class="num">Total Nominal Rupa2</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Margin</th><th class="num">TOTAL PROFIT</th></tr></thead><tbody id="profitBulanBody"></tbody></table></div></div>
 
             <div class="empty-state" id="salesEmptyState" style="display:none;">
                 <div class="big">📦</div>
@@ -5335,74 +5336,90 @@
         }
 
         function renderProfitSales(rows) {
+            const cleanRows = (rows || []).filter(r => String(r.status || '').toUpperCase() !== 'BATAL' && !r.isBatal);
+            const salesSet = new Set();
             const map = {};
-            for (const r of rows) {
-                const name = (r.sales || '').trim() || '—';
-                if (!map[name]) {
-                    map[name] = { sales: name, qtyFitri: 0, qtyRupa: 0, nomFitri: 0, nomRupa: 0, profitFitri: 0,
-                        profitRupa: 0 };
+            for (const r of cleanRows) {
+                const produk = (r.produk || '').trim() || '—';
+                const sales = (r.sales || '').trim() || '—';
+                const qty = Number(r.jumlah) || 0;
+                const hargaBeli = Number(r.hargaBeli) || 0;
+                const hargaJual = Number(r.hargaJual) || 0;
+                const total = Number(r.total) || 0;
+                const profit = total - (hargaBeli * qty);
+                salesSet.add(sales);
+                if (!map[produk]) map[produk] = { produk, satuan: r.satuan || '', salesQty: {}, salesProfit: {},
+                    totalQty: 0, totalProfit: 0, beliXQty: 0, minHargaJual: Infinity, maxHargaJual: -Infinity };
+                const g = map[produk];
+                g.salesQty[sales] = (g.salesQty[sales] || 0) + qty;
+                g.salesProfit[sales] = (g.salesProfit[sales] || 0) + profit;
+                g.totalQty += qty;
+                g.totalProfit += profit;
+                g.beliXQty += hargaBeli * qty;
+                if (hargaJual > 0) {
+                    g.minHargaJual = Math.min(g.minHargaJual, hargaJual);
+                    g.maxHargaJual = Math.max(g.maxHargaJual, hargaJual);
                 }
-                const g = map[name];
-                const qty = r.jumlah || 0;
-                const tot = r.total || 0;
-                const cost = (r.hargaBeli || 0) * qty;
-                const profit = tot - cost;
-                const isFitri = (r.produk || '').toUpperCase().includes('FITRI');
-                if (isFitri) {
-                    g.qtyFitri += qty;
-                    g.nomFitri += tot;
-                    g.profitFitri += profit;
-                } else {
-                    g.qtyRupa += qty;
-                    g.nomRupa += tot;
-                    g.profitRupa += profit;
-                }
+                if (!g.satuan && r.satuan) g.satuan = r.satuan;
             }
-            lastProfitSalesRows = Object.values(map).map(g => Object.assign({}, g, { totalProfit: g.profitFitri + g
-                    .profitRupa })).sort((a, b) => a.sales.localeCompare(b.sales));
+            Object.values(map).forEach(g => {
+                g.hargaBeliSatuan = g.totalQty ? (g.beliXQty / g.totalQty) : 0;
+                if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
+                    g.hargaJualRange = '—';
+                } else if (g.minHargaJual === g.maxHargaJual) {
+                    g.hargaJualRange = fmt(g.minHargaJual);
+                } else {
+                    g.hargaJualRange = fmt(g.minHargaJual) + ' - ' + fmt(g.maxHargaJual);
+                }
+            });
+            const preferred = ['RAJU','HAFID','JOSSY','GC','PARIMIN'];
+            const salesList = Array.from(salesSet).sort((a,b) => {
+                const ia = preferred.indexOf(a.toUpperCase()), ib = preferred.indexOf(b.toUpperCase());
+                const ra = ia < 0 ? 999 : ia, rb = ib < 0 ? 999 : ib;
+                return ra !== rb ? ra-rb : a.localeCompare(b);
+            });
+            lastProfitSalesRows = Object.values(map).sort((a,b) => b.totalQty-a.totalQty || a.produk.localeCompare(b.produk));
             document.getElementById('profitSalesPeriod').textContent = getSalesPeriodLabel();
+            const head = document.getElementById('profitSalesHead');
             const body = document.getElementById('profitSalesBody');
             if (!lastProfitSalesRows.length) {
-                body.innerHTML =
-                    '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
+                head.innerHTML = '<tr><th>PRODUK</th></tr>';
+                body.innerHTML = '<tr><td style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
                 return;
             }
-            let tQF = 0,
-                tQR = 0,
-                tNF = 0,
-                tNR = 0,
-                tPF = 0,
-                tPR = 0,
-                tTP = 0;
-            body.innerHTML = lastProfitSalesRows.map((r, i) => {
-                tQF += r.qtyFitri;
-                tQR += r.qtyRupa;
-                tNF += r.nomFitri;
-                tNR += r.nomRupa;
-                tPF += r.profitFitri;
-                tPR += r.profitRupa;
-                tTP += r.totalProfit;
-                return '<tr>' +
-                    '<td>' + (i + 1) + '</td>' +
-                    '<td>' + esc(r.sales) + '</td>' +
-                    '<td class="num">' + r.qtyFitri.toLocaleString('id-ID') + '</td>' +
-                    '<td class="num">' + r.qtyRupa.toLocaleString('id-ID') + '</td>' +
-                    '<td class="num">' + fmt(r.nomFitri) + '</td>' +
-                    '<td class="num">' + fmt(r.nomRupa) + '</td>' +
-                    '<td class="num">' + fmt(r.profitFitri) + '</td>' +
-                    '<td class="num">' + fmt(r.profitRupa) + '</td>' +
+            head.innerHTML = '<tr>' +
+                '<th rowspan="2" style="vertical-align:middle;">PRODUK</th>' +
+                '<th colspan="2" style="text-align:center;">HARGA</th>' +
+                salesList.map(s => '<th colspan="2" style="text-align:center;">' + esc(s) + '</th>').join('') +
+                '<th rowspan="2" style="vertical-align:middle;" class="num">TOTAL QTY</th>' +
+                '<th rowspan="2" style="vertical-align:middle;" class="num">TOTAL PROFIT</th>' +
+                '</tr><tr>' +
+                '<th class="num">BELI</th><th class="num">JUAL</th>' +
+                salesList.map(() => '<th class="num">QTY</th><th class="num">PROFIT</th>').join('') +
+                '</tr>';
+            let totals = { qty: 0, profit: 0, sales: {}, salesProfit: {} };
+            body.innerHTML = lastProfitSalesRows.map(r => {
+                totals.qty += r.totalQty; totals.profit += r.totalProfit;
+                return '<tr><td>' + esc(r.produk) + '</td>' +
+                    '<td class="num">' + fmt(r.hargaBeliSatuan) + '</td>' +
+                    '<td class="num">' + r.hargaJualRange + '</td>' +
+                    salesList.map(s => {
+                        const q = r.salesQty[s] || 0;
+                        const p = r.salesProfit[s] || 0;
+                        totals.sales[s] = (totals.sales[s] || 0) + q;
+                        totals.salesProfit[s] = (totals.salesProfit[s] || 0) + p;
+                        return '<td class="num">' + (q ? q.toLocaleString('id-ID') : '') + '</td>' +
+                            '<td class="num">' + (q ? fmt(p) : '') + '</td>';
+                    }).join('') +
+                    '<td class="num"><strong>' + r.totalQty.toLocaleString('id-ID') + '</strong></td>' +
                     '<td class="num"><strong>' + fmt(r.totalProfit) + '</strong></td>' +
                     '</tr>';
             }).join('') +
-                '<tr class="total-row">' +
-                '<td></td><td>TOTAL</td>' +
-                '<td class="num">' + tQF.toLocaleString('id-ID') + '</td>' +
-                '<td class="num">' + tQR.toLocaleString('id-ID') + '</td>' +
-                '<td class="num">' + fmt(tNF) + '</td>' +
-                '<td class="num">' + fmt(tNR) + '</td>' +
-                '<td class="num">' + fmt(tPF) + '</td>' +
-                '<td class="num">' + fmt(tPR) + '</td>' +
-                '<td class="num">' + fmt(tTP) + '</td>' +
+                '<tr class="total-row"><td>TOTAL</td><td></td><td></td>' +
+                salesList.map(s => '<td class="num">' + (totals.sales[s] || 0).toLocaleString('id-ID') + '</td>' +
+                    '<td class="num">' + fmt(totals.salesProfit[s] || 0) + '</td>').join('') +
+                '<td class="num">' + totals.qty.toLocaleString('id-ID') + '</td>' +
+                '<td class="num">' + fmt(totals.profit) + '</td>' +
                 '</tr>';
         }
 
@@ -5477,7 +5494,7 @@
             for (const r of rows) {
                 const bulan = r.month || 'Lainnya';
                 if (!map[bulan]) {
-                    map[bulan] = { bulan, qtyFitri: 0, qtyRupa: 0, nomFitri: 0, nomRupa: 0, totalHpp: 0 };
+                    map[bulan] = { bulan, qtyFitri: 0, qtyRupa: 0, nomFitri: 0, nomRupa: 0, hppFitri: 0, hppRupa: 0 };
                 }
                 const g = map[bulan];
                 const qty = r.jumlah || 0;
@@ -5487,17 +5504,23 @@
                 if (isFitri) {
                     g.qtyFitri += qty;
                     g.nomFitri += tot;
+                    g.hppFitri += hpp;
                 } else {
                     g.qtyRupa += qty;
                     g.nomRupa += tot;
+                    g.hppRupa += hpp;
                 }
-                g.totalHpp += hpp;
             }
             lastProfitBulanRows = Object.values(map).map(g => {
+                const profitFitri = g.nomFitri - g.hppFitri;
+                const profitRupa = g.nomRupa - g.hppRupa;
+                const marginFitri = g.nomFitri ? (profitFitri / g.nomFitri) * 100 : 0;
+                const marginRupa = g.nomRupa ? (profitRupa / g.nomRupa) * 100 : 0;
                 const totalNominal = g.nomFitri + g.nomRupa;
-                const profit = totalNominal - g.totalHpp;
-                const margin = totalNominal ? (profit / totalNominal) * 100 : 0;
-                return Object.assign({}, g, { totalNominal, profit, margin });
+                const totalProfit = profitFitri + profitRupa;
+                const marginTotal = totalNominal ? (totalProfit / totalNominal) * 100 : 0;
+                return Object.assign({}, g, { profitFitri, profitRupa, marginFitri, marginRupa, totalNominal,
+                    totalProfit, marginTotal });
             }).sort((a, b) => MONTH_ORDER.indexOf(a.bulan) - MONTH_ORDER.indexOf(b.bulan));
             // Selalu "Semua Bulan" karena tab ini memang untuk membandingkan
             // antar bulan (lihat getSalesRowsForBulanCompare), bukan
@@ -5506,43 +5529,45 @@
             const body = document.getElementById('profitBulanBody');
             if (!lastProfitBulanRows.length) {
                 body.innerHTML =
-                    '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
+                    '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
                 return;
             }
-            let tQF = 0,
-                tQR = 0,
-                tNF = 0,
-                tNR = 0,
-                tHpp = 0,
-                tProfit = 0;
+            const fmtPct = v => v.toFixed(1).replace('.', ',') + '%';
+            let tQF = 0, tNF = 0, tHF = 0, tPF = 0, tQR = 0, tNR = 0, tHR = 0, tPR = 0, tTP = 0;
             body.innerHTML = lastProfitBulanRows.map(r => {
-                tQF += r.qtyFitri;
-                tQR += r.qtyRupa;
-                tNF += r.nomFitri;
-                tNR += r.nomRupa;
-                tHpp += r.totalHpp;
-                tProfit += r.profit;
+                tQF += r.qtyFitri; tNF += r.nomFitri; tHF += r.hppFitri; tPF += r.profitFitri;
+                tQR += r.qtyRupa; tNR += r.nomRupa; tHR += r.hppRupa; tPR += r.profitRupa;
+                tTP += r.totalProfit;
                 return '<tr>' +
                     '<td>' + esc(r.bulan) + '</td>' +
                     '<td class="num">' + r.qtyFitri.toLocaleString('id-ID') + '</td>' +
-                    '<td class="num">' + r.qtyRupa.toLocaleString('id-ID') + '</td>' +
                     '<td class="num">' + fmt(r.nomFitri) + '</td>' +
+                    '<td class="num">' + fmt(r.hppFitri) + '</td>' +
+                    '<td class="num">' + fmt(r.profitFitri) + '</td>' +
+                    '<td class="num">' + fmtPct(r.marginFitri) + '</td>' +
+                    '<td class="num">' + r.qtyRupa.toLocaleString('id-ID') + '</td>' +
                     '<td class="num">' + fmt(r.nomRupa) + '</td>' +
-                    '<td class="num">' + fmt(r.totalHpp) + '</td>' +
-                    '<td class="num"><strong>' + fmt(r.profit) + '</strong></td>' +
-                    '<td class="num">' + r.margin.toFixed(1).replace('.', ',') + '%</td>' +
+                    '<td class="num">' + fmt(r.hppRupa) + '</td>' +
+                    '<td class="num">' + fmt(r.profitRupa) + '</td>' +
+                    '<td class="num">' + fmtPct(r.marginRupa) + '</td>' +
+                    '<td class="num">' + fmtPct(r.marginTotal) + '</td>' +
+                    '<td class="num"><strong>' + fmt(r.totalProfit) + '</strong></td>' +
                     '</tr>';
             }).join('') +
                 '<tr class="total-row">' +
                 '<td>TOTAL</td>' +
                 '<td class="num">' + tQF.toLocaleString('id-ID') + '</td>' +
-                '<td class="num">' + tQR.toLocaleString('id-ID') + '</td>' +
                 '<td class="num">' + fmt(tNF) + '</td>' +
+                '<td class="num">' + fmt(tHF) + '</td>' +
+                '<td class="num">' + fmt(tPF) + '</td>' +
+                '<td class="num">' + (tNF ? fmtPct((tPF / tNF) * 100) : '0,0%') + '</td>' +
+                '<td class="num">' + tQR.toLocaleString('id-ID') + '</td>' +
                 '<td class="num">' + fmt(tNR) + '</td>' +
-                '<td class="num">' + fmt(tHpp) + '</td>' +
-                '<td class="num">' + fmt(tProfit) + '</td>' +
-                '<td class="num">' + ((tNF + tNR) ? ((tProfit / (tNF + tNR)) * 100).toFixed(1).replace('.', ',') :
-                    '0,0') + '%</td>' +
+                '<td class="num">' + fmt(tHR) + '</td>' +
+                '<td class="num">' + fmt(tPR) + '</td>' +
+                '<td class="num">' + (tNR ? fmtPct((tPR / tNR) * 100) : '0,0%') + '</td>' +
+                '<td class="num">' + ((tNF + tNR) ? fmtPct((tTP / (tNF + tNR)) * 100) : '0,0%') + '</td>' +
+                '<td class="num">' + fmt(tTP) + '</td>' +
                 '</tr>';
         }
 
@@ -5867,31 +5892,33 @@
                 // "Semua" tidak ikut mengubah apa yang dilihat user di tabel layar).
                 if (scope === 'all') renderProfitPay(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
             } else if (currentSalesSub === 'sales') {
-                if (!lastProfitSalesRows.length) renderProfitSales(lastSalesFiltered.length ? lastSalesFiltered :
-                    salesRows);
+                const salesReportRows = (scope === 'all') ? salesRows : (lastSalesFiltered.length ? lastSalesFiltered : salesRows);
+                renderProfitSales(salesReportRows);
+                const salesSetX = new Set();
+                lastProfitSalesRows.forEach(r => Object.keys(r.salesQty).forEach(s => salesSetX.add(s)));
+                const preferredX = ['RAJU','HAFID','JOSSY','GC','PARIMIN'];
+                const salesListX = Array.from(salesSetX).sort((a,b) => { const ia=preferredX.indexOf(a.toUpperCase()), ib=preferredX.indexOf(b.toUpperCase()); const ra=ia<0?999:ia, rb=ib<0?999:ib; return ra!==rb?ra-rb:a.localeCompare(b); });
                 sheetName = 'Profit Per Sales';
                 fileName = 'Profit_Per_Sales_' + safePeriod + '.xlsx';
-                aoa = [
-                    ['PROFIT PER SALES', '', '', '', '', '', '', '', period]
-                ];
-                aoa.push(['No', 'Sales', 'Qty Fitri', 'Qty Rupa Rupa', 'Nominal Fitri', 'Nominal Rupa Rupa',
-                    'Profit Fitri', 'Profit Rupa Rupa', 'Total Profit'
-                ]);
-                lastProfitSalesRows.forEach((r, i) => {
-                    aoa.push([i + 1, r.sales, r.qtyFitri, r.qtyRupa, r.nomFitri, r.nomRupa, r.profitFitri, r
-                        .profitRupa, r.totalProfit
-                    ]);
+                aoa = [['PENJUALAN PER SALES PER PRODUK'].concat(salesListX.map(() => '')).concat(['', '', '', period])];
+                const headRow1 = ['PRODUK', 'HARGA', ''].concat(salesListX.flatMap(s => [s, ''])).concat(['TOTAL QTY', 'TOTAL PROFIT']);
+                const headRow2 = ['', 'BELI', 'JUAL'].concat(salesListX.flatMap(() => ['QTY', 'PROFIT'])).concat(['', '']);
+                aoa.push(headRow1);
+                aoa.push(headRow2);
+                const totalsX = { qty: 0, profit: 0, sales: {}, salesProfit: {} };
+                lastProfitSalesRows.forEach(r => {
+                    salesListX.forEach(s => {
+                        totalsX.sales[s] = (totalsX.sales[s] || 0) + (r.salesQty[s] || 0);
+                        totalsX.salesProfit[s] = (totalsX.salesProfit[s] || 0) + (r.salesProfit[s] || 0);
+                    });
+                    totalsX.qty += r.totalQty; totalsX.profit += r.totalProfit;
+                    aoa.push([r.produk, r.hargaBeliSatuan, r.hargaJualRange]
+                        .concat(salesListX.flatMap(s => [r.salesQty[s] || 0, r.salesProfit[s] || 0]))
+                        .concat([r.totalQty, r.totalProfit]));
                 });
-                const t2 = lastProfitSalesRows.reduce((a, r) => ({
-                    qf: a.qf + r.qtyFitri,
-                    qr: a.qr + r.qtyRupa,
-                    nf: a.nf + r.nomFitri,
-                    nr: a.nr + r.nomRupa,
-                    pf: a.pf + r.profitFitri,
-                    pr: a.pr + r.profitRupa,
-                    tp: a.tp + r.totalProfit
-                }), { qf: 0, qr: 0, nf: 0, nr: 0, pf: 0, pr: 0, tp: 0 });
-                aoa.push(['', 'TOTAL', t2.qf, t2.qr, t2.nf, t2.nr, t2.pf, t2.pr, t2.tp]);
+                aoa.push(['TOTAL', '', ''].concat(salesListX.flatMap(s => [totalsX.sales[s] || 0, totalsX.salesProfit[s] || 0]))
+                    .concat([totalsX.qty, totalsX.profit]));
+                if (scope === 'all') renderProfitSales(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
             } else if (currentSalesSub === 'salesProduk') {
                 const reportRows = (scope === 'all') ? salesRows : (lastSalesFiltered.length ? lastSalesFiltered : salesRows);
                 renderProfitSalesProduk(reportRows);
@@ -5915,26 +5942,35 @@
                 sheetName = 'Profit Per Bulan';
                 fileName = 'Profit_Per_Bulan_Semua_Bulan.xlsx';
                 aoa = [
-                    ['PROFIT PER BULAN', '', '', '', '', '', '', 'Semua Bulan (perbandingan)']
+                    ['PROFIT PER BULAN', '', '', '', '', '', '', '', '', '', '', '', 'Semua Bulan (perbandingan)']
                 ];
-                aoa.push(['Bulan', 'Total Qty Fitri', 'Total Qty Rupa2', 'Totl Nominl Fitri', 'Total Nominal Rupa2',
-                    'Totl HPP', 'Profit', 'Margin (%)'
+                aoa.push(['Bulan', 'Total Qty Fitri', 'Totl Nominl Fitri', 'Totl HPP', 'Profit', 'Margin (%)',
+                    'Total Qty Rupa2', 'Total Nominal Rupa2', 'Totl HPP', 'Profit', 'Margin (%)', 'Margin (%)',
+                    'TOTAL PROFIT'
                 ]);
                 lastProfitBulanRows.forEach(r => {
-                    aoa.push([r.bulan, r.qtyFitri, r.qtyRupa, r.nomFitri, r.nomRupa, r.totalHpp, r.profit,
-                        Number(r.margin.toFixed(1))
+                    aoa.push([r.bulan, r.qtyFitri, r.nomFitri, r.hppFitri, r.profitFitri,
+                        Number(r.marginFitri.toFixed(1)), r.qtyRupa, r.nomRupa, r.hppRupa, r.profitRupa,
+                        Number(r.marginRupa.toFixed(1)), Number(r.marginTotal.toFixed(1)), r.totalProfit
                     ]);
                 });
                 const t3 = lastProfitBulanRows.reduce((a, r) => ({
                     qf: a.qf + r.qtyFitri,
-                    qr: a.qr + r.qtyRupa,
                     nf: a.nf + r.nomFitri,
+                    hf: a.hf + r.hppFitri,
+                    pf: a.pf + r.profitFitri,
+                    qr: a.qr + r.qtyRupa,
                     nr: a.nr + r.nomRupa,
-                    hp: a.hp + r.totalHpp,
-                    pr: a.pr + r.profit
-                }), { qf: 0, qr: 0, nf: 0, nr: 0, hp: 0, pr: 0 });
-                const marginTotal = (t3.nf + t3.nr) ? Number(((t3.pr / (t3.nf + t3.nr)) * 100).toFixed(1)) : 0;
-                aoa.push(['TOTAL', t3.qf, t3.qr, t3.nf, t3.nr, t3.hp, t3.pr, marginTotal]);
+                    hr: a.hr + r.hppRupa,
+                    pr: a.pr + r.profitRupa,
+                    tp: a.tp + r.totalProfit
+                }), { qf: 0, nf: 0, hf: 0, pf: 0, qr: 0, nr: 0, hr: 0, pr: 0, tp: 0 });
+                const marginFitriTotal = t3.nf ? Number(((t3.pf / t3.nf) * 100).toFixed(1)) : 0;
+                const marginRupaTotal = t3.nr ? Number(((t3.pr / t3.nr) * 100).toFixed(1)) : 0;
+                const marginGrandTotal = (t3.nf + t3.nr) ? Number(((t3.tp / (t3.nf + t3.nr)) * 100).toFixed(1)) : 0;
+                aoa.push(['TOTAL', t3.qf, t3.nf, t3.hf, t3.pf, marginFitriTotal, t3.qr, t3.nr, t3.hr, t3.pr,
+                    marginRupaTotal, marginGrandTotal, t3.tp
+                ]);
             } else {
                 const rows = isAllTrans ? salesRows : (lastSalesFiltered.length ? lastSalesFiltered : salesRows);
                 sheetName = 'Transaksi';
