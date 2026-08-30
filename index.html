@@ -3616,6 +3616,24 @@
         }
 
         function isFitriProduk(produk) { return (produk || '').toUpperCase().includes('FITRI'); }
+        // Urutan tetap: semua produk Fitri (produk utama) selalu di atas di SEMUA
+        // tabel ringkasan/profit, diurutkan naik berdasar ukuran ML-nya
+        // (200 < 400 < 800 < ...). Produk non-Fitri tetap di bawah, alfabetis.
+        function fitriProdukRank(produk) {
+            const p = (produk || '').toUpperCase();
+            if (!p.includes('FITRI')) return null;
+            const m = p.match(/(\d+)\s*ML/);
+            return m ? parseInt(m[1], 10) : 0;
+        }
+        function compareProdukName(a, b) {
+            a = a || ''; b = b || '';
+            const ra = fitriProdukRank(a);
+            const rb = fitriProdukRank(b);
+            if (ra !== null && rb !== null) return (ra - rb) || a.localeCompare(b);
+            if (ra !== null) return -1;
+            if (rb !== null) return 1;
+            return a.localeCompare(b);
+        }
 
         /** Nama pendek produk Fitri untuk tabel detail: Fitri200, Fitri400, Fitri800, ... */
         function shortFitriName(produk) {
@@ -4035,7 +4053,7 @@
                 salesTotals[sls] = (salesTotals[sls] || 0) + qty;
                 grandTotal += qty;
             }
-            const products = Object.keys(prodMap).sort((a, b) => prodMap[b].__total - prodMap[a].__total);
+            const products = Object.keys(prodMap).sort((a, b) => compareProdukName(a, b));
             const salesList = sortRingkasanSalesNames(Object.keys(salesTotals));
             return { prodMap, products, salesList, salesTotals, grandTotal };
         }
@@ -4489,7 +4507,7 @@
                 const norm = normalizeGudangName(p);
                 if (norm && !produkCanon[norm]) produkCanon[norm] = p;
             });
-            const produkList = Object.keys(produkCanon).map(k => produkCanon[k]).sort();
+            const produkList = Object.keys(produkCanon).map(k => produkCanon[k]).sort(compareProdukName);
 
             // ---- Index transaksi & total penjualan per tanggal + produk ----
             // Key produk yang dipakai di sini JUGA dinormalisasi, biar
@@ -5217,7 +5235,7 @@
                 }
                 if (r.hargaBeli) { g.hbSum += r.hargaBeli; }
             }
-            const list = Object.values(map).sort((a, b) => a.produk.localeCompare(b.produk));
+            const list = Object.values(map).sort((a, b) => compareProdukName(a.produk, b.produk));
             lastProfitProdukRows = list.map(g => {
                 let hargaJual = 0;
                 if (g.hjCnt > 0) {
@@ -5302,7 +5320,7 @@
                 profitCash: g.profitCash,
                 totalNom: g.nomCash + g.nomTempo,
                 totalProfit: g.profitCash + g.profitTempo
-            })).sort((a, b) => a.produk.localeCompare(b.produk));
+            })).sort((a, b) => compareProdukName(a.produk, b.produk));
             document.getElementById('profitPayPeriod').textContent = getSalesPeriodLabel();
             const body = document.getElementById('profitPayBody');
             if (!lastProfitPayRows.length) {
@@ -5387,7 +5405,7 @@
                 const ra = ia < 0 ? 999 : ia, rb = ib < 0 ? 999 : ib;
                 return ra !== rb ? ra-rb : a.localeCompare(b);
             });
-            lastProfitSalesRows = Object.values(map).sort((a,b) => b.totalQty-a.totalQty || a.produk.localeCompare(b.produk));
+            lastProfitSalesRows = Object.values(map).sort((a,b) => compareProdukName(a.produk, b.produk));
             document.getElementById('profitSalesPeriod').textContent = getSalesPeriodLabel();
             const head = document.getElementById('profitSalesHead');
             const body = document.getElementById('profitSalesBody');
@@ -5479,7 +5497,7 @@
                 const ra = ia < 0 ? 999 : ia, rb = ib < 0 ? 999 : ib;
                 return ra !== rb ? ra-rb : a.localeCompare(b);
             });
-            lastProfitSalesProdukRows = Object.values(map).sort((a,b) => b.totalQty-a.totalQty || a.produk.localeCompare(b.produk));
+            lastProfitSalesProdukRows = Object.values(map).sort((a,b) => compareProdukName(a.produk, b.produk));
             document.getElementById('profitSalesProdukPeriod').textContent = getSalesPeriodLabel();
             const head = document.getElementById('profitSalesProdukHead');
             const body = document.getElementById('profitSalesProdukBody');
@@ -5547,7 +5565,7 @@
                 const ra = ia < 0 ? 999 : ia, rb = ib < 0 ? 999 : ib;
                 return ra !== rb ? ra-rb : a.localeCompare(b);
             });
-            lastProfitLengkapRows = Object.values(map).sort((a,b) => b.totalQty-a.totalQty || a.produk.localeCompare(b.produk));
+            lastProfitLengkapRows = Object.values(map).sort((a,b) => compareProdukName(a.produk, b.produk));
             document.getElementById('profitLengkapPeriod').textContent = getSalesPeriodLabel();
             const head = document.getElementById('profitLengkapHead');
             const body = document.getElementById('profitLengkapBody');
