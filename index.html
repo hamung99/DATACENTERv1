@@ -5462,6 +5462,7 @@
                     g.hargaJualRange = fmt(g.minHargaJual) + ' - ' + fmt(g.maxHargaJual);
                 }
                 g.hargaJualSatuan = g.totalQty ? (g.jualXQty / g.totalQty) : 0; // Simpan untuk referensi/export
+                g.margin = g.jualXQty ? (g.profit / g.jualXQty) * 100 : 0;
             });
             const preferred = ['RAJU','HAFID','JOSSY','GC','PARIMIN'];
             const salesList = Array.from(salesSet).sort((a,b) => {
@@ -5478,15 +5479,15 @@
                 body.innerHTML = '<tr><td style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
                 return;
             }
-            head.innerHTML = '<tr><th>PRODUK</th>' + salesList.map(s => '<th class="num">'+esc(s)+'</th>').join('') + '<th class="num">TOTAL QTY</th><th>SATUAN</th><th class="num">HARGA BELI</th><th class="num">HARGA JUAL</th><th class="num">HARGA BELI X QTY</th><th class="num">HARGA JUAL X QTY</th><th class="num">PROFIT</th></tr>';
+            head.innerHTML = '<tr><th>PRODUK</th>' + salesList.map(s => '<th class="num">'+esc(s)+'</th>').join('') + '<th class="num">TOTAL QTY</th><th>SATUAN</th><th class="num">HARGA BELI</th><th class="num">HARGA JUAL</th><th class="num">HARGA BELI X QTY</th><th class="num">HARGA JUAL X QTY</th><th class="num">PROFIT</th><th class="num">MARGIN</th></tr>';
             let totals = { qty: 0, beli: 0, jual: 0, profit: 0, sales: {} };
             body.innerHTML = lastProfitSalesProdukRows.map((r,i) => {
                 totals.qty += r.totalQty; totals.beli += r.beliXQty; totals.jual += r.jualXQty; totals.profit += r.profit;
                 return '<tr><td>'+esc(r.produk)+'</td>' + salesList.map(s => { const q=r.salesQty[s]||0; totals.sales[s]=(totals.sales[s]||0)+q; return '<td class="num">'+(q ? q.toLocaleString('id-ID') : '')+'</td>'; }).join('') +
-                    '<td class="num"><strong>'+r.totalQty.toLocaleString('id-ID')+'</strong></td><td>'+esc(r.satuan || '')+'</td><td class="num">'+fmt(r.hargaBeliSatuan)+'</td><td class="num">'+r.hargaJualRange+'</td><td class="num">'+fmt(r.beliXQty)+'</td><td class="num">'+fmt(r.jualXQty)+'</td><td class="num"><strong>'+fmt(r.profit)+'</strong></td></tr>';
+                    '<td class="num"><strong>'+r.totalQty.toLocaleString('id-ID')+'</strong></td><td>'+esc(r.satuan || '')+'</td><td class="num">'+fmt(r.hargaBeliSatuan)+'</td><td class="num">'+r.hargaJualRange+'</td><td class="num">'+fmt(r.beliXQty)+'</td><td class="num">'+fmt(r.jualXQty)+'</td><td class="num"><strong>'+fmt(r.profit)+'</strong></td><td class="num">'+r.margin.toFixed(1).replace('.', ',')+'%</td></tr>';
             }).join('') +
             '<tr class="total-row"><td>TOTAL</td>' + salesList.map(s => '<td class="num">'+(totals.sales[s]||0).toLocaleString('id-ID')+'</td>').join('') +
-            '<td class="num">'+totals.qty.toLocaleString('id-ID')+'</td><td></td><td></td><td></td><td class="num">'+fmt(totals.beli)+'</td><td class="num">'+fmt(totals.jual)+'</td><td class="num">'+fmt(totals.profit)+'</td></tr>';
+            '<td class="num">'+totals.qty.toLocaleString('id-ID')+'</td><td></td><td></td><td></td><td class="num">'+fmt(totals.beli)+'</td><td class="num">'+fmt(totals.jual)+'</td><td class="num">'+fmt(totals.profit)+'</td><td class="num">'+(totals.jual ? ((totals.profit/totals.jual)*100).toFixed(1).replace('.', ',') : '0,0')+'%</td></tr>';
         }
 
         function renderProfitBulan(rows) {
@@ -5583,7 +5584,10 @@
         // currCols / leftCols (Set index kolom).
         function styleSalesExportSheet(ws, aoa, opts) {
             opts = opts || {};
-            const headerRow = opts.headerRow != null ? opts.headerRow : 1;
+            const headerRowOpt = opts.headerRow != null ? opts.headerRow : 1;
+            const headerRows = Array.isArray(headerRowOpt) ? headerRowOpt.slice() : [headerRowOpt];
+            const headerRow = Math.min(...headerRows); // baris header pertama (dipakai untuk kompatibilitas kode lama)
+            const lastHeaderRow = Math.max(...headerRows);
             const titleRow = opts.titleRow;
             const dateCols = opts.dateCols || new Set();
             const intCols = opts.intCols || new Set();
@@ -5632,21 +5636,23 @@
                 ws['!rows'][titleRow] = { hpx: 28 };
             }
             // --- Header (putih tebal, biru tua, tengah, wrapText) ---
-            for (let C = 0; C < lastCol; C++) {
-                const a = safeAddr(headerRow, C);
-                ws[a].s.font = whiteBold;
-                ws[a].s.fill = headerFill;
-                ws[a].s.alignment = { horizontal: 'center', vertical: 'center', wrapText: true };
-                ws[a].s.border = border;
-            }
-            ws['!rows'] = ws['!rows'] || [];
-            ws['!rows'][headerRow] = { hpx: 30 };
+            headerRows.forEach(hr => {
+                for (let C = 0; C < lastCol; C++) {
+                    const a = safeAddr(hr, C);
+                    ws[a].s.font = whiteBold;
+                    ws[a].s.fill = headerFill;
+                    ws[a].s.alignment = { horizontal: 'center', vertical: 'center', wrapText: true };
+                    ws[a].s.border = border;
+                }
+                ws['!rows'] = ws['!rows'] || [];
+                ws['!rows'][hr] = { hpx: 30 };
+            });
             // --- Border + zebra untuk semua baris data, dan number/date format ---
-            for (let R = headerRow + 1; R < aoa.length; R++) {
+            for (let R = lastHeaderRow + 1; R < aoa.length; R++) {
                 const isTot = (R === totalRow);
                 for (let C = 0; C < lastCol; C++) {
                     const a = safeAddr(R, C);
-                    if (!isTot && (R - headerRow) % 2 === 1) ws[a].s.fill = zebra;
+                    if (!isTot && (R - lastHeaderRow) % 2 === 1) ws[a].s.fill = zebra;
                     ws[a].s.border = border;
                     if (leftCols.has(C)) {
                         ws[a].s.alignment = { horizontal: 'left', vertical: 'center', indent: 1 };
@@ -5668,7 +5674,10 @@
                         const a = safeAddr(R, C);
                         ws[a].s.font = whiteBold;
                         ws[a].s.fill = totalFill;
-                        if (typeof ws[a].v === 'number') ws[a].z = '"Rp"#,##0';
+                        if (typeof ws[a].v === 'number') {
+                            if (intCols.has(C)) ws[a].z = '#,##0';
+                            else ws[a].z = '"Rp"#,##0';
+                        }
                     }
                 }
             }
@@ -5689,9 +5698,9 @@
             // --- Auto-filter + freeze panes ---
             const lastColLetter = XLSX.utils.encode_col(lastCol - 1);
             ws['!autofilter'] = {
-                ref: XLSX.utils.encode_range(headerRow, headerRow, 0, lastCol - 1)
+                ref: XLSX.utils.encode_range(lastHeaderRow, lastHeaderRow, 0, lastCol - 1)
             };
-            ws['!views'] = [{ state: 'frozen', ySplit: headerRow + 1 }];
+            ws['!views'] = [{ state: 'frozen', ySplit: lastHeaderRow + 1 }];
         }
 
         // ---- Hitung lebar kolom otomatis supaya isi sel tidak terpotong/bertumpuk ----
@@ -5742,6 +5751,8 @@
             const safePeriod = period.replace(/\s+/g, '_');
             let sheetName, aoa, fileName;
             let mainIntCols = null; // diisi ALL_INT_COLS untuk sheet yang isinya murni jumlah barang (bukan uang)
+            let mainCurrCols = null; // Set index kolom uang eksplisit (dipakai bareng mainIntCols supaya kolom qty tidak ikut diformat "Rp")
+            let mainHeaderRow = 1; // baris header (0-based di aoa); bisa array [1,2] untuk header 2 baris
             const extraSheets = []; // { name, aoa, intCols? } - sheet-sheet tambahan (Rupa Rupa, Data Gudang, dst)
             if (currentSalesSub === 'ringkasan') {
                 // Ikutkan filter tanggal khusus tabel Ringkasan (kalau sedang dipilih)
@@ -5918,6 +5929,20 @@
                 });
                 aoa.push(['TOTAL', '', ''].concat(salesListX.flatMap(s => [totalsX.sales[s] || 0, totalsX.salesProfit[s] || 0]))
                     .concat([totalsX.qty, totalsX.profit]));
+                // Kolom: 0=PRODUK, 1=HARGA BELI(Rp), 2=HARGA JUAL(teks range, dibiarkan),
+                // lalu tiap sales: QTY(int), PROFIT(Rp) berselang-seling, ditutup TOTAL QTY(int), TOTAL PROFIT(Rp).
+                mainHeaderRow = [1, 2];
+                mainIntCols = new Set();
+                mainCurrCols = new Set([1]);
+                salesListX.forEach((s, i) => {
+                    const qtyCol = 3 + i * 2;
+                    const profitCol = qtyCol + 1;
+                    mainIntCols.add(qtyCol);
+                    mainCurrCols.add(profitCol);
+                });
+                const totalQtyCol = 3 + salesListX.length * 2;
+                mainIntCols.add(totalQtyCol);
+                mainCurrCols.add(totalQtyCol + 1);
                 if (scope === 'all') renderProfitSales(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
             } else if (currentSalesSub === 'salesProduk') {
                 const reportRows = (scope === 'all') ? salesRows : (lastSalesFiltered.length ? lastSalesFiltered : salesRows);
@@ -5929,14 +5954,27 @@
                 sheetName = 'Per Sales Per Produk';
                 fileName = 'Per_Sales_Per_Produk_' + safePeriod + '.xlsx';
                 aoa = [['PER SALES PER PRODUK'].concat(salesList.map(() => '')).concat(['', '', '', period])];
-                aoa.push(['PRODUK'].concat(salesList).concat(['TOTAL QTY','SATUAN','HARGA BELI','HARGA JUAL','HARGA BELI X QTY','HARGA JUAL X QTY','PROFIT']));
+                aoa.push(['PRODUK'].concat(salesList).concat(['TOTAL QTY','SATUAN','HARGA BELI','HARGA JUAL','HARGA BELI X QTY','HARGA JUAL X QTY','PROFIT','MARGIN (%)']));
                 const totals = {qty:0,beli:0,jual:0,profit:0,sales:{}};
                 lastProfitSalesProdukRows.forEach(r => {
                     salesList.forEach(s => totals.sales[s]=(totals.sales[s]||0)+(r.salesQty[s]||0));
                     totals.qty+=r.totalQty; totals.beli+=r.beliXQty; totals.jual+=r.jualXQty; totals.profit+=r.profit;
-                    aoa.push([r.produk].concat(salesList.map(s => r.salesQty[s]||0)).concat([r.totalQty,r.satuan||'',r.hargaBeliSatuan,r.hargaJualRange,r.beliXQty,r.jualXQty,r.profit]));
+                    aoa.push([r.produk].concat(salesList.map(s => r.salesQty[s]||0)).concat([r.totalQty,r.satuan||'',r.hargaBeliSatuan,r.hargaJualRange,r.beliXQty,r.jualXQty,r.profit,r.margin.toFixed(1).replace('.', ',')+'%']));
                 });
-                aoa.push(['TOTAL'].concat(salesList.map(s=>totals.sales[s]||0)).concat([totals.qty,'','','',totals.beli,totals.jual,totals.profit]));
+                const totalMarginTxt = (totals.jual ? ((totals.profit/totals.jual)*100).toFixed(1).replace('.', ',') : '0,0') + '%';
+                aoa.push(['TOTAL'].concat(salesList.map(s=>totals.sales[s]||0)).concat([totals.qty,'','','',totals.beli,totals.jual,totals.profit,totalMarginTxt]));
+                // Kolom: 0=PRODUK, 1..n=qty per sales(int), TOTAL QTY(int), SATUAN(teks),
+                // HARGA BELI(Rp), HARGA JUAL(teks range), HARGA BELI X QTY(Rp), HARGA JUAL X QTY(Rp), PROFIT(Rp), MARGIN(teks "xx,x%")
+                mainHeaderRow = 1;
+                mainIntCols = new Set();
+                mainCurrCols = new Set();
+                salesList.forEach((s, i) => mainIntCols.add(1 + i));
+                const totalQtyColSP = 1 + salesList.length;
+                mainIntCols.add(totalQtyColSP);
+                mainCurrCols.add(totalQtyColSP + 2); // HARGA BELI
+                mainCurrCols.add(totalQtyColSP + 4); // HARGA BELI X QTY
+                mainCurrCols.add(totalQtyColSP + 5); // HARGA JUAL X QTY
+                mainCurrCols.add(totalQtyColSP + 6); // PROFIT
             } else if (currentSalesSub === 'bulan') {
                 if (!lastProfitBulanRows.length) renderProfitBulan(getSalesRowsForBulanCompare());
                 sheetName = 'Profit Per Bulan';
@@ -5948,10 +5986,11 @@
                     'Total Qty Rupa2', 'Total Nominal Rupa2', 'Totl HPP', 'Profit', 'Margin (%)', 'Margin (%)',
                     'TOTAL PROFIT'
                 ]);
+                const pctTxt = v => v.toFixed(1).replace('.', ',') + '%';
                 lastProfitBulanRows.forEach(r => {
                     aoa.push([r.bulan, r.qtyFitri, r.nomFitri, r.hppFitri, r.profitFitri,
-                        Number(r.marginFitri.toFixed(1)), r.qtyRupa, r.nomRupa, r.hppRupa, r.profitRupa,
-                        Number(r.marginRupa.toFixed(1)), Number(r.marginTotal.toFixed(1)), r.totalProfit
+                        pctTxt(r.marginFitri), r.qtyRupa, r.nomRupa, r.hppRupa, r.profitRupa,
+                        pctTxt(r.marginRupa), pctTxt(r.marginTotal), r.totalProfit
                     ]);
                 });
                 const t3 = lastProfitBulanRows.reduce((a, r) => ({
@@ -5965,12 +6004,18 @@
                     pr: a.pr + r.profitRupa,
                     tp: a.tp + r.totalProfit
                 }), { qf: 0, nf: 0, hf: 0, pf: 0, qr: 0, nr: 0, hr: 0, pr: 0, tp: 0 });
-                const marginFitriTotal = t3.nf ? Number(((t3.pf / t3.nf) * 100).toFixed(1)) : 0;
-                const marginRupaTotal = t3.nr ? Number(((t3.pr / t3.nr) * 100).toFixed(1)) : 0;
-                const marginGrandTotal = (t3.nf + t3.nr) ? Number(((t3.tp / (t3.nf + t3.nr)) * 100).toFixed(1)) : 0;
+                const marginFitriTotal = pctTxt(t3.nf ? (t3.pf / t3.nf) * 100 : 0);
+                const marginRupaTotal = pctTxt(t3.nr ? (t3.pr / t3.nr) * 100 : 0);
+                const marginGrandTotal = pctTxt((t3.nf + t3.nr) ? (t3.tp / (t3.nf + t3.nr)) * 100 : 0);
                 aoa.push(['TOTAL', t3.qf, t3.nf, t3.hf, t3.pf, marginFitriTotal, t3.qr, t3.nr, t3.hr, t3.pr,
                     marginRupaTotal, marginGrandTotal, t3.tp
                 ]);
+                // Kolom: 0=Bulan, 1=Qty Fitri(int), 2=Nominal Fitri(Rp), 3=HPP Fitri(Rp), 4=Profit Fitri(Rp),
+                // 5=Margin Fitri(teks %), 6=Qty Rupa2(int), 7=Nominal Rupa2(Rp), 8=HPP Rupa2(Rp), 9=Profit Rupa2(Rp),
+                // 10=Margin Rupa2(teks %), 11=Margin Total(teks %), 12=TOTAL PROFIT(Rp)
+                mainHeaderRow = 1;
+                mainIntCols = new Set([1, 6]);
+                mainCurrCols = new Set([2, 3, 4, 7, 8, 9, 12]);
             } else {
                 const rows = isAllTrans ? salesRows : (lastSalesFiltered.length ? lastSalesFiltered : salesRows);
                 sheetName = 'Transaksi';
@@ -6025,7 +6070,7 @@
             ws['!cols'] = computeAutoColWidths(aoa);
             // Style rapi: header tebal fill biru, border tipis, zebra, freeze panes,
             // auto-filter, dan format "Rp" untuk kolom uang. Konsisten di semua tab.
-            try { styleSalesExportSheet(ws, aoa, { headerRow: 1, intCols: mainIntCols || undefined }); } catch (e) { /* fallback aman */ }
+            try { styleSalesExportSheet(ws, aoa, { headerRow: mainHeaderRow, intCols: mainIntCols || undefined, currCols: mainCurrCols || undefined }); } catch (e) { /* fallback aman */ }
             const wb = XLSX.utils.book_new();
             // Excel membatasi nama sheet maksimal 31 karakter -- "Profit Per
             // Produk Per Pembayaran" persis 32 karakter, jadi tanpa .slice(0, 31)
