@@ -620,7 +620,10 @@
             <div class="daily-panel" id="dailyPanel" style="display:block;">
                 <div class="daily-head">
                     <strong>📅 Ringkasan Harian</strong>
-                    <span class="muted" id="dailyHint">Klik baris tanggal untuk filter detail faktur</span>
+                    <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <span class="muted" id="dailyHint">Klik baris tanggal untuk filter detail faktur</span>
+                        <button type="button" class="btn btn-outline" id="downloadDailySummaryBtn" onclick="downloadDailySummary()" title="Download tabel Ringkasan Harian ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download Tabel</button>
+                    </span>
                 </div>
                 <div class="daily-scroll">
                     <table class="daily-table">
@@ -1161,6 +1164,7 @@
         // ---- Global state ----
         let allRows = [];
         let salesRows = [];
+        let lastDailySummaryList = [];
         // Catatan: data tab Rapikan TIDAK disimpan di variabel module-level di
         // sini. Tab Rapikan pakai `cleanRows` miliknya sendiri di dalam IIFE-nya
         // dan menjembataninya lewat window.cleanRows / window.__rapGetCleanRows /
@@ -2003,7 +2007,7 @@
         }
 
         function buildDailySummary(rows) {
-            if (!rows || !rows.length) { dailyPanel.style.display = 'none'; return; }
+            if (!rows || !rows.length) { dailyPanel.style.display = 'none'; lastDailySummaryList = []; return; }
             const map = {};
             for (const r of rows) {
                 const k = r.sheet;
@@ -2022,6 +2026,7 @@
                 else g.dropping += bayarCash + bayarTf;
             }
             const list = Object.values(map);
+            lastDailySummaryList = list;
             list.sort((a, b) => {
                 const pa = a.date.match(/(\d{1,2})\/(\d{1,2})/);
                 const pb = b.date.match(/(\d{1,2})\/(\d{1,2})/);
@@ -2329,6 +2334,62 @@
             const safeSheet = String(sheet).replace(/[\/\\:*?"<>|]/g, '-');
             exportFakturAoa(aoa, 'Uang Masuk ' + sheet, 'UangMasuk_Harian_' + safeSheet + '.xlsx');
         }
+
+        /** Download seluruh tabel Ringkasan Harian (agregat per hari/sheet) ke Excel */
+        function downloadDailySummary() {
+            if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
+            const list = lastDailySummaryList || [];
+            if (!list.length) { alert('Tidak ada data Ringkasan Harian untuk diunduh.'); return; }
+            const monSel = document.getElementById('filterMonth');
+            const period = (monSel && monSel.value !== 'all') ? monSel.value : 'Semua Bulan';
+            const aoa = [
+                ['RINGKASAN HARIAN — UANG MASUK', '', '', '', '', '', '', '', period],
+                ['Tanggal', 'Sheet', 'Jml Faktur', 'Piutang Tempo', 'Cash Dropping', 'Tagihan', 'Bayar Cash', 'Bayar TF', 'Total Bayar']
+            ];
+            let sumC = 0, sumP = 0, sumD = 0, sumT = 0, sumCash = 0, sumTf = 0;
+            list.forEach(g => {
+                const total = (g.cash || 0) + (g.tf || 0);
+                sumC += g.count || 0;
+                sumP += g.piutang || 0;
+                sumD += g.dropping || 0;
+                sumT += g.tagihan || 0;
+                sumCash += g.cash || 0;
+                sumTf += g.tf || 0;
+                aoa.push([
+                    g.date || '', g.sheet || '', g.count || 0,
+                    g.piutang || 0, g.dropping || 0, g.tagihan || 0,
+                    g.cash || 0, g.tf || 0, total
+                ]);
+            });
+            aoa.push(['TOTAL (' + list.length + ' hari)', '', sumC, sumP, sumD, sumT, sumCash, sumTf, sumCash + sumTf]);
+            const safePeriod = String(period).replace(/\s+/g, '_').replace(/[\/\\:*?"<>|]/g, '-');
+            const stamp = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const fileName = 'Ringkasan_Harian_' + safePeriod + '_' +
+                stamp.getFullYear() + pad(stamp.getMonth() + 1) + pad(stamp.getDate()) + '.xlsx';
+            try {
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+                ws['!cols'] = [
+                    { wch: 12 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+                    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }
+                ];
+                try {
+                    styleSalesExportSheet(ws, aoa, {
+                        titleRow: 0,
+                        headerRow: 1,
+                        intCols: new Set([2]),
+                        currCols: new Set([3, 4, 5, 6, 7, 8])
+                    });
+                } catch (e) { /* style optional */ }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Ringkasan Harian');
+                XLSX.writeFile(wb, fileName);
+            } catch (err) {
+                console.error(err);
+                alert('Gagal mengunduh Ringkasan Harian: ' + (err && err.message ? err.message : err));
+            }
+        }
+
 
         // ---- Modal detail Cek Data -> Tempo ----
         function openCekUangMasukDetail(encodedFaktur) {
@@ -2966,6 +3027,7 @@
         function clearData() {
             allRows = [];
             lastFakturFiltered = [];
+            lastDailySummaryList = [];
             invalidateFakturIndex();
             saveRowsToDBAndSync([], DB_KEY);
             queueCloudSync();
@@ -4825,8 +4887,9 @@
                 const tot = r.total || 0;
                 const cost = (r.hargaBeli || 0) * qty;
                 const profit = tot - cost;
-                const pay = (r.pembayaran || '').toUpperCase();
-                if (pay === 'CASH') {
+                const pay = String(r.pembayaran || '').trim().toUpperCase();
+                const isCash = pay === 'CASH' || pay.startsWith('CASH') || pay === 'TUNAI';
+                if (isCash) {
                     g.nomCash += tot;
                     g.profitCash += profit;
                 } else {
@@ -5344,7 +5407,7 @@
             } else if (currentSalesSub === 'pay') {
                 if (!lastProfitPayRows.length) renderProfitPay(lastSalesFiltered.length ? lastSalesFiltered :
                     salesRows);
-                sheetName = 'Profit Per Produk Per Pembayaran';
+                sheetName = 'Profit Per Produk Per Bayar';
                 fileName = 'Profit_Per_Produk_Per_Pembayaran_' + safePeriod + '.xlsx';
                 aoa = [
                     ['PROFIT PER PRODUK PER PEMBAYARAN', '', '', '', '', '', period]
@@ -5490,34 +5553,43 @@
             // Style rapi: header tebal fill biru, border tipis, zebra, freeze panes,
             // auto-filter, dan format "Rp" untuk kolom uang. Konsisten di semua tab.
             try { styleSalesExportSheet(ws, aoa, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, sheetName);
-            // Sheet-sheet tambahan (mis. Rupa Rupa & Data Gudang di sub-tab Ringkasan),
-            // dirapikan dengan format angka, merge judul, dan lebar kolom yang sama
-            // seperti sheet utama supaya seluruh file download konsisten & rapi.
-            extraSheets.forEach(extra => {
-                const aoaX = extra.aoa;
-                if (!aoaX || !aoaX.length) return;
-                const wsExtra = XLSX.utils.aoa_to_sheet(aoaX);
-                const rangeExtra = XLSX.utils.decode_range(wsExtra['!ref']);
-                for (let R = rangeExtra.s.r; R <= rangeExtra.e.r; R++) {
-                    for (let C = rangeExtra.s.c; C <= rangeExtra.e.c; C++) {
-                        const addr = XLSX.utils.encode_cell({ r: R, c: C });
-                        const cell = wsExtra[addr];
-                        if (cell && cell.t === 'n' && typeof cell.v === 'number') {
-                            cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.##';
+            try {
+                if (!aoa || !aoa.length) {
+                    alert('Tidak ada data untuk diunduh.');
+                    return;
+                }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, String(sheetName || 'Data').slice(0, 31));
+                // Sheet-sheet tambahan (mis. Rupa Rupa & Data Gudang di sub-tab Ringkasan),
+                // dirapikan dengan format angka, merge judul, dan lebar kolom yang sama
+                // seperti sheet utama supaya seluruh file download konsisten & rapi.
+                extraSheets.forEach(extra => {
+                    const aoaX = extra.aoa;
+                    if (!aoaX || !aoaX.length) return;
+                    const wsExtra = XLSX.utils.aoa_to_sheet(aoaX);
+                    const rangeExtra = XLSX.utils.decode_range(wsExtra['!ref']);
+                    for (let R = rangeExtra.s.r; R <= rangeExtra.e.r; R++) {
+                        for (let C = rangeExtra.s.c; C <= rangeExtra.e.c; C++) {
+                            const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                            const cell = wsExtra[addr];
+                            if (cell && cell.t === 'n' && typeof cell.v === 'number') {
+                                cell.z = Number.isInteger(cell.v) ? '#,##0' : '#,##0.##';
+                            }
                         }
                     }
-                }
-                if (aoaX[0] && aoaX[0].length > 2) {
-                    wsExtra['!merges'] = wsExtra['!merges'] || [];
-                    wsExtra['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoaX[0].length - 2 } });
-                }
-                wsExtra['!cols'] = computeAutoColWidths(aoaX);
-                try { styleSalesExportSheet(wsExtra, aoaX, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
-                XLSX.utils.book_append_sheet(wb, wsExtra, (extra.name || 'Sheet').slice(0, 31));
-            });
-            XLSX.writeFile(wb, fileName);
+                    if (aoaX[0] && aoaX[0].length > 2) {
+                        wsExtra['!merges'] = wsExtra['!merges'] || [];
+                        wsExtra['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoaX[0].length - 2 } });
+                    }
+                    wsExtra['!cols'] = computeAutoColWidths(aoaX);
+                    try { styleSalesExportSheet(wsExtra, aoaX, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
+                    XLSX.utils.book_append_sheet(wb, wsExtra, String(extra.name || 'Sheet').slice(0, 31));
+                });
+                XLSX.writeFile(wb, fileName);
+            } catch (err) {
+                console.error('downloadCurrentSalesExcel error', err);
+                alert('Gagal mengunduh Excel: ' + (err && err.message ? err.message : err));
+            }
         }
 
         // ---- Clear sales data ----
@@ -8303,7 +8375,7 @@
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
             markFakturLunasManualFromCardModal, openManualLunasHistoryModal, undoManualLunasFromHistoryModal,
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
-            downloadFakturExcel,
+            downloadFakturExcel, downloadFakturDay, downloadDailySummary,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
             downloadCurrentSalesExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
             switchCekSub, toggleCekBulanPanel, onCekBulanAllChange, onCekBulanItemChange,
