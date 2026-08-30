@@ -791,23 +791,23 @@
                     <th rowspan="3" style="vertical-align:middle;">BULAN</th>
                     <th colspan="4" style="text-align:center;">PENJUALAN CASH</th>
                     <th colspan="4" style="text-align:center;">PENJUALAN TEMPO</th>
-                    <th colspan="2" style="text-align:center;">ALL PENJUALAN</th>
+                    <th colspan="4" style="text-align:center;">ALL PENJUALAN</th>
                 </tr>
                 <tr>
                     <th colspan="2" style="text-align:center;">MINYAK FITRI</th>
                     <th colspan="2" style="text-align:center;">RUPA RUPA</th>
                     <th colspan="2" style="text-align:center;">MINYAK FITRI</th>
                     <th colspan="2" style="text-align:center;">RUPA RUPA</th>
-                    <th style="text-align:center;">MINYAK FITRI</th>
-                    <th style="text-align:center;">RUPA RUPA</th>
+                    <th colspan="2" style="text-align:center;">MINYAK FITRI</th>
+                    <th colspan="2" style="text-align:center;">RUPA RUPA</th>
                 </tr>
                 <tr>
                     <th class="num">QTY PENJUALAN</th><th class="num">PROIT</th>
                     <th class="num">QTY PENJUALAN</th><th class="num">PROIT</th>
                     <th class="num">QTY PENJUALAN</th><th class="num">PROIT</th>
                     <th class="num">QTY PENJUALAN</th><th class="num">PROIT</th>
-                    <th class="num">QTY PENJUALAN</th>
-                    <th class="num">PROIT</th>
+                    <th class="num">QTY PENJUALAN</th><th class="num">PROIT</th>
+                    <th class="num">QTY PENJUALAN</th><th class="num">PROIT</th>
                 </tr>
                 </thead><tbody id="profitBulanBody"></tbody></table></div></div>
 
@@ -5933,8 +5933,10 @@
             }
             lastProfitBulanRows = Object.values(map).map(g => {
                 const allFitriQty = g.cashFitriQty + g.tempoFitriQty;
+                const allFitriProfit = g.cashFitriProfit + g.tempoFitriProfit;
+                const allRupaQty = g.cashRupaQty + g.tempoRupaQty;
                 const allRupaProfit = g.cashRupaProfit + g.tempoRupaProfit;
-                return Object.assign({}, g, { allFitriQty, allRupaProfit });
+                return Object.assign({}, g, { allFitriQty, allFitriProfit, allRupaQty, allRupaProfit });
             }).sort((a, b) => MONTH_ORDER.indexOf(a.bulan) - MONTH_ORDER.indexOf(b.bulan));
             // Selalu "Semua Bulan" karena tab ini memang untuk membandingkan
             // antar bulan (lihat getSalesRowsForBulanCompare), bukan
@@ -5943,16 +5945,17 @@
             const body = document.getElementById('profitBulanBody');
             if (!lastProfitBulanRows.length) {
                 body.innerHTML =
-                    '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
+                    '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
                 return;
             }
-            let tCFQ = 0, tCFP = 0, tCRQ = 0, tCRP = 0, tTFQ = 0, tTFP = 0, tTRQ = 0, tTRP = 0, tAFQ = 0, tARP = 0;
+            let tCFQ = 0, tCFP = 0, tCRQ = 0, tCRP = 0, tTFQ = 0, tTFP = 0, tTRQ = 0, tTRP = 0, tAFQ = 0, tAFP = 0, tARQ = 0, tARP = 0;
             body.innerHTML = lastProfitBulanRows.map(r => {
                 tCFQ += r.cashFitriQty; tCFP += r.cashFitriProfit;
                 tCRQ += r.cashRupaQty; tCRP += r.cashRupaProfit;
                 tTFQ += r.tempoFitriQty; tTFP += r.tempoFitriProfit;
                 tTRQ += r.tempoRupaQty; tTRP += r.tempoRupaProfit;
-                tAFQ += r.allFitriQty; tARP += r.allRupaProfit;
+                tAFQ += r.allFitriQty; tAFP += r.allFitriProfit;
+                tARQ += r.allRupaQty; tARP += r.allRupaProfit;
                 return '<tr>' +
                     '<td>' + esc(r.bulan) + '</td>' +
                     '<td class="num">' + r.cashFitriQty.toLocaleString('id-ID') + '</td>' +
@@ -5963,7 +5966,9 @@
                     '<td class="num">' + fmt(r.tempoFitriProfit) + '</td>' +
                     '<td class="num">' + r.tempoRupaQty.toLocaleString('id-ID') + '</td>' +
                     '<td class="num">' + fmt(r.tempoRupaProfit) + '</td>' +
-                    '<td class="num">' + r.allFitriQty.toLocaleString('id-ID') + '</td>' +
+                    '<td class="num"><strong>' + r.allFitriQty.toLocaleString('id-ID') + '</strong></td>' +
+                    '<td class="num"><strong>' + fmt(r.allFitriProfit) + '</strong></td>' +
+                    '<td class="num"><strong>' + r.allRupaQty.toLocaleString('id-ID') + '</strong></td>' +
                     '<td class="num"><strong>' + fmt(r.allRupaProfit) + '</strong></td>' +
                     '</tr>';
             }).join('') +
@@ -5978,6 +5983,8 @@
                 '<td class="num">' + tTRQ.toLocaleString('id-ID') + '</td>' +
                 '<td class="num">' + fmt(tTRP) + '</td>' +
                 '<td class="num">' + tAFQ.toLocaleString('id-ID') + '</td>' +
+                '<td class="num">' + fmt(tAFP) + '</td>' +
+                '<td class="num">' + tARQ.toLocaleString('id-ID') + '</td>' +
                 '<td class="num">' + fmt(tARP) + '</td>' +
                 '</tr>';
         }
@@ -6441,18 +6448,18 @@
                 sheetName = 'Profit Per Bulan';
                 fileName = 'Profit_Per_Bulan_Semua_Bulan.xlsx';
                 aoa = [
-                    ['PROFIT PER BULAN', '', '', '', '', '', '', '', '', '', 'Semua Bulan (perbandingan)']
+                    ['PROFIT PER BULAN', '', '', '', '', '', '', '', '', '', '', '', 'Semua Bulan (perbandingan)']
                 ];
-                aoa.push(['', 'PENJUALAN CASH', '', '', '', 'PENJUALAN TEMPO', '', '', '', 'ALL PENJUALAN', '']);
-                aoa.push(['', 'MINYAK FITRI', '', 'RUPA RUPA', '', 'MINYAK FITRI', '', 'RUPA RUPA', '', 'MINYAK FITRI', 'RUPA RUPA']);
+                aoa.push(['', 'PENJUALAN CASH', '', '', '', 'PENJUALAN TEMPO', '', '', '', 'ALL PENJUALAN', '', '', '']);
+                aoa.push(['', 'MINYAK FITRI', '', 'RUPA RUPA', '', 'MINYAK FITRI', '', 'RUPA RUPA', '', 'MINYAK FITRI', '', 'RUPA RUPA', '']);
                 aoa.push(['BULAN', 'QTY PENJUALAN', 'PROIT', 'QTY PENJUALAN', 'PROIT',
                     'QTY PENJUALAN', 'PROIT', 'QTY PENJUALAN', 'PROIT',
-                    'QTY PENJUALAN', 'PROIT'
+                    'QTY PENJUALAN', 'PROIT', 'QTY PENJUALAN', 'PROIT'
                 ]);
                 lastProfitBulanRows.forEach(r => {
                     aoa.push([r.bulan, r.cashFitriQty, r.cashFitriProfit, r.cashRupaQty, r.cashRupaProfit,
                         r.tempoFitriQty, r.tempoFitriProfit, r.tempoRupaQty, r.tempoRupaProfit,
-                        r.allFitriQty, r.allRupaProfit
+                        r.allFitriQty, r.allFitriProfit, r.allRupaQty, r.allRupaProfit
                     ]);
                 });
                 const t3 = lastProfitBulanRows.reduce((a, r) => ({
@@ -6465,16 +6472,18 @@
                     trq: a.trq + r.tempoRupaQty,
                     trp: a.trp + r.tempoRupaProfit,
                     afq: a.afq + r.allFitriQty,
+                    afp: a.afp + r.allFitriProfit,
+                    arq: a.arq + r.allRupaQty,
                     arp: a.arp + r.allRupaProfit
-                }), { cfq: 0, cfp: 0, crq: 0, crp: 0, tfq: 0, tfp: 0, trq: 0, trp: 0, afq: 0, arp: 0 });
-                aoa.push(['TOTAL', t3.cfq, t3.cfp, t3.crq, t3.crp, t3.tfq, t3.tfp, t3.trq, t3.trp, t3.afq, t3.arp]);
+                }), { cfq: 0, cfp: 0, crq: 0, crp: 0, tfq: 0, tfp: 0, trq: 0, trp: 0, afq: 0, afp: 0, arq: 0, arp: 0 });
+                aoa.push(['TOTAL', t3.cfq, t3.cfp, t3.crq, t3.crp, t3.tfq, t3.tfp, t3.trq, t3.trp, t3.afq, t3.afp, t3.arq, t3.arp]);
                 // Kolom: 0=Bulan,
                 // 1=Cash Fitri Qty(int), 2=Cash Fitri Profit(Rp), 3=Cash Rupa Qty(int), 4=Cash Rupa Profit(Rp),
                 // 5=Tempo Fitri Qty(int), 6=Tempo Fitri Profit(Rp), 7=Tempo Rupa Qty(int), 8=Tempo Rupa Profit(Rp),
-                // 9=All Fitri Qty(int), 10=All Rupa Profit(Rp)
+                // 9=All Fitri Qty(int), 10=All Fitri Profit(Rp), 11=All Rupa Qty(int), 12=All Rupa Profit(Rp)
                 mainHeaderRow = [1, 2, 3];
-                mainIntCols = new Set([1, 3, 5, 7, 9]);
-                mainCurrCols = new Set([2, 4, 6, 8, 10]);
+                mainIntCols = new Set([1, 3, 5, 7, 9, 11]);
+                mainCurrCols = new Set([2, 4, 6, 8, 10, 12]);
             } else {
                 const rows = isAllTrans ? salesRows : (lastSalesFiltered.length ? lastSalesFiltered : salesRows);
                 sheetName = 'Transaksi';
