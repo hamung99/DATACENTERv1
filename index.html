@@ -2600,6 +2600,127 @@
             if (m) m.classList.remove('open');
         }
 
+        // ---- Modal detail Cek Data -> Cash (Faktur Dropping dari Uang Masuk) ----
+        // Kalau No.Faktur ketemu persis di Data Penjualan -> tampilkan rincian produknya.
+        // Kalau tidak ketemu -> jalankan pencarian fuzzy LANGSUNG (live) ke SELURUH Data
+        // Penjualan (semua bulan, bukan cuma bulan yang sedang difilter), berdasarkan
+        // kemiripan Customer/Toko, Alamat, dan Sales (+ nominal & tanggal) -- supaya user
+        // bisa lihat sendiri apakah sistem sudah "menyisir" ketiga hal itu atau tidak,
+        // dan kalau ada kandidat yang mirip (mis. No.Faktur salah ketik / beda bulan)
+        // langsung ditampilkan sebagai saran (bukan kepastian, tetap perlu dicek manual).
+        function openCekCashDetail(encodedFaktur) {
+            const faktur = decodeURIComponent(String(encodedFaktur || ''));
+            const row = (lastCekRows || []).find(r => String(r.noFaktur || '') === faktur);
+            if (!row) return;
+            const actionsElCash = document.getElementById('cekTempoModalActions');
+            if (actionsElCash) actionsElCash.innerHTML = '';
+
+            document.getElementById('cekTempoModalTitle').textContent = 'Detail Faktur Dropping · ' + faktur;
+            document.getElementById('cekTempoModalSub').textContent =
+                (row.customer || '—') + (row.alamat ? ' · ' + row.alamat : '');
+            document.getElementById('cekTempoCustomer').textContent = row.customer || '—';
+            document.getElementById('cekTempoSales').textContent = row.sales || '—';
+            document.getElementById('cekTempoAlamat').textContent = row.alamat || '—';
+
+            const produkElCash = document.getElementById('cekTempoModalProduk');
+
+            if (row.fromSales) {
+                // ---- DITEMUKAN persis di Data Penjualan: tampilkan rincian produknya ----
+                document.getElementById('cekTempoModalStatus').innerHTML =
+                    '<span class="badge badge-lunas">✅ DITEMUKAN DI DATA PENJUALAN</span>';
+                document.getElementById('cekTempoModalStats').innerHTML =
+                    '<div class="modal-stat"><div class="l">Tanggal Transaksi</div><div class="v">' + esc(fmtCekTanggalTampilan(row.tanggal, row.tglDate)) + '</div></div>' +
+                    '<div class="modal-stat"><div class="l">Nominal Faktur</div><div class="v">' + fmt(row.nominal) + '</div></div>' +
+                    '<div class="modal-stat"><div class="l">Uang Masuk (Dropping)</div><div class="v" style="color:var(--green)">' + fmt(row.paidAmount) + '</div></div>' +
+                    '<div class="modal-stat"><div class="l">Jumlah Item</div><div class="v">' + (row.items || 0) + '</div></div>';
+
+                const fakturKeyCash = normFakturKey(faktur);
+                const produkRowsCash = (salesRows || []).filter(sr => {
+                    const fk = String(sr.noFaktur || '').trim();
+                    return fk === faktur || (fakturKeyCash && normFakturKey(fk) === fakturKeyCash);
+                });
+                if (produkElCash) {
+                    if (produkRowsCash.length) {
+                        let ph = '<div class="l" style="margin-bottom:6px;font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;">Rincian Produk (dari Data Penjualan)</div>' +
+                            '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.8rem;">' +
+                            '<thead><tr style="border-bottom:1px solid var(--border);text-align:left;">' +
+                            '<th style="padding:5px 6px;">Produk</th><th style="padding:5px 6px;text-align:right;">Jumlah</th>' +
+                            '<th style="padding:5px 6px;">Satuan</th><th style="padding:5px 6px;text-align:right;">Total</th></tr></thead><tbody>';
+                        produkRowsCash.forEach(it => {
+                            ph += '<tr style="border-bottom:1px solid var(--border);">' +
+                                '<td style="padding:5px 6px;">' + esc(it.produk || '—') + '</td>' +
+                                '<td style="padding:5px 6px;text-align:right;">' + (it.jumlah || 0).toLocaleString('id-ID') + '</td>' +
+                                '<td style="padding:5px 6px;">' + esc(it.satuan || '—') + '</td>' +
+                                '<td style="padding:5px 6px;text-align:right;">' + fmt(it.total || 0) + '</td>' +
+                                '</tr>';
+                        });
+                        ph += '</tbody></table></div>';
+                        produkElCash.innerHTML = ph;
+                    } else {
+                        produkElCash.innerHTML = '<div style="padding:9px 10px;border:1px dashed var(--border);border-radius:8px;font-size:0.78rem;color:var(--muted);">Rincian produk tidak ditemukan (kemungkinan format No.Faktur sedikit berbeda).</div>';
+                    }
+                }
+                document.getElementById('cekTempoModalConclusion').innerHTML =
+                    '<div style="padding:9px 10px;border-radius:8px;background:rgba(22,163,74,.08);border:1px solid rgba(22,163,74,.25);">Faktur ini <b>ditemukan persis</b> di Data Penjualan (No.Faktur cocok).</div>';
+            } else {
+                // ---- TIDAK ketemu persis: cari kandidat fuzzy LIVE ke seluruh Data Penjualan ----
+                if (produkElCash) produkElCash.innerHTML = '';
+                document.getElementById('cekTempoModalStatus').innerHTML =
+                    '<span class="badge badge-retur">⚠ TIDAK DITEMUKAN DI DATA PENJUALAN</span>';
+                document.getElementById('cekTempoModalStats').innerHTML =
+                    '<div class="modal-stat"><div class="l">Tanggal (Uang Masuk)</div><div class="v">' + esc(fmtCekTanggalTampilan(row.tanggal, row.tglDate)) + '</div></div>' +
+                    '<div class="modal-stat"><div class="l">Nominal (Tagihan/Bayar)</div><div class="v">' + fmt(row.nominal || row.paidAmount || 0) + '</div></div>' +
+                    '<div class="modal-stat"><div class="l">Uang Masuk (Dropping)</div><div class="v" style="color:var(--green)">' + fmt(row.paidAmount) + '</div></div>';
+
+                const salesMapAll = rebuildSalesFakturMap(); // seluruh Data Penjualan, semua bulan
+                const refAmount = Number(row.paidAmount) || Number(row.nominal) || 0;
+                const pFieldsCash = { customer: row.customer, alamat: row.alamat, sales: row.sales, tglDate: row.tglDate, faktur: row.noFaktur };
+                const candidates = [];
+                for (const sp of salesMapAll.values()) {
+                    const amountScoreValue = cekAmountScore(refAmount, sp.nominal);
+                    const spFieldsCash = { customer: sp.customer, alamat: sp.alamat, sales: sp.sales, tglDate: sp.tglDate, faktur: sp.noFaktur };
+                    const res = computeCekFuzzyScore(pFieldsCash, spFieldsCash, amountScoreValue);
+                    if (res) candidates.push({ sp, score: res.score, match: res });
+                }
+                candidates.sort((a, b) => b.score - a.score);
+
+                let html = '';
+                if (candidates.length) {
+                    html += '<div style="margin-bottom:8px;font-weight:800;">🔎 Kandidat Mirip di Data Penjualan (bukan kepastian — cek manual)</div>';
+                    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.8rem;">';
+                    html += '<thead><tr style="border-bottom:1px solid var(--border);text-align:left;">' +
+                        '<th style="padding:5px 6px;">No Faktur</th><th style="padding:5px 6px;">Tanggal</th>' +
+                        '<th style="padding:5px 6px;">Bulan</th><th style="padding:5px 6px;">Customer</th>' +
+                        '<th style="padding:5px 6px;">Sales</th><th style="padding:5px 6px;">Alamat</th>' +
+                        '<th style="padding:5px 6px;text-align:right;">Nominal</th><th style="padding:5px 6px;">Cocok Pada</th></tr></thead><tbody>';
+                    candidates.slice(0, 5).forEach(c => {
+                        const m = [];
+                        if (c.match.sameCustomer) m.push('Customer');
+                        if (c.match.sameAddress) m.push('Alamat');
+                        if (c.match.sameSales) m.push('Sales');
+                        html += '<tr style="border-bottom:1px solid var(--border);">' +
+                            '<td style="padding:5px 6px;font-weight:700;">' + esc(c.sp.noFaktur) + '</td>' +
+                            '<td style="padding:5px 6px;">' + esc(fmtCekTanggalTampilan(c.sp.tanggal, c.sp.tglDate)) + '</td>' +
+                            '<td style="padding:5px 6px;">' + esc(c.sp.month || '—') + '</td>' +
+                            '<td style="padding:5px 6px;">' + esc(c.sp.customer || '—') + '</td>' +
+                            '<td style="padding:5px 6px;">' + esc(c.sp.sales || '—') + '</td>' +
+                            '<td style="padding:5px 6px;" class="muted">' + esc(c.sp.alamat || '—') + '</td>' +
+                            '<td style="padding:5px 6px;text-align:right;">' + fmt(c.sp.nominal) + '</td>' +
+                            '<td style="padding:5px 6px;">' + (m.length ? m.join(' + ') : '—') + '</td>' +
+                            '</tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    html += '<div style="margin-top:10px;padding:9px 10px;border-radius:8px;background:rgba(217,119,6,.10);border:1px solid rgba(217,119,6,.35);color:var(--yellow);">' +
+                        '⚠ No.Faktur <b>' + esc(faktur) + '</b> tidak ditemukan persis di Data Penjualan. Sistem sudah mencocokkan berdasarkan kemiripan <b>Customer/Toko, Alamat, dan Sales</b> (plus nominal &amp; tanggal) ke <b>seluruh</b> Data Penjualan, termasuk bulan-bulan lain — kandidat di atas yang paling mirip, kemungkinan No.Faktur-nya <b>salah ketik</b> atau tercatat di <b>bulan berbeda</b>. Ini bukan kepastian, tetap perlu dicek manual sebelum disamakan.</div>';
+                } else {
+                    html += '<div style="padding:9px 10px;border-radius:8px;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.25);">' +
+                        '🔴 <b>Belum ditemukan di Data Penjualan.</b> Sistem sudah mencoba mencocokkan No.Faktur <b>' + esc(faktur) + '</b> ke <b>seluruh</b> Data Penjualan (semua bulan) berdasarkan kemiripan <b>Customer/Toko, Alamat, dan Sales</b> (plus nominal &amp; tanggal) — tidak ada satupun kandidat yang cukup mirip (minimal 2 dari 3: Customer/Alamat/Sales harus cocok). Kemungkinan: faktur ini memang belum diinput di Data Penjualan, atau datanya (nama toko/alamat/sales) ditulis terlalu berbeda untuk dikenali otomatis.</div>';
+                }
+                document.getElementById('cekTempoModalConclusion').innerHTML = html;
+            }
+            document.getElementById('cekTempoDetailModal').classList.add('open');
+        }
+
         // ---- Modal detail Cek Data -> Belum Ada Uang Masuk (Anomali) ----
         function openCekAnomaliDetail(encodedFaktur) {
             const faktur = decodeURIComponent(String(encodedFaktur || ''));
@@ -6968,7 +7089,7 @@
                 }
                 return '<tr>' +
                     '<td>' + esc(fmtCekTanggalTampilan(r.tanggal, r.tglDate)) + '</td>' +
-                    '<td class="faktur">' + esc(r.noFaktur) + notInSalesBadge(r) + '</td>' +
+                    '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekCashDetail(encodeURIComponent(\'' + String(r.noFaktur || '') + '\'))">' + esc(r.noFaktur) + '</span>' + notInSalesBadge(r) + '</td>' +
                     '<td class="toko">' + esc(r.customer) + '</td>' +
                     '<td>' + esc(r.sales) + '</td>' +
                     '<td class="num"><strong>' + (r.nominal || 0).toLocaleString('id-ID') + '</strong></td>' +
@@ -8529,7 +8650,7 @@
         Object.assign(window, {
             switchTab, toggleTheme, toggleMenu, closeMenu, toggleSalesMenu, closeSalesMenu,
             doSearch, resetSearch, filterBySheet, clearData, switchFakturSub,
-            openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, closeCekTempoDetail,
+            openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, openCekCashDetail, closeCekTempoDetail,
             openCekAnomaliDetail, openCekBedaFakturDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
             markFakturLunasManualFromCardModal, openManualLunasHistoryModal, undoManualLunasFromHistoryModal,
