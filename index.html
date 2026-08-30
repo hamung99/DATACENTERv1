@@ -695,7 +695,7 @@
                         <label class="menu-item upload-item"><input type="file" id="fileInputSales" accept=".xlsx,.xls" multiple=""> 📂 Upload Data Penjualan</label>
                         <button class="menu-item" onclick="openFitriMarginModal(); closeSalesMenu();">🎯 Atur Margin Minimal Fitri</button>
                         <button class="menu-item" onclick="openFixHargaBeliModal(); closeSalesMenu();">✏️ Perbaiki Harga Beli Produk</button>
-                        <button class="menu-item" id="clearSalesBtn" onclick="clearSalesData(); closeSalesMenu();" style="display:none;">✕ Hapus Data Penjualan</button>
+                        <button class="menu-item" id="clearSalesBtn" onclick="openHapusBulanModal(); closeSalesMenu();" style="display:none;">✕ Hapus Data Penjualan</button>
                         <div class="menu-divider"></div>
                         <div class="menu-files" id="salesFileName">Data tersimpan (0 baris)</div>
                     </div>
@@ -1177,6 +1177,29 @@
                 <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
                     <button class="btn btn-outline" onclick="closeFixHargaBeliModal()">Batal</button>
                     <button class="btn" onclick="applyFixHargaBeli()">💾 Terapkan ke Semua Transaksi Produk Ini</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Hapus Data Penjualan (semua / bulan tertentu) -->
+        <div class="modal-overlay" id="hapusBulanModal" onclick="if(event.target===this)closeHapusBulanModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>✕ Hapus Data Penjualan</h2>
+                    <button class="modal-close" onclick="closeHapusBulanModal()">✕</button>
+                </div>
+                <div class="muted" style="margin-bottom:12px;font-size:0.8rem;">
+                    Pilih bulan yang datanya mau dihapus. Bulan yang tidak dicentang akan tetap tersimpan.
+                </div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;font-weight:600;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+                    <input type="checkbox" id="hapusBulanSelectAll" onchange="toggleHapusBulanSelectAll(this)">
+                    Pilih Semua Bulan (hapus semua data)
+                </label>
+                <div id="hapusBulanList" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;"></div>
+                <div id="hapusBulanStatusMsg" class="status-msg" style="margin-top:6px;"></div>
+                <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeHapusBulanModal()">Batal</button>
+                    <button class="btn" style="background:var(--red,#dc2626);border-color:var(--red,#dc2626);" onclick="applyHapusBulan()">🗑️ Hapus Bulan Terpilih</button>
                 </div>
             </div>
         </div>
@@ -6589,6 +6612,86 @@
             document.getElementById('filterSalesPembayaran').innerHTML = '<option value="all">Semua Pembayaran</option>';
             document.getElementById('filterSalesSales').innerHTML = '<option value="all">Semua Sales</option>';
             fileInputSales.value = '';
+        }
+
+        // ---- Hapus Data Penjualan per Bulan ----
+        // Modal ini memberi pilihan: hapus SEMUA data, atau cuma bulan-bulan
+        // tertentu (dicentang) saja. Bulan yang tidak dicentang tetap aman.
+        function openHapusBulanModal() {
+            const listEl = document.getElementById('hapusBulanList');
+            const statusEl = document.getElementById('hapusBulanStatusMsg');
+            statusEl.textContent = '';
+            document.getElementById('hapusBulanSelectAll').checked = false;
+            const counts = {};
+            salesRows.forEach(r => {
+                const m = r.month || 'Lainnya';
+                counts[m] = (counts[m] || 0) + 1;
+            });
+            const months = Object.keys(counts).sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
+            if (!months.length) {
+                listEl.innerHTML = '<div class="muted" style="font-size:0.8rem;">Tidak ada data untuk dihapus.</div>';
+            } else {
+                listEl.innerHTML = months.map(m =>
+                    '<label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:0.85rem;padding:6px 8px;border:1px solid var(--border);border-radius:6px;">' +
+                    '<span style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="hapusBulanChk" value="' + esc(m) + '" onchange="syncHapusBulanSelectAll()"> ' + esc(m) + '</span>' +
+                    '<span class="muted">' + counts[m].toLocaleString('id-ID') + ' baris</span>' +
+                    '</label>'
+                ).join('');
+            }
+            document.getElementById('hapusBulanModal').classList.add('open');
+        }
+        function closeHapusBulanModal() {
+            document.getElementById('hapusBulanModal').classList.remove('open');
+        }
+        function toggleHapusBulanSelectAll(cb) {
+            document.querySelectorAll('.hapusBulanChk').forEach(el => { el.checked = cb.checked; });
+        }
+        function syncHapusBulanSelectAll() {
+            const all = document.querySelectorAll('.hapusBulanChk');
+            const checked = document.querySelectorAll('.hapusBulanChk:checked');
+            document.getElementById('hapusBulanSelectAll').checked = all.length > 0 && all.length === checked.length;
+        }
+        function applyHapusBulan() {
+            const statusEl = document.getElementById('hapusBulanStatusMsg');
+            statusEl.textContent = '';
+            const selected = Array.from(document.querySelectorAll('.hapusBulanChk:checked')).map(el => el.value);
+            if (!selected.length) {
+                statusEl.style.color = 'var(--red, #dc2626)';
+                statusEl.textContent = 'Pilih minimal satu bulan dulu.';
+                return;
+            }
+            const totalBefore = salesRows.length;
+            const selectedSetConfirm = new Set(selected);
+            const removeCount = salesRows.filter(r => selectedSetConfirm.has(r.month || 'Lainnya')).length;
+            if (!confirm('Hapus data bulan: ' + selected.join(', ') + '?\n\n' + removeCount.toLocaleString('id-ID') +
+                ' baris akan dihapus permanen dari total ' + totalBefore.toLocaleString('id-ID') + ' baris. Data bulan lain TIDAK terpengaruh.\n\nLanjutkan?')) return;
+
+            const selectedSet = new Set(selected);
+            const remaining = salesRows.filter(r => !selectedSet.has(r.month || 'Lainnya'));
+
+            closeHapusBulanModal();
+
+            if (!remaining.length) {
+                // semua bulan yang ada terpilih -> setara hapus semua data
+                clearSalesData();
+                alert('Berhasil menghapus semua data (' + removeCount.toLocaleString('id-ID') + ' baris).');
+                return;
+            }
+
+            salesRows = remaining;
+            lastSalesFiltered = [];
+            lastProfitProdukRows = [];
+            lastProfitPayRows = [];
+            lastProfitSalesRows = [];
+            lastProfitSalesProdukRows = [];
+            lastProfitBulanRows = [];
+            invalidateSalesIndex();
+            saveRowsToDBAndSync(salesRows, DB_KEY_SALES);
+            queueCloudSync();
+            document.getElementById('salesFileName').textContent = 'Data tersimpan (' + salesRows.length.toLocaleString('id-ID') + ' baris)';
+            populateSalesFilters();
+            resetSalesSearch();
+            alert('Berhasil menghapus data bulan ' + selected.join(', ') + ' (' + removeCount.toLocaleString('id-ID') + ' baris).');
         }
 
         // ================================================================
