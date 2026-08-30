@@ -5582,6 +5582,21 @@
 
         // ---- Download sales Excel ----
         function downloadCurrentSalesExcel(scope) {
+            try {
+                downloadCurrentSalesExcelImpl(scope);
+            } catch (e) {
+                // Sebelumnya kalau ada error di tengah proses (mis. sheet Profit
+                // Per Produk Per Pembayaran gagal dibangun), fungsi ini berhenti
+                // total secara diam-diam -- tombol download terasa "tidak
+                // ngapa-ngapain" tanpa penjelasan. Sekarang errornya ditangkap,
+                // dicatat ke console untuk debugging, dan user diberi tahu lewat
+                // alert supaya jelas ada masalah (bukan sekadar tombol rusak).
+                console.error('downloadCurrentSalesExcel gagal:', e);
+                alert('Gagal membuat file Excel: ' + (e && e.message ? e.message : e) +
+                    '\n\nCoba lagi. Kalau masih gagal, screenshot pesan ini dan laporkan.');
+            }
+        }
+        function downloadCurrentSalesExcelImpl(scope) {
             if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
             const isAllTrans = (scope === 'all' && currentSalesSub === 'transaksi');
             const period = isAllTrans ? 'Semua Data' : getSalesPeriodLabel();
@@ -5692,30 +5707,51 @@
                 const sumProfit = lastProfitProdukRows.reduce((s, r) => s + r.profit, 0);
                 aoa.push(['', 'TOTAL', sumQty, sumJual, sumHpp, '', '', sumProfit]);
             } else if (currentSalesSub === 'pay') {
-                if (!lastProfitPayRows.length) renderProfitPay(lastSalesFiltered.length ? lastSalesFiltered :
-                    salesRows);
+                // "Semua" (scope === 'all') sebelumnya diabaikan dan selalu memakai
+                // data hasil filter yang sedang tampil di layar (cache lastProfitPayRows).
+                // Sekarang: kalau user pilih "Semua", hitung ulang dari SELURUH salesRows.
+                const payRows = (scope === 'all')
+                    ? (function() { renderProfitPay(salesRows); return lastProfitPayRows; })()
+                    : (lastProfitPayRows.length ? lastProfitPayRows : (function() {
+                        renderProfitPay(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
+                        return lastProfitPayRows;
+                    })());
                 sheetName = 'Profit Per Produk Per Pembayaran';
-                fileName = 'Profit_Per_Produk_Per_Pembayaran_' + safePeriod + '.xlsx';
+                fileName = 'Profit_Per_Produk_Per_Pembayaran_' + (scope === 'all' ? 'Semua_Data' : safePeriod) + '.xlsx';
+                const periodPay = scope === 'all' ? 'Semua Data' : period;
                 aoa = [
-                    ['PROFIT PER PRODUK PER PEMBAYARAN', '', '', '', '', '', period]
+                    ['PROFIT PER PRODUK PER PEMBAYARAN', '', '', '', '', '', periodPay]
                 ];
                 aoa.push(['Produk', 'Nominal Penjualan Cash', 'Nominal Penjualan Tempo', 'Profit Tempo', 'Profit Cash',
                     'Total Nominal Penjualan', 'Total Profit'
                 ]);
-                lastProfitPayRows.forEach(r => {
-                    aoa.push([r.produk, r.nomCash, r.nomTempo, r.profitTempo, r.profitCash, r.totalNom, r
-                        .totalProfit
+                // Number(...) || 0 di sini murni jaga-jaga: kalau ada nilai yang
+                // ternyata bukan angka valid (mis. NaN/undefined dari data sumber
+                // yang tidak terduga), sel Excel tetap terisi angka 0, bukan nilai
+                // rusak yang bisa bikin XLSX.writeFile gagal total tanpa pesan error.
+                payRows.forEach(r => {
+                    aoa.push([
+                        r.produk,
+                        Number(r.nomCash) || 0,
+                        Number(r.nomTempo) || 0,
+                        Number(r.profitTempo) || 0,
+                        Number(r.profitCash) || 0,
+                        Number(r.totalNom) || 0,
+                        Number(r.totalProfit) || 0
                     ]);
                 });
-                const t = lastProfitPayRows.reduce((a, r) => ({
-                    nc: a.nc + r.nomCash,
-                    nt: a.nt + r.nomTempo,
-                    pt: a.pt + r.profitTempo,
-                    pc: a.pc + r.profitCash,
-                    tn: a.tn + r.totalNom,
-                    tp: a.tp + r.totalProfit
+                const t = payRows.reduce((a, r) => ({
+                    nc: a.nc + (Number(r.nomCash) || 0),
+                    nt: a.nt + (Number(r.nomTempo) || 0),
+                    pt: a.pt + (Number(r.profitTempo) || 0),
+                    pc: a.pc + (Number(r.profitCash) || 0),
+                    tn: a.tn + (Number(r.totalNom) || 0),
+                    tp: a.tp + (Number(r.totalProfit) || 0)
                 }), { nc: 0, nt: 0, pt: 0, pc: 0, tn: 0, tp: 0 });
                 aoa.push(['TOTAL', t.nc, t.nt, t.pt, t.pc, t.tn, t.tp]);
+                // Balikin tampilan layar ke data hasil filter semula (supaya export
+                // "Semua" tidak ikut mengubah apa yang dilihat user di tabel layar).
+                if (scope === 'all') renderProfitPay(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
             } else if (currentSalesSub === 'sales') {
                 if (!lastProfitSalesRows.length) renderProfitSales(lastSalesFiltered.length ? lastSalesFiltered :
                     salesRows);
