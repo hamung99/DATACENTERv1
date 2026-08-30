@@ -642,11 +642,14 @@
             <div class="profit-wrap" id="fakturBulanWrap">
                 <div class="profit-head">
                     <span>📅 DATA BULANAN — UANG MASUK</span>
-                    <span class="muted" id="fakturBulanPeriod">—</span>
+                    <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span class="muted" id="fakturBulanPeriod">—</span>
+                        <button type="button" class="btn btn-outline" onclick="downloadFakturBulanExcel()" title="Download rekap Data Bulanan ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
+                    </span>
                 </div>
                 <table class="profit-table">
                     <thead>
-                        <tr><th>Bulan</th><th class="num">Jml Faktur</th><th class="num">Piutang Tempo</th><th class="num">Cash Dropping</th><th class="num">Tagihan</th><th class="num">Bayar Cash</th><th class="num">Bayar TF</th><th class="num">Total Bayar</th></tr>
+                        <tr><th>Bulan</th><th class="num">Jml Faktur</th><th class="num">Tagihan</th><th class="num">Piutang Tempo</th><th class="num">Cash Dropping</th><th class="num">Bayar Cash</th><th class="num">Bayar TF</th><th class="num">Total Bayar</th></tr>
                     </thead>
                     <tbody id="fakturBulanBody"></tbody>
                 </table>
@@ -661,7 +664,7 @@
                 </div>
                 <table class="profit-table">
                     <thead>
-                        <tr><th>Sales</th><th class="num">Jml Faktur</th><th class="num">Piutang Tempo</th><th class="num">Cash Dropping</th><th class="num">Tagihan</th><th class="num">Bayar Cash</th><th class="num">Bayar TF</th><th class="num">Total Setoran</th></tr>
+                        <tr><th>Sales</th><th class="num">Jml Faktur</th><th class="num">Tagihan</th><th class="num">Piutang Tempo</th><th class="num">Cash Dropping</th><th class="num">Bayar Cash</th><th class="num">Bayar TF</th><th class="num">Total Setoran</th></tr>
                     </thead>
                     <tbody id="fakturSalesBody"></tbody>
                 </table>
@@ -759,7 +762,7 @@
                         <span>📅 DETAIL PER TANGGAL — FITRI</span>
                         <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                             <span class="muted" id="ringkasanFitriDetailPeriod">—</span>
-                            <button type="button" class="btn btn-outline" onclick="downloadCurrentSalesExcel('filter')" title="Download termasuk sheet Detail Per Tanggal" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
+                            <button type="button" class="btn btn-outline" onclick="downloadRingkasanDetailPerTanggalExcel()" title="Download tabel Detail Per Tanggal ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
                         </span>
                     </div>
                     <div id="ringkasanFitriDetailBody"></div>
@@ -2236,9 +2239,9 @@
                 return '<tr>' +
                     '<td>' + esc(g.sales) + '</td>' +
                     '<td class="num">' + g.count.toLocaleString('id-ID') + '</td>' +
+                    '<td class="num">' + fmt(g.tagihan) + '</td>' +
                     '<td class="num">' + fmt(g.piutang) + '</td>' +
                     '<td class="num">' + fmt(g.dropping) + '</td>' +
-                    '<td class="num">' + fmt(g.tagihan) + '</td>' +
                     '<td class="num">' + fmt(g.cash) + '</td>' +
                     '<td class="num">' + fmt(g.tf) + '</td>' +
                     '<td class="num"><strong>' + fmt(total) + '</strong></td>' +
@@ -2247,9 +2250,9 @@
                 '<tr class="total-row">' +
                 '<td>TOTAL</td>' +
                 '<td class="num">' + sumCnt.toLocaleString('id-ID') + '</td>' +
+                '<td class="num">' + fmt(sumT) + '</td>' +
                 '<td class="num">' + fmt(sumP) + '</td>' +
                 '<td class="num">' + fmt(sumD) + '</td>' +
-                '<td class="num">' + fmt(sumT) + '</td>' +
                 '<td class="num">' + fmt(sumCash) + '</td>' +
                 '<td class="num">' + fmt(sumTf) + '</td>' +
                 '<td class="num">' + fmt(sumCash + sumTf) + '</td>' +
@@ -2265,17 +2268,17 @@
                 const aoa = [
                     ['UANG MASUK PER SALES', '', '', '', '', '', '', period]
                 ];
-                aoa.push(['Sales', 'Jml Faktur', 'Piutang Tempo', 'Cash Dropping', 'Tagihan', 'Bayar Cash', 'Bayar TF', 'Total Setoran']);
+                aoa.push(['Sales', 'Jml Faktur', 'Tagihan', 'Piutang Tempo', 'Cash Dropping', 'Bayar Cash', 'Bayar TF', 'Total Setoran']);
                 let sumCnt = 0, sumP = 0, sumD = 0, sumT = 0, sumCash = 0, sumTf = 0;
                 lastFakturSalesRows.forEach(g => {
                     const total = g.cash + g.tf;
                     sumCnt += g.count; sumP += g.piutang; sumD += g.dropping; sumT += g.tagihan; sumCash += g.cash; sumTf += g.tf;
-                    aoa.push([g.sales, g.count, g.piutang, g.dropping, g.tagihan, g.cash, g.tf, total]);
+                    aoa.push([g.sales, g.count, g.tagihan, g.piutang, g.dropping, g.cash, g.tf, total]);
                 });
-                aoa.push(['TOTAL', sumCnt, sumP, sumD, sumT, sumCash, sumTf, sumCash + sumTf]);
+                aoa.push(['TOTAL', sumCnt, sumT, sumP, sumD, sumCash, sumTf, sumCash + sumTf]);
                 // Kolom: 0=Sales(teks), 1=Jml Faktur(int), 2..7=nominal Rupiah.
                 const ws = XLSX.utils.aoa_to_sheet(aoa);
-                ws['!cols'] = [{ wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+                ws['!cols'] = [{ wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
                 try {
                     styleSalesExportSheet(ws, aoa, {
                         titleRow: 0,
@@ -2293,6 +2296,8 @@
                     '\n\nCoba lagi. Kalau masih gagal, screenshot pesan ini dan laporkan.');
             }
         }
+
+        let lastFakturBulanRows = [];
 
         function renderFakturBulan(rows) {
             const map = {};
@@ -2312,6 +2317,7 @@
                 else g.dropping += bayarCash + bayarTf;
             }
             const list = Object.values(map).sort((a, b) => MONTH_ORDER.indexOf(a.bulan) - MONTH_ORDER.indexOf(b.bulan));
+            lastFakturBulanRows = list;
             document.getElementById('fakturBulanPeriod').textContent = 'Semua Bulan (perbandingan)';
             const body = document.getElementById('fakturBulanBody');
             if (!list.length) {
@@ -2330,9 +2336,9 @@
                 return '<tr>' +
                     '<td>' + esc(g.bulan) + '</td>' +
                     '<td class="num">' + g.count.toLocaleString('id-ID') + '</td>' +
+                    '<td class="num">' + fmt(g.tagihan) + '</td>' +
                     '<td class="num">' + fmt(g.piutang) + '</td>' +
                     '<td class="num">' + fmt(g.dropping) + '</td>' +
-                    '<td class="num">' + fmt(g.tagihan) + '</td>' +
                     '<td class="num">' + fmt(g.cash) + '</td>' +
                     '<td class="num">' + fmt(g.tf) + '</td>' +
                     '<td class="num"><strong>' + fmt(total) + '</strong></td>' +
@@ -2341,13 +2347,49 @@
                 '<tr class="total-row">' +
                 '<td>TOTAL</td>' +
                 '<td class="num">' + sumCnt.toLocaleString('id-ID') + '</td>' +
+                '<td class="num">' + fmt(sumT) + '</td>' +
                 '<td class="num">' + fmt(sumP) + '</td>' +
                 '<td class="num">' + fmt(sumD) + '</td>' +
-                '<td class="num">' + fmt(sumT) + '</td>' +
                 '<td class="num">' + fmt(sumCash) + '</td>' +
                 '<td class="num">' + fmt(sumTf) + '</td>' +
                 '<td class="num">' + fmt(sumCash + sumTf) + '</td>' +
                 '</tr>';
+        }
+
+        function downloadFakturBulanExcel() {
+            try {
+                if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
+                if (!lastFakturBulanRows.length) renderFakturBulan(getFakturRowsForBulanCompare());
+                const aoa = [
+                    ['DATA BULANAN - UANG MASUK', '', '', '', '', '', '', 'Semua Bulan']
+                ];
+                aoa.push(['Bulan', 'Jml Faktur', 'Tagihan', 'Piutang Tempo', 'Cash Dropping', 'Bayar Cash', 'Bayar TF', 'Total Bayar']);
+                let sumCnt = 0, sumP = 0, sumD = 0, sumT = 0, sumCash = 0, sumTf = 0;
+                lastFakturBulanRows.forEach(g => {
+                    const total = g.cash + g.tf;
+                    sumCnt += g.count; sumP += g.piutang; sumD += g.dropping; sumT += g.tagihan; sumCash += g.cash; sumTf += g.tf;
+                    aoa.push([g.bulan, g.count, g.tagihan, g.piutang, g.dropping, g.cash, g.tf, total]);
+                });
+                aoa.push(['TOTAL', sumCnt, sumT, sumP, sumD, sumCash, sumTf, sumCash + sumTf]);
+                // Kolom: 0=Bulan(teks), 1=Jml Faktur(int), 2..7=nominal Rupiah.
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+                ws['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+                try {
+                    styleSalesExportSheet(ws, aoa, {
+                        titleRow: 0,
+                        headerRow: 1,
+                        intCols: new Set([1]),
+                        currCols: new Set([2, 3, 4, 5, 6, 7])
+                    });
+                } catch (e) { /* fallback aman */ }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Data Bulanan'.slice(0, 31));
+                XLSX.writeFile(wb, 'UangMasuk_Data_Bulanan.xlsx');
+            } catch (e) {
+                console.error('downloadFakturBulanExcel gagal:', e);
+                alert('Gagal membuat file Excel: ' + (e && e.message ? e.message : e) +
+                    '\n\nCoba lagi. Kalau masih gagal, screenshot pesan ini dan laporkan.');
+            }
         }
 
         function switchFakturSub(sub) {
@@ -3985,6 +4027,44 @@
             const net = sumOut - sumJual;
             aoa.push(['TOTAL', '', sumJual, sumOut, net, 'NET ' + (net > 0 ? '+' : '') + net]);
             return aoa;
+        }
+
+        // Download berdiri sendiri khusus tabel "Detail Per Tanggal — Fitri".
+        // Sebelumnya tombol download di bagian ini memanggil
+        // downloadCurrentSalesExcel('filter') yang sama dengan tombol di
+        // bagian "Penjualan Fitri" -- hasilnya satu file dengan banyak sheet
+        // dan sheet yang aktif pertama kali dibuka adalah "Ringkasan Fitri",
+        // bukan "Detail Per Tanggal", sehingga terasa seperti salah tabel.
+        function downloadRingkasanDetailPerTanggalExcel() {
+            try {
+                if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
+                let rows = lastSalesFiltered.length ? lastSalesFiltered : salesRows;
+                if (ringkasanFilterDate) {
+                    rows = rows.filter(r => ringkasanDateToISO(parseSalesDate(r.tanggal)) === ringkasanFilterDate);
+                }
+                ringkasanDateScopeISO = ringkasanFilterDate ? [ringkasanFilterDate] :
+                    [...new Set(rows.map(r => ringkasanDateToISO(parseSalesDate(r.tanggal))).filter(Boolean))];
+                const fitriRows = rows.filter(r => isFitriProduk(r.produk));
+                const aoa = buildRingkasanDetailPerTanggalAOA(fitriRows);
+                const periodLabel = ringkasanFilterDate ? ('Tanggal_' + ringkasanFilterDate) :
+                    getSalesPeriodLabel().replace(/\s+/g, '_');
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+                ws['!cols'] = [{ wch: 14 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 14 }];
+                try {
+                    styleSalesExportSheet(ws, aoa, {
+                        titleRow: 0,
+                        headerRow: 1,
+                        intCols: ALL_INT_COLS
+                    });
+                } catch (e) { /* fallback aman */ }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Detail Per Tanggal'.slice(0, 31));
+                XLSX.writeFile(wb, 'Detail_Per_Tanggal_Fitri_' + periodLabel + '.xlsx');
+            } catch (e) {
+                console.error('downloadRingkasanDetailPerTanggalExcel gagal:', e);
+                alert('Gagal membuat file Excel: ' + (e && e.message ? e.message : e) +
+                    '\n\nCoba lagi. Kalau masih gagal, screenshot pesan ini dan laporkan.');
+            }
         }
 
 
@@ -9225,9 +9305,9 @@
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
             markFakturLunasManualFromCardModal, openManualLunasHistoryModal, undoManualLunasFromHistoryModal,
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
-            downloadFakturExcel,
+            downloadFakturExcel, downloadFakturSalesExcel, downloadFakturBulanExcel,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
-            downloadCurrentSalesExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
+            downloadCurrentSalesExcel, downloadRingkasanDetailPerTanggalExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
             switchCekSub, toggleCekBulanPanel, onCekBulanAllChange, onCekBulanItemChange,
             toggleCekDownloadMenu, renderCekTable, resetCekSearch, downloadCekExcel,
             pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
