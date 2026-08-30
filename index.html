@@ -5258,8 +5258,10 @@
                         if (dateCols.has(C)) ws[a].z = 'dd/mm/yyyy';
                         else if (intCols.has(C)) ws[a].z = '#,##0';
                         else if (currCols.has(C)) ws[a].z = '"Rp"#,##0';
-                        else ws[a].z = (Number.isInteger(ws[a].v) && Math.abs(ws[a].v) < 10000 && C <= 2)
-                            ? '#,##0' : '"Rp"#,##0';
+                        // Default: angka bulat = Qty (tanpa Rp). Hanya pakai Rp
+                        // kalau kolom eksplisit di currCols, atau nilai besar non-integer.
+                        else if (Number.isInteger(ws[a].v)) ws[a].z = '#,##0';
+                        else ws[a].z = '#,##0.##';
                     }
                 }
                 if (isTot) {
@@ -5267,7 +5269,12 @@
                         const a = safeAddr(R, C);
                         ws[a].s.font = whiteBold;
                         ws[a].s.fill = totalFill;
-                        if (typeof ws[a].v === 'number') ws[a].z = '"Rp"#,##0';
+                        if (typeof ws[a].v === 'number') {
+                            if (intCols.has(C)) ws[a].z = '#,##0';
+                            else if (currCols.has(C)) ws[a].z = '"Rp"#,##0';
+                            else if (Number.isInteger(ws[a].v)) ws[a].z = '#,##0';
+                            else ws[a].z = '#,##0.##';
+                        }
                     }
                 }
             }
@@ -5591,7 +5598,24 @@
             ws['!cols'] = computeAutoColWidths(aoa);
             // Style rapi: header tebal fill biru, border tipis, zebra, freeze panes,
             // auto-filter, dan format "Rp" untuk kolom uang. Konsisten di semua tab.
-            try { styleSalesExportSheet(ws, aoa, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
+            // Ringkasan Fitri/Rupa = Qty (bukan Rupiah). Sub-tab lain biarkan default
+            // (integer → Qty, kolom uang lewat currCols di cabang masing-masing).
+            const _exportStyleOpts = { headerRow: 1 };
+            if (currentSalesSub === 'ringkasan') {
+                const hdr = aoa[1] || [];
+                const intSet = new Set();
+                for (let c = 1; c < hdr.length; c++) {
+                    const h = String(hdr[c] || '').toLowerCase();
+                    // Semua kolom numerik ringkasan adalah Qty / Output / Selisih
+                    if (h && h !== 'ket' && h !== 'produk') intSet.add(c);
+                }
+                _exportStyleOpts.intCols = intSet;
+            } else if (currentSalesSub === 'produk' || currentSalesSub === 'pay' ||
+                       currentSalesSub === 'sales' || currentSalesSub === 'salesProduk' ||
+                       currentSalesSub === 'bulan') {
+                // biarkan default; cabang di bawah bisa override via _exportStyleOpts jika perlu
+            }
+            try { styleSalesExportSheet(ws, aoa, _exportStyleOpts); } catch (e) { /* fallback aman */ }
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, sheetName);
             // Sheet-sheet tambahan (mis. Rupa Rupa & Data Gudang di sub-tab Ringkasan),
@@ -5616,7 +5640,21 @@
                     wsExtra['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: aoaX[0].length - 2 } });
                 }
                 wsExtra['!cols'] = computeAutoColWidths(aoaX);
-                try { styleSalesExportSheet(wsExtra, aoaX, { headerRow: 1 }); } catch (e) { /* fallback aman */ }
+                try {
+                    const extraOpts = { headerRow: 1 };
+                    const hdrX = aoaX[1] || [];
+                    // Sheet ringkasan (Fitri/Rupa) & Data Gudang: angka = Qty, bukan Rp
+                    const looksLikeQtySheet = hdrX.some(h => /output|selisih|total|qty|keluar|masuk|stok/i.test(String(h || '')));
+                    if (looksLikeQtySheet || currentSalesSub === 'ringkasan') {
+                        const intSetX = new Set();
+                        for (let c = 1; c < hdrX.length; c++) {
+                            const h = String(hdrX[c] || '').toLowerCase();
+                            if (h && h !== 'ket' && h !== 'produk' && h !== 'tanggal' && h !== 'keterangan') intSetX.add(c);
+                        }
+                        extraOpts.intCols = intSetX;
+                    }
+                    styleSalesExportSheet(wsExtra, aoaX, extraOpts);
+                } catch (e) { /* fallback aman */ }
                 XLSX.utils.book_append_sheet(wb, wsExtra, (extra.name || 'Sheet').slice(0, 31));
             });
             XLSX.writeFile(wb, fileName);
