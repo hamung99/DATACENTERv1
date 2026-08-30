@@ -605,6 +605,7 @@
             <div class="subtabs show" id="fakturSubtabs">
                 <button class="subtab-btn active" id="subBtnFakturRingkasan" onclick="switchFakturSub('ringkasan')">Rekap Harian</button>
                 <button class="subtab-btn" id="subBtnFakturBulan" onclick="switchFakturSub('bulan')">Data Bulanan</button>
+                <button class="subtab-btn" id="subBtnFakturSales" onclick="switchFakturSub('sales')">👤 Per Sales</button>
             </div>
 
             <div class="search-bar show" id="searchBar">
@@ -648,6 +649,21 @@
                         <tr><th>Bulan</th><th class="num">Jml Faktur</th><th class="num">Piutang Tempo</th><th class="num">Cash Dropping</th><th class="num">Tagihan</th><th class="num">Bayar Cash</th><th class="num">Bayar TF</th><th class="num">Total Bayar</th></tr>
                     </thead>
                     <tbody id="fakturBulanBody"></tbody>
+                </table>
+            </div>
+            <div class="profit-wrap" id="fakturSalesWrap">
+                <div class="profit-head">
+                    <span>👤 UANG MASUK PER SALES</span>
+                    <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span class="muted" id="fakturSalesPeriod">—</span>
+                        <button type="button" class="btn btn-outline" onclick="downloadFakturSalesExcel()" title="Download rekap Per Sales ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
+                    </span>
+                </div>
+                <table class="profit-table">
+                    <thead>
+                        <tr><th>Sales</th><th class="num">Jml Faktur</th><th class="num">Piutang Tempo</th><th class="num">Cash Dropping</th><th class="num">Tagihan</th><th class="num">Bayar Cash</th><th class="num">Bayar TF</th><th class="num">Total Setoran</th></tr>
+                    </thead>
+                    <tbody id="fakturSalesBody"></tbody>
                 </table>
             </div>
         </div>
@@ -2148,6 +2164,136 @@
             return filtered;
         }
 
+        // ---- Sub-tab "Per Sales": rekap Uang Masuk per Sales ----
+        // Ikut filter Bulan/Bagian/Status/pencarian yang sedang aktif (dibaca
+        // langsung dari input, sama seperti getFakturRowsForBulanCompare),
+        // supaya bisa dipakai untuk laporan "sales A menyetorkan uang
+        // sejumlah X" pada bulan/periode tertentu.
+        function getFakturRowsForSalesTab() {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            const mon = document.getElementById('filterMonth').value;
+            const sec = document.getElementById('filterSection').value;
+            const st = document.getElementById('filterStatus').value;
+            let filtered = allRows;
+            if (mon !== 'all') filtered = filtered.filter(r => r.month === mon);
+            if (sec !== 'all') filtered = filtered.filter(r => r.section === sec);
+            if (st !== 'all') filtered = filtered.filter(r => r.status === st);
+            if (q) {
+                filtered = filtered.filter(r => flexibleSearchMatch(q, [
+                    r.faktur, r.toko, r.namaToko, r.customer, r.alamat, r.sales,
+                    r.sheet, r.section, r.status, r.date, r.tanggal, r.month,
+                    r.ket, r.keterangan
+                ]));
+            }
+            return filtered;
+        }
+
+        function getFakturSalesPeriodLabel() {
+            const mon = document.getElementById('filterMonth').value;
+            return mon === 'all' ? 'Semua Bulan' : mon;
+        }
+
+        let lastFakturSalesRows = [];
+
+        function renderFakturSales(rows) {
+            const map = {};
+            for (const r of rows) {
+                const sales = (r.sales || '').trim() || '—';
+                if (!map[sales]) {
+                    map[sales] = { sales, count: 0, piutang: 0, dropping: 0, tagihan: 0, cash: 0, tf: 0 };
+                }
+                const g = map[sales];
+                g.count++;
+                g.tagihan += r.tagihan || 0;
+                const bayarCash = (r.minyakCash || 0) + (r.rupaCash || 0);
+                const bayarTf = (r.minyakTf || 0) + (r.rupaTf || 0);
+                g.cash += bayarCash;
+                g.tf += bayarTf;
+                if (r.section === 'PIUTANG TEMPO') g.piutang += bayarCash + bayarTf;
+                else g.dropping += bayarCash + bayarTf;
+            }
+            const preferred = ['RAJU','HAFID','JOSSY','GC','PARIMIN'];
+            lastFakturSalesRows = Object.values(map).sort((a, b) => {
+                const ia = preferred.indexOf(a.sales.toUpperCase()), ib = preferred.indexOf(b.sales.toUpperCase());
+                const ra = ia < 0 ? 999 : ia, rb = ib < 0 ? 999 : ib;
+                return ra !== rb ? ra - rb : a.sales.localeCompare(b.sales);
+            });
+            document.getElementById('fakturSalesPeriod').textContent = getFakturSalesPeriodLabel();
+            const body = document.getElementById('fakturSalesBody');
+            if (!lastFakturSalesRows.length) {
+                body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
+                return;
+            }
+            let sumCnt = 0, sumP = 0, sumD = 0, sumT = 0, sumCash = 0, sumTf = 0;
+            body.innerHTML = lastFakturSalesRows.map(g => {
+                const total = g.cash + g.tf;
+                sumCnt += g.count;
+                sumP += g.piutang;
+                sumD += g.dropping;
+                sumT += g.tagihan;
+                sumCash += g.cash;
+                sumTf += g.tf;
+                return '<tr>' +
+                    '<td>' + esc(g.sales) + '</td>' +
+                    '<td class="num">' + g.count.toLocaleString('id-ID') + '</td>' +
+                    '<td class="num">' + fmt(g.piutang) + '</td>' +
+                    '<td class="num">' + fmt(g.dropping) + '</td>' +
+                    '<td class="num">' + fmt(g.tagihan) + '</td>' +
+                    '<td class="num">' + fmt(g.cash) + '</td>' +
+                    '<td class="num">' + fmt(g.tf) + '</td>' +
+                    '<td class="num"><strong>' + fmt(total) + '</strong></td>' +
+                    '</tr>';
+            }).join('') +
+                '<tr class="total-row">' +
+                '<td>TOTAL</td>' +
+                '<td class="num">' + sumCnt.toLocaleString('id-ID') + '</td>' +
+                '<td class="num">' + fmt(sumP) + '</td>' +
+                '<td class="num">' + fmt(sumD) + '</td>' +
+                '<td class="num">' + fmt(sumT) + '</td>' +
+                '<td class="num">' + fmt(sumCash) + '</td>' +
+                '<td class="num">' + fmt(sumTf) + '</td>' +
+                '<td class="num">' + fmt(sumCash + sumTf) + '</td>' +
+                '</tr>';
+        }
+
+        function downloadFakturSalesExcel() {
+            try {
+                if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
+                if (!lastFakturSalesRows.length) renderFakturSales(getFakturRowsForSalesTab());
+                const period = getFakturSalesPeriodLabel();
+                const safePeriod = period.replace(/\s+/g, '_');
+                const aoa = [
+                    ['UANG MASUK PER SALES', '', '', '', '', '', '', period]
+                ];
+                aoa.push(['Sales', 'Jml Faktur', 'Piutang Tempo', 'Cash Dropping', 'Tagihan', 'Bayar Cash', 'Bayar TF', 'Total Setoran']);
+                let sumCnt = 0, sumP = 0, sumD = 0, sumT = 0, sumCash = 0, sumTf = 0;
+                lastFakturSalesRows.forEach(g => {
+                    const total = g.cash + g.tf;
+                    sumCnt += g.count; sumP += g.piutang; sumD += g.dropping; sumT += g.tagihan; sumCash += g.cash; sumTf += g.tf;
+                    aoa.push([g.sales, g.count, g.piutang, g.dropping, g.tagihan, g.cash, g.tf, total]);
+                });
+                aoa.push(['TOTAL', sumCnt, sumP, sumD, sumT, sumCash, sumTf, sumCash + sumTf]);
+                // Kolom: 0=Sales(teks), 1=Jml Faktur(int), 2..7=nominal Rupiah.
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+                ws['!cols'] = [{ wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+                try {
+                    styleSalesExportSheet(ws, aoa, {
+                        titleRow: 0,
+                        headerRow: 1,
+                        intCols: new Set([1]),
+                        currCols: new Set([2, 3, 4, 5, 6, 7])
+                    });
+                } catch (e) { /* fallback aman */ }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Uang Masuk Per Sales'.slice(0, 31));
+                XLSX.writeFile(wb, 'UangMasuk_Per_Sales_' + safePeriod + '.xlsx');
+            } catch (e) {
+                console.error('downloadFakturSalesExcel gagal:', e);
+                alert('Gagal membuat file Excel: ' + (e && e.message ? e.message : e) +
+                    '\n\nCoba lagi. Kalau masih gagal, screenshot pesan ini dan laporkan.');
+            }
+        }
+
         function renderFakturBulan(rows) {
             const map = {};
             for (const r of rows) {
@@ -2208,13 +2354,16 @@
             currentFakturSub = sub;
             document.getElementById('subBtnFakturRingkasan').classList.toggle('active', sub === 'ringkasan');
             document.getElementById('subBtnFakturBulan').classList.toggle('active', sub === 'bulan');
+            document.getElementById('subBtnFakturSales').classList.toggle('active', sub === 'sales');
             const isRingkasan = sub === 'ringkasan';
             document.getElementById('searchBar').classList.toggle('show', isRingkasan);
             document.getElementById('dailyPanel').style.display = isRingkasan ? 'block' : 'none';
             document.getElementById('resultInfo').style.display = isRingkasan && lastFakturFiltered.length ? 'block' : 'none';
             document.getElementById('tableWrap').style.display = isRingkasan ? 'block' : 'none';
             document.getElementById('fakturBulanWrap').classList.toggle('show', sub === 'bulan');
+            document.getElementById('fakturSalesWrap').classList.toggle('show', sub === 'sales');
             if (sub === 'bulan') renderFakturBulan(getFakturRowsForBulanCompare());
+            else if (sub === 'sales') renderFakturSales(getFakturRowsForSalesTab());
             else showSummary();
         }
 
@@ -3137,6 +3286,7 @@
         function clearData() {
             allRows = [];
             lastFakturFiltered = [];
+            lastFakturSalesRows = [];
             invalidateFakturIndex();
             saveRowsToDBAndSync([], DB_KEY);
             queueCloudSync();
@@ -3153,6 +3303,12 @@
             dailyBody.innerHTML =
                 '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--muted);cursor:default;">Belum ada data. Upload file Excel untuk mulai melihat ringkasan.</td></tr>';
             document.getElementById('filterMonth').innerHTML = '<option value="all">Semua Bulan</option>';
+            document.getElementById('fakturBulanWrap').classList.remove('show');
+            document.getElementById('fakturSalesWrap').classList.remove('show');
+            document.getElementById('subBtnFakturBulan').classList.remove('active');
+            document.getElementById('subBtnFakturSales').classList.remove('active');
+            document.getElementById('subBtnFakturRingkasan').classList.add('active');
+            currentFakturSub = 'ringkasan';
         }
 
         // ================================================================
