@@ -674,6 +674,7 @@
                     <div class="menu-dd" id="salesMenuDd">
                         <label class="menu-item upload-item"><input type="file" id="fileInputSales" accept=".xlsx,.xls" multiple=""> 📂 Upload Data Penjualan</label>
                         <button class="menu-item" onclick="openFitriMarginModal(); closeSalesMenu();">🎯 Atur Margin Minimal Fitri</button>
+                        <button class="menu-item" onclick="openFixHargaBeliModal(); closeSalesMenu();">✏️ Perbaiki Harga Beli Produk</button>
                         <button class="menu-item" id="clearSalesBtn" onclick="clearSalesData(); closeSalesMenu();" style="display:none;">✕ Hapus Data Penjualan</button>
                         <div class="menu-divider"></div>
                         <div class="menu-files" id="salesFileName">Data tersimpan (0 baris)</div>
@@ -1099,6 +1100,38 @@
                 <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
                     <button class="btn btn-outline" onclick="closeFitriMarginModal()">Batal</button>
                     <button class="btn" onclick="saveFitriMarginRulesFromModal()">💾 Simpan</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Perbaiki Harga Beli Produk (tanpa perlu hapus & upload ulang data) -->
+        <div class="modal-overlay" id="fixHargaBeliModal" onclick="if(event.target===this)closeFixHargaBeliModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>✏️ Perbaiki Harga Beli Produk</h2>
+                    <button class="modal-close" onclick="closeFixHargaBeliModal()">✕</button>
+                </div>
+                <div class="muted" style="margin-bottom:12px;font-size:0.8rem;">
+                    Pilih produk, lalu masukkan Harga Beli yang BENAR. Semua transaksi produk ini di <b>Data Penjualan</b>
+                    (semua bulan) akan langsung diperbarui — tidak perlu hapus data dan upload ulang.
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px;">Produk</label>
+                    <input type="text" id="fixHBProdukInput" list="fixHBProdukList" placeholder="Ketik/pilih nama produk..."
+                        style="width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);box-sizing:border-box;"
+                        oninput="onFixHBProdukChange()">
+                    <datalist id="fixHBProdukList"></datalist>
+                </div>
+                <div id="fixHBCurrentInfo" class="muted" style="font-size:0.78rem;margin-bottom:10px;min-height:18px;"></div>
+                <div style="margin-bottom:6px;">
+                    <label style="font-size:0.82rem;font-weight:600;display:block;margin-bottom:4px;">Harga Beli yang Benar (Rp)</label>
+                    <input type="number" id="fixHBValueInput" step="1" placeholder="mis. 5000"
+                        style="width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;padding:7px 9px;color:var(--text);box-sizing:border-box;">
+                </div>
+                <div id="fixHBStatusMsg" class="status-msg" style="margin-top:6px;"></div>
+                <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeFixHargaBeliModal()">Batal</button>
+                    <button class="btn" onclick="applyFixHargaBeli()">💾 Terapkan ke Semua Transaksi Produk Ini</button>
                 </div>
             </div>
         </div>
@@ -3889,6 +3922,87 @@
             closeFitriMarginModal();
             // Refresh tampilan tabel Transaksi supaya tanda margin ter-update
             renderSalesTable(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
+        }
+
+        // ---- Perbaiki Harga Beli Produk (tanpa hapus & upload ulang) ----
+        // Mengubah Harga Beli untuk SEMUA transaksi satu produk sekaligus,
+        // langsung di data yang sudah tersimpan (salesRows), lalu disimpan
+        // ulang ke IndexedDB + cloud dan tampilan di-refresh.
+        function openFixHargaBeliModal() {
+            const dl = document.getElementById('fixHBProdukList');
+            const names = Array.from(new Set(salesRows.map(r => (r.produk || '').trim()).filter(Boolean)))
+                .sort((a, b) => a.localeCompare(b));
+            dl.innerHTML = names.map(n => '<option value="' + esc(n) + '"></option>').join('');
+            document.getElementById('fixHBProdukInput').value = '';
+            document.getElementById('fixHBValueInput').value = '';
+            document.getElementById('fixHBCurrentInfo').textContent = '';
+            document.getElementById('fixHBStatusMsg').textContent = '';
+            document.getElementById('fixHargaBeliModal').classList.add('open');
+        }
+        function closeFixHargaBeliModal() {
+            document.getElementById('fixHargaBeliModal').classList.remove('open');
+        }
+        function onFixHBProdukChange() {
+            const name = document.getElementById('fixHBProdukInput').value.trim();
+            const info = document.getElementById('fixHBCurrentInfo');
+            document.getElementById('fixHBStatusMsg').textContent = '';
+            if (!name) { info.textContent = ''; return; }
+            const matches = salesRows.filter(r => (r.produk || '').trim().toUpperCase() === name.toUpperCase());
+            if (!matches.length) {
+                info.textContent = 'Produk tidak ditemukan di Data Penjualan.';
+                info.style.color = 'var(--red, #dc2626)';
+                return;
+            }
+            const distinctHB = Array.from(new Set(matches.map(r => Number(r.hargaBeli) || 0)));
+            info.style.color = '';
+            info.innerHTML = matches.length.toLocaleString('id-ID') + ' transaksi ditemukan. Harga Beli saat ini: ' +
+                (distinctHB.length === 1
+                    ? '<b>Rp ' + distinctHB[0].toLocaleString('id-ID') + '</b>'
+                    : '<b>bervariasi</b> (' + distinctHB.map(v => 'Rp ' + v.toLocaleString('id-ID')).join(', ') + ') — semua akan disamakan.');
+        }
+        function applyFixHargaBeli() {
+            const name = document.getElementById('fixHBProdukInput').value.trim();
+            const valRaw = document.getElementById('fixHBValueInput').value;
+            const statusEl = document.getElementById('fixHBStatusMsg');
+            statusEl.textContent = '';
+            if (!name) {
+                statusEl.style.color = 'var(--red, #dc2626)';
+                statusEl.textContent = 'Pilih/ketik nama produk dulu.';
+                return;
+            }
+            const newVal = Number(valRaw);
+            if (valRaw === '' || isNaN(newVal) || newVal < 0) {
+                statusEl.style.color = 'var(--red, #dc2626)';
+                statusEl.textContent = 'Isi Harga Beli yang benar (angka, tidak boleh kosong/negatif).';
+                return;
+            }
+            const nameUpper = name.toUpperCase();
+            let count = 0;
+            salesRows.forEach(r => {
+                if ((r.produk || '').trim().toUpperCase() === nameUpper) {
+                    r.hargaBeli = newVal;
+                    count++;
+                }
+            });
+            if (!count) {
+                statusEl.style.color = 'var(--red, #dc2626)';
+                statusEl.textContent = 'Produk tidak ditemukan, tidak ada yang diubah.';
+                return;
+            }
+            invalidateSalesIndex();
+            // Cache profit per sub-tab (Produk/Pembayaran/Sales/dst) dibangun dari
+            // salesRows/lastSalesFiltered -- kosongkan supaya dihitung ulang dengan
+            // Harga Beli yang baru, bukan cache lama.
+            lastProfitProdukRows = [];
+            lastProfitPayRows = [];
+            lastProfitSalesRows = [];
+            lastProfitSalesProdukRows = [];
+            lastProfitBulanRows = [];
+            saveRowsToDBAndSync(salesRows, DB_KEY_SALES);
+            closeFixHargaBeliModal();
+            doSalesSearch(); // refresh tampilan yang sedang aktif (subtab manapun)
+            alert('Berhasil. Harga Beli produk "' + name + '" diubah jadi Rp ' + newVal.toLocaleString('id-ID') +
+                ' untuk ' + count.toLocaleString('id-ID') + ' transaksi.');
         }
 
         function sortRingkasanSalesNames(names) {
@@ -8705,7 +8819,8 @@
             onRingkasanDateFilterChange, clearRingkasanDateFilter,
             openRingkasanInvestigationModal, closeRingkasanInvestigationModal, performRingkasanInvestigation,
             renderRingkasanCekTab,
-            openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal
+            openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
+            openFixHargaBeliModal, closeFixHargaBeliModal, onFixHBProdukChange, applyFixHargaBeli
         });
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
