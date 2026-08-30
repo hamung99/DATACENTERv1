@@ -5877,7 +5877,11 @@
             // auto-filter, dan format "Rp" untuk kolom uang. Konsisten di semua tab.
             try { styleSalesExportSheet(ws, aoa, { headerRow: 1, intCols: mainIntCols || undefined }); } catch (e) { /* fallback aman */ }
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            // Excel membatasi nama sheet maksimal 31 karakter -- "Profit Per
+            // Produk Per Pembayaran" persis 32 karakter, jadi tanpa .slice(0, 31)
+            // ini XLSX.utils.book_append_sheet melempar error "Sheet names
+            // cannot exceed 31 chars" dan seluruh proses download gagal total.
+            XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
             // Sheet-sheet tambahan (mis. Rupa Rupa & Data Gudang di sub-tab Ringkasan),
             // dirapikan dengan format angka, merge judul, dan lebar kolom yang sama
             // seperti sheet utama supaya seluruh file download konsisten & rapi.
