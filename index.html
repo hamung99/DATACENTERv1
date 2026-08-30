@@ -692,6 +692,7 @@
                 <button class="subtab-btn" id="subBtnPay" onclick="switchSalesSub('pay')">💳 Profit Per Produk Per Pembayaran</button>
                 <button class="subtab-btn" id="subBtnSales" onclick="switchSalesSub('sales')">👤 Profit Per Sales</button>
                 <button class="subtab-btn" id="subBtnSalesProduk" onclick="switchSalesSub('salesProduk')">📦👤 Per Sales Per Produk</button>
+                <button class="subtab-btn" id="subBtnLengkap" onclick="switchSalesSub('lengkap')">🧾 Lengkap</button>
                 <button class="subtab-btn" id="subBtnBulan" onclick="switchSalesSub('bulan')">🗓️ Profit Per Bulan</button>
                 <div class="view-toggle" id="salesViewToggle" style="display:none;">
                     <button type="button" class="view-toggle-btn active" id="btnViewTable" onclick="setSalesViewMode('table')">☰ Tabel</button>
@@ -765,6 +766,7 @@
             <div class="profit-wrap" id="profitPayWrap"><div class="profit-head"><span>PROFIT PER PRODUK PER PEMBAYARAN</span><span class="muted" id="profitPayPeriod">—</span></div><table class="profit-table"><thead><tr><th>Produk</th><th class="num">Nominal Penjualan Cash</th><th class="num">Nominal Penjualan Tempo</th><th class="num">Profit Tempo</th><th class="num">Profit Cash</th><th class="num">Total Nominal Penjualan</th><th class="num">Total Profit</th></tr></thead><tbody id="profitPayBody"></tbody></table></div>
             <div class="profit-wrap" id="profitSalesWrap"><div class="profit-head"><span>PENJUALAN PER SALES PER PRODUK</span><span class="muted" id="profitSalesPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesTable"><thead id="profitSalesHead"></thead><tbody id="profitSalesBody"></tbody></table></div></div>
             <div class="profit-wrap" id="profitSalesProdukWrap"><div class="profit-head"><span>PER SALES PER PRODUK</span><span class="muted" id="profitSalesProdukPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesProdukTable"><thead id="profitSalesProdukHead"></thead><tbody id="profitSalesProdukBody"></tbody></table></div></div>
+            <div class="profit-wrap" id="profitLengkapWrap"><div class="profit-head"><span>PENJUALAN PER SALES PER PEMBAYARAN PER PRODUK</span><span class="muted" id="profitLengkapPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitLengkapTable"><thead id="profitLengkapHead"></thead><tbody id="profitLengkapBody"></tbody></table></div></div>
             <div class="profit-wrap" id="profitBulanWrap"><div class="profit-head"><span>PROFIT PER BULAN</span><span class="muted" id="profitBulanPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table"><thead><tr><th>Bulan</th><th class="num">Total Qty Fitri</th><th class="num">Totl Nominl Fitri</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Total Qty Rupa2</th><th class="num">Total Nominal Rupa2</th><th class="num">Totl HPP</th><th class="num">Profit</th><th class="num">Margin</th><th class="num">Margin</th><th class="num">TOTAL PROFIT</th></tr></thead><tbody id="profitBulanBody"></tbody></table></div></div>
 
             <div class="empty-state" id="salesEmptyState" style="display:none;">
@@ -3507,6 +3509,7 @@
         let lastProfitSalesRows = [];
         let lastProfitSalesProdukRows = [];
         let lastProfitBulanRows = [];
+        let lastProfitLengkapRows = [];
         let fakturNominalMap = {};
 
         // ---- RINGKASAN (sub-tab pertama di Data Penjualan) ----
@@ -5097,6 +5100,8 @@
             if (currentSalesSub === 'produk') renderProfitProduk(filtered);
             if (currentSalesSub === 'pay') renderProfitPay(filtered);
             if (currentSalesSub === 'sales') renderProfitSales(filtered);
+            if (currentSalesSub === 'salesProduk') renderProfitSalesProduk(filtered);
+            if (currentSalesSub === 'lengkap') renderProfitLengkap(filtered);
             if (currentSalesSub === 'bulan') renderProfitBulan(getSalesRowsForBulanCompare());
         }
 
@@ -5117,6 +5122,7 @@
             if (currentSalesSub === 'pay') renderProfitPay(nonBatal);
             if (currentSalesSub === 'sales') renderProfitSales(nonBatal);
             if (currentSalesSub === 'salesProduk') renderProfitSalesProduk(nonBatal);
+            if (currentSalesSub === 'lengkap') renderProfitLengkap(nonBatal);
             if (currentSalesSub === 'bulan') renderProfitBulan(getSalesRowsForBulanCompare());
         }
 
@@ -5128,6 +5134,7 @@
             document.getElementById('subBtnPay').classList.toggle('active', sub === 'pay');
             document.getElementById('subBtnSales').classList.toggle('active', sub === 'sales');
             document.getElementById('subBtnSalesProduk').classList.toggle('active', sub === 'salesProduk');
+            document.getElementById('subBtnLengkap').classList.toggle('active', sub === 'lengkap');
             document.getElementById('subBtnBulan').classList.toggle('active', sub === 'bulan');
             const viewToggle = document.getElementById('salesViewToggle');
             if (viewToggle) viewToggle.style.display = sub === 'transaksi' ? 'inline-flex' : 'none';
@@ -5155,6 +5162,7 @@
             document.getElementById('profitPayWrap').classList.toggle('show', sub === 'pay');
             document.getElementById('profitSalesWrap').classList.toggle('show', sub === 'sales');
             document.getElementById('profitSalesProdukWrap').classList.toggle('show', sub === 'salesProduk');
+            document.getElementById('profitLengkapWrap').classList.toggle('show', sub === 'lengkap');
             document.getElementById('profitBulanWrap').classList.toggle('show', sub === 'bulan');
             const rows = lastSalesFiltered.length ? lastSalesFiltered : salesRows;
             if (sub === 'transaksi') renderSalesTable(rows);
@@ -5163,6 +5171,7 @@
             if (sub === 'pay') renderProfitPay(rows);
             if (sub === 'sales') renderProfitSales(rows);
             if (sub === 'salesProduk') renderProfitSalesProduk(rows);
+            if (sub === 'lengkap') renderProfitLengkap(rows);
             if (sub === 'bulan') renderProfitBulan(getSalesRowsForBulanCompare());
             const btnDl = document.getElementById('btnDlProfit');
             const btnDlAll = document.getElementById('btnDlTransAll');
@@ -5488,6 +5497,105 @@
             }).join('') +
             '<tr class="total-row"><td>TOTAL</td>' + salesList.map(s => '<td class="num">'+(totals.sales[s]||0).toLocaleString('id-ID')+'</td>').join('') +
             '<td class="num">'+totals.qty.toLocaleString('id-ID')+'</td><td></td><td></td><td></td><td class="num">'+fmt(totals.beli)+'</td><td class="num">'+fmt(totals.jual)+'</td><td class="num">'+fmt(totals.profit)+'</td><td class="num">'+(totals.jual ? ((totals.profit/totals.jual)*100).toFixed(1).replace('.', ',') : '0,0')+'%</td></tr>';
+        }
+
+        // ---- LENGKAP: Penjualan per Sales per Pembayaran (Cash/Tempo) per Produk ----
+        function renderProfitLengkap(rows) {
+            const cleanRows = (rows || []).filter(r => String(r.status || '').toUpperCase() !== 'BATAL' && !r.isBatal);
+            const salesSet = new Set();
+            const map = {};
+            for (const r of cleanRows) {
+                const produk = (r.produk || '').trim() || '—';
+                const sales = (r.sales || '').trim() || '—';
+                const qty = Number(r.jumlah) || 0;
+                const hargaBeli = Number(r.hargaBeli) || 0;
+                const hargaJual = Number(r.hargaJual) || 0;
+                const total = Number(r.total) || 0;
+                const profit = total - (hargaBeli * qty);
+                const pay = (r.pembayaran || '').toUpperCase();
+                const isCash = pay === 'CASH';
+                salesSet.add(sales);
+                if (!map[produk]) map[produk] = { produk, satuan: r.satuan || '',
+                    salesQtyCash: {}, salesQtyTempo: {}, salesProfit: {},
+                    totalQty: 0, totalProfit: 0, beliXQty: 0, minHargaJual: Infinity, maxHargaJual: -Infinity };
+                const g = map[produk];
+                if (isCash) g.salesQtyCash[sales] = (g.salesQtyCash[sales] || 0) + qty;
+                else g.salesQtyTempo[sales] = (g.salesQtyTempo[sales] || 0) + qty;
+                g.salesProfit[sales] = (g.salesProfit[sales] || 0) + profit;
+                g.totalQty += qty;
+                g.totalProfit += profit;
+                g.beliXQty += hargaBeli * qty;
+                if (hargaJual > 0) {
+                    g.minHargaJual = Math.min(g.minHargaJual, hargaJual);
+                    g.maxHargaJual = Math.max(g.maxHargaJual, hargaJual);
+                }
+                if (!g.satuan && r.satuan) g.satuan = r.satuan;
+            }
+            Object.values(map).forEach(g => {
+                g.hargaBeliSatuan = g.totalQty ? (g.beliXQty / g.totalQty) : 0;
+                if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
+                    g.hargaJualRange = '—';
+                } else if (g.minHargaJual === g.maxHargaJual) {
+                    g.hargaJualRange = fmt(g.minHargaJual);
+                } else {
+                    g.hargaJualRange = fmt(g.minHargaJual) + ' - ' + fmt(g.maxHargaJual);
+                }
+            });
+            const preferred = ['RAJU','HAFID','JOSSY','GC','PARIMIN'];
+            const salesList = Array.from(salesSet).sort((a,b) => {
+                const ia = preferred.indexOf(a.toUpperCase()), ib = preferred.indexOf(b.toUpperCase());
+                const ra = ia < 0 ? 999 : ia, rb = ib < 0 ? 999 : ib;
+                return ra !== rb ? ra-rb : a.localeCompare(b);
+            });
+            lastProfitLengkapRows = Object.values(map).sort((a,b) => b.totalQty-a.totalQty || a.produk.localeCompare(b.produk));
+            document.getElementById('profitLengkapPeriod').textContent = getSalesPeriodLabel();
+            const head = document.getElementById('profitLengkapHead');
+            const body = document.getElementById('profitLengkapBody');
+            if (!lastProfitLengkapRows.length) {
+                head.innerHTML = '<tr><th>PRODUK</th></tr>';
+                body.innerHTML = '<tr><td style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
+                return;
+            }
+            head.innerHTML = '<tr>' +
+                '<th rowspan="3" style="vertical-align:middle;">PRODUK</th>' +
+                '<th colspan="2" style="text-align:center;">HARGA</th>' +
+                salesList.map(s => '<th colspan="3" style="text-align:center;">' + esc(s) + '</th>').join('') +
+                '<th rowspan="3" style="vertical-align:middle;" class="num">TOTAL QTY</th>' +
+                '<th rowspan="3" style="vertical-align:middle;" class="num">TOTAL PROFIT</th>' +
+                '</tr><tr>' +
+                '<th rowspan="2" style="vertical-align:middle;">BELI</th><th rowspan="2" style="vertical-align:middle;">JUAL</th>' +
+                salesList.map(() => '<th colspan="2" style="text-align:center;">QTY</th><th rowspan="2" style="vertical-align:middle;">PROFIT</th>').join('') +
+                '</tr><tr>' +
+                salesList.map(() => '<th class="num">CASH</th><th class="num">TEMPO</th>').join('') +
+                '</tr>';
+            let totals = { qty: 0, profit: 0, cash: {}, tempo: {}, profitBySales: {} };
+            body.innerHTML = lastProfitLengkapRows.map(r => {
+                totals.qty += r.totalQty; totals.profit += r.totalProfit;
+                return '<tr><td>' + esc(r.produk) + '</td>' +
+                    '<td class="num">' + fmt(r.hargaBeliSatuan) + '</td>' +
+                    '<td class="num">' + r.hargaJualRange + '</td>' +
+                    salesList.map(s => {
+                        const qc = r.salesQtyCash[s] || 0;
+                        const qt = r.salesQtyTempo[s] || 0;
+                        const p = r.salesProfit[s] || 0;
+                        totals.cash[s] = (totals.cash[s] || 0) + qc;
+                        totals.tempo[s] = (totals.tempo[s] || 0) + qt;
+                        totals.profitBySales[s] = (totals.profitBySales[s] || 0) + p;
+                        return '<td class="num">' + (qc ? qc.toLocaleString('id-ID') : '') + '</td>' +
+                            '<td class="num">' + (qt ? qt.toLocaleString('id-ID') : '') + '</td>' +
+                            '<td class="num">' + ((qc || qt) ? fmt(p) : '') + '</td>';
+                    }).join('') +
+                    '<td class="num"><strong>' + r.totalQty.toLocaleString('id-ID') + '</strong></td>' +
+                    '<td class="num"><strong>' + fmt(r.totalProfit) + '</strong></td>' +
+                    '</tr>';
+            }).join('') +
+                '<tr class="total-row"><td>TOTAL</td><td></td><td></td>' +
+                salesList.map(s => '<td class="num">' + (totals.cash[s] || 0).toLocaleString('id-ID') + '</td>' +
+                    '<td class="num">' + (totals.tempo[s] || 0).toLocaleString('id-ID') + '</td>' +
+                    '<td class="num">' + fmt(totals.profitBySales[s] || 0) + '</td>').join('') +
+                '<td class="num">' + totals.qty.toLocaleString('id-ID') + '</td>' +
+                '<td class="num">' + fmt(totals.profit) + '</td>' +
+                '</tr>';
         }
 
         function renderProfitBulan(rows) {
@@ -5975,6 +6083,57 @@
                 mainCurrCols.add(totalQtyColSP + 4); // HARGA BELI X QTY
                 mainCurrCols.add(totalQtyColSP + 5); // HARGA JUAL X QTY
                 mainCurrCols.add(totalQtyColSP + 6); // PROFIT
+            } else if (currentSalesSub === 'lengkap') {
+                const lengkapReportRows = (scope === 'all') ? salesRows : (lastSalesFiltered.length ? lastSalesFiltered : salesRows);
+                renderProfitLengkap(lengkapReportRows);
+                const salesSetL = new Set();
+                lastProfitLengkapRows.forEach(r => {
+                    Object.keys(r.salesQtyCash).forEach(s => salesSetL.add(s));
+                    Object.keys(r.salesQtyTempo).forEach(s => salesSetL.add(s));
+                });
+                const preferredL = ['RAJU','HAFID','JOSSY','GC','PARIMIN'];
+                const salesListL = Array.from(salesSetL).sort((a,b) => { const ia=preferredL.indexOf(a.toUpperCase()), ib=preferredL.indexOf(b.toUpperCase()); const ra=ia<0?999:ia, rb=ib<0?999:ib; return ra!==rb?ra-rb:a.localeCompare(b); });
+                sheetName = 'Lengkap';
+                fileName = 'Penjualan_Lengkap_Per_Sales_Per_Pembayaran_' + (scope === 'all' ? 'Semua_Data' : safePeriod) + '.xlsx';
+                const periodLengkap = scope === 'all' ? 'Semua Data' : period;
+                aoa = [['PENJUALAN PER SALES PER PEMBAYARAN PER PRODUK'].concat(salesListL.map(() => '')).concat(['', '', '', '', periodLengkap])];
+                const headL1 = ['PRODUK', 'HARGA', ''].concat(salesListL.flatMap(s => [s, '', ''])).concat(['TOTAL QTY', 'TOTAL PROFIT']);
+                const headL2 = ['', 'BELI', 'JUAL'].concat(salesListL.flatMap(() => ['QTY', '', 'PROFIT'])).concat(['', '']);
+                const headL3 = ['', '', ''].concat(salesListL.flatMap(() => ['CASH', 'TEMPO', ''])).concat(['', '']);
+                aoa.push(headL1);
+                aoa.push(headL2);
+                aoa.push(headL3);
+                const totalsL = { qty: 0, profit: 0, cash: {}, tempo: {}, profitBySales: {} };
+                lastProfitLengkapRows.forEach(r => {
+                    salesListL.forEach(s => {
+                        totalsL.cash[s] = (totalsL.cash[s] || 0) + (r.salesQtyCash[s] || 0);
+                        totalsL.tempo[s] = (totalsL.tempo[s] || 0) + (r.salesQtyTempo[s] || 0);
+                        totalsL.profitBySales[s] = (totalsL.profitBySales[s] || 0) + (r.salesProfit[s] || 0);
+                    });
+                    totalsL.qty += r.totalQty; totalsL.profit += r.totalProfit;
+                    aoa.push([r.produk, r.hargaBeliSatuan, r.hargaJualRange]
+                        .concat(salesListL.flatMap(s => [r.salesQtyCash[s] || 0, r.salesQtyTempo[s] || 0, r.salesProfit[s] || 0]))
+                        .concat([r.totalQty, r.totalProfit]));
+                });
+                aoa.push(['TOTAL', '', ''].concat(salesListL.flatMap(s => [totalsL.cash[s] || 0, totalsL.tempo[s] || 0, totalsL.profitBySales[s] || 0]))
+                    .concat([totalsL.qty, totalsL.profit]));
+                // Kolom: 0=PRODUK, 1=HARGA BELI(Rp), 2=HARGA JUAL(teks range),
+                // lalu tiap sales: QTY CASH(int), QTY TEMPO(int), PROFIT(Rp), ditutup TOTAL QTY(int), TOTAL PROFIT(Rp).
+                mainHeaderRow = [1, 2, 3];
+                mainIntCols = new Set();
+                mainCurrCols = new Set([1]);
+                salesListL.forEach((s, i) => {
+                    const qtyCashCol = 3 + i * 3;
+                    const qtyTempoCol = qtyCashCol + 1;
+                    const profitCol = qtyCashCol + 2;
+                    mainIntCols.add(qtyCashCol);
+                    mainIntCols.add(qtyTempoCol);
+                    mainCurrCols.add(profitCol);
+                });
+                const totalQtyColL = 3 + salesListL.length * 3;
+                mainIntCols.add(totalQtyColL);
+                mainCurrCols.add(totalQtyColL + 1);
+                if (scope === 'all') renderProfitLengkap(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
             } else if (currentSalesSub === 'bulan') {
                 if (!lastProfitBulanRows.length) renderProfitBulan(getSalesRowsForBulanCompare());
                 sheetName = 'Profit Per Bulan';
@@ -6137,6 +6296,7 @@
             document.getElementById('profitPayWrap').classList.remove('show');
             document.getElementById('profitSalesWrap').classList.remove('show');
             document.getElementById('profitSalesProdukWrap').classList.remove('show');
+            document.getElementById('profitLengkapWrap').classList.remove('show');
             document.getElementById('profitBulanWrap').classList.remove('show');
             currentSalesSub = 'ringkasan';
             document.getElementById('subBtnRingkasan').classList.add('active');
@@ -6145,6 +6305,7 @@
             document.getElementById('subBtnPay').classList.remove('active');
             document.getElementById('subBtnSales').classList.remove('active');
             document.getElementById('subBtnSalesProduk').classList.remove('active');
+            document.getElementById('subBtnLengkap').classList.remove('active');
             document.getElementById('subBtnBulan').classList.remove('active');
             salesEmptyState.style.display = 'block';
             salesEmptyState.querySelector('.hint').textContent =
