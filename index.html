@@ -4728,8 +4728,15 @@
                 const s = v.trim();
                 let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
                 if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+                // Format tanggal/bulan/tahun (konvensi Indonesia, sesuai file
+                // gudang yang diupload user, mis. "31/08/2026" -> 2026-08-31).
                 m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-                if (m) return m[3] + '-' + m[1].padStart(2, '0') + '-' + m[2].padStart(2, '0');
+                if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+                // Tahun 2 digit (mis. "31/08/26" hasil ketik manual, bukan cell
+                // Date asli) -- dulu bikin baris ini dilewati diam-diam karena
+                // regex di atas mewajibkan tahun 4 digit. Asumsikan 20xx.
+                m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+                if (m) return (2000 + Number(m[3])) + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
             }
             return null;
         }
