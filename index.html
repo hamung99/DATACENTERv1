@@ -4510,9 +4510,17 @@
         const GUDANG_STORAGE_KEY = 'gudang_data_v1';
         const GUDANG_META_FILENAME_KEY = 'gudang_data_filename';
         const GUDANG_META_UPLOADED_AT_KEY = 'gudang_data_uploaded_at';
+        // Penanda permanen bahwa user memang memilih mengosongkan Data Gudang.
+        // Ini penting agar refresh tidak menghidupkan kembali GUDANG_DATA_DEFAULT.
+        const GUDANG_EMPTY_FLAG_KEY = 'gudang_data_empty_v1';
 
         function loadGudangDataFromStorage() {
             try {
+                // Jika user sebelumnya menekan "Hapus Data Bawaan", kondisi kosong
+                // harus tetap dipertahankan setelah refresh/reload.
+                if (localStorage.getItem(GUDANG_EMPTY_FLAG_KEY) === '1') {
+                    return { bulan: '—', tahun: '—', products: [], saldo: ['Saldo Awal'], rows: [] };
+                }
                 const raw = localStorage.getItem(GUDANG_STORAGE_KEY);
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
@@ -4877,6 +4885,8 @@
 
                 GUDANG_DATA = parsed;
                 invalidateGudangCaches();
+                // Upload baru membatalkan status "kosong" sebelumnya.
+                try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {}
                 saveGudangDataToStorage(parsed);
                 try {
                     localStorage.setItem(GUDANG_META_FILENAME_KEY, file.name);
@@ -4913,6 +4923,7 @@
                 localStorage.removeItem(GUDANG_STORAGE_KEY);
                 localStorage.removeItem(GUDANG_META_FILENAME_KEY);
                 localStorage.removeItem(GUDANG_META_UPLOADED_AT_KEY);
+                localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY);
             } catch (err) {}
             GUDANG_DATA = GUDANG_DATA_DEFAULT;
             invalidateGudangCaches();
@@ -4942,7 +4953,10 @@
                 // menemukan objek kosong ini dan TIDAK jatuh balik ke
                 // GUDANG_DATA_DEFAULT (data contoh bawaan). Kalau cuma di-removeItem,
                 // refresh akan bikin data contoh bawaan muncul lagi.
+                // Simpan dua lapis: snapshot kosong + flag khusus.
+                // Flag memastikan refresh TIDAK pernah fallback ke data bawaan.
                 saveGudangDataToStorage(empty);
+                localStorage.setItem(GUDANG_EMPTY_FLAG_KEY, '1');
                 localStorage.removeItem(GUDANG_META_FILENAME_KEY);
                 localStorage.removeItem(GUDANG_META_UPLOADED_AT_KEY);
             } catch (err) {}
