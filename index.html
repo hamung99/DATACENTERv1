@@ -4935,12 +4935,18 @@
         // wajib upload ulang file gudang yang terbaru.
         function hapusDataGudangSepenuhnya() {
             if (!confirm('Kosongkan SEMUA data Gudang (baik hasil upload maupun data contoh bawaan)? Kamu perlu upload ulang file Stok Gudang setelah ini.')) return;
+            const empty = { bulan: '—', tahun: '—', products: [], saldo: ['Saldo Awal'], rows: [] };
             try {
-                localStorage.removeItem(GUDANG_STORAGE_KEY);
+                // PENTING: simpan status "kosong" ini KE localStorage (bukan cuma
+                // dihapus), supaya saat halaman di-refresh, loadGudangDataFromStorage()
+                // menemukan objek kosong ini dan TIDAK jatuh balik ke
+                // GUDANG_DATA_DEFAULT (data contoh bawaan). Kalau cuma di-removeItem,
+                // refresh akan bikin data contoh bawaan muncul lagi.
+                saveGudangDataToStorage(empty);
                 localStorage.removeItem(GUDANG_META_FILENAME_KEY);
                 localStorage.removeItem(GUDANG_META_UPLOADED_AT_KEY);
             } catch (err) {}
-            GUDANG_DATA = { bulan: '—', tahun: '—', products: [], saldo: ['Saldo Awal'], rows: [] };
+            GUDANG_DATA = empty;
             invalidateGudangCaches();
             updateGudangUploadStatusLabel();
             renderGudangTable();
