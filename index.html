@@ -4880,8 +4880,32 @@
                 const wb = XLSX.read(buf, { type: 'array', cellDates: true });
                 const sheetName = wb.SheetNames.find(n => /gudang|stok/i.test(n)) || wb.SheetNames[0];
                 const ws = wb.Sheets[sheetName];
-                const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+                // Jangan hanya mengandalkan !ref dari Excel. Beberapa file Excel
+                // menyimpan baris terakhir (mis. tanggal 31) di luar range !ref,
+                // sehingga sheet_to_json biasa berhenti di tanggal 30. Cari cell
+                // terakhir yang benar-benar ada di worksheet lalu paksa range sampai
+                // cell tersebut agar seluruh baris, termasuk tanggal 31, ikut terbaca.
+                let lastRow = 0;
+                let lastCol = 0;
+                Object.keys(ws || {}).forEach(addr => {
+                    if (!addr || addr[0] === '!') return;
+                    const m = XLSX.utils.decode_cell(addr);
+                    if (m && Number.isFinite(m.r) && Number.isFinite(m.c)) {
+                        lastRow = Math.max(lastRow, m.r);
+                        lastCol = Math.max(lastCol, m.c);
+                    }
+                });
+                let readOpts = { header: 1, raw: true, defval: null };
+                if (lastRow > 0) {
+                    const endCell = XLSX.utils.encode_cell({ r: lastRow, c: lastCol });
+                    readOpts.range = 'A1:' + endCell;
+                }
+                const aoa = XLSX.utils.sheet_to_json(ws, readOpts);
                 const parsed = parseGudangSheetAOA(aoa);
+                // Pastikan urutan tanggal selalu kronologis; jangan pernah memotong
+                // data hanya karena bulan memiliki 30 hari atau karena !ref Excel salah.
+                parsed.rows.sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')));
 
                 GUDANG_DATA = parsed;
                 invalidateGudangCaches();
@@ -4913,8 +4937,11 @@
                             : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
                     renderRingkasan(rowsForRingkasan);
                 }
+                const firstDate = parsed.rows.length ? parsed.rows[0][0] : '—';
+                const lastDate = parsed.rows.length ? parsed.rows[parsed.rows.length - 1][0] : '—';
                 alert('✅ Data Gudang berhasil diperbarui: ' + parsed.rows.length + ' baris, ' +
-                    parsed.products.length + ' produk (periode ' + parsed.bulan + ' ' + parsed.tahun + ').');
+                    parsed.products.length + ' produk (periode ' + parsed.bulan + ' ' + parsed.tahun + ').' +
+                    '\nRentang data: ' + firstDate + ' s/d ' + lastDate);
             } catch (err) {
                 console.error('Gagal upload data gudang:', err);
                 alert('❌ Gagal membaca file: ' + (err && err.message ? err.message : 'format tidak dikenali') +
