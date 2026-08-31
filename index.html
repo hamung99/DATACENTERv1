@@ -583,6 +583,7 @@
             <button class="tab-btn" id="tabBtnPenjualan" onclick="switchTab('penjualan')">📊 Data Penjualan</button>
             <button class="tab-btn" id="tabBtnGudang" onclick="switchTab('gudang')">🏭 Data Gudang</button>
             <button class="tab-btn" id="tabBtnCek" onclick="switchTab('cek')">🔍 Cek Data</button>
+            <button class="tab-btn" id="tabBtnAr" onclick="switchTab('ar')">📈 Analisa AR</button>
         </div>
 
         <!-- TAB UANG MASUK -->
@@ -978,6 +979,91 @@
                     Pastikan di tab <b>Data Penjualan</b> sudah ada data dan kolom Pembayaran terisi (atau biarkan kosong agar dianggap Tempo).
                 </div>
             </div>
+        </div>
+
+        <!-- TAB ANALISA AR -->
+        <div id="tabAr" style="display:none;">
+            <div class="empty-state" id="arEmptyState" style="display:block;">
+                <div class="big">📈</div>
+                <div><strong>Upload file Excel</strong> Analisa AR / Piutang</div>
+                <div class="hint">Upload file Excel Piutang (kolom: No, Sales, No Faktur, Nama Toko, Nominal, Status, dll).<br>Data diproses di browser Anda, tidak diunggah ke server.</div>
+                <br>
+                <label class="upload-btn" style="display:inline-flex;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:0.9rem;font-weight:600;cursor:pointer;">
+                    📂 Pilih File Excel
+                    <input type="file" id="arFileInputEmpty" accept=".xlsx,.xls">
+                </label>
+            </div>
+
+            <div id="arContent" style="display:none;">
+                <div class="sales-cards show" id="arKpiCards">
+                    <div class="scard"><div class="sc-label">TOTAL FAKTUR</div><div class="sc-value" id="arKpiTotalFaktur">0</div></div>
+                    <div class="scard"><div class="sc-label">TOTAL NOMINAL</div><div class="sc-value" id="arKpiTotalNominal">Rp 0</div></div>
+                    <div class="scard accent-total"><div class="sc-label">SUDAH LUNAS</div><div class="sc-value" id="arKpiLunas">0 · Rp 0</div></div>
+                    <div class="scard"><div class="sc-label">PIUTANG / BELUM LUNAS</div><div class="sc-value" id="arKpiPiutang">0 · Rp 0 (0%)</div></div>
+                </div>
+
+                <div class="subtabs show" id="arSubtabs" style="align-items:center;">
+                    <button class="subtab-btn active" id="arSubBtnRingkasan" onclick="switchARSub('ringkasan')">📊 Ringkasan</button>
+                    <button class="subtab-btn" id="arSubBtnPiutang" onclick="switchARSub('piutang')">⚠️ Piutang Belum Lunas</button>
+                    <button class="subtab-btn" id="arSubBtnTop20" onclick="switchARSub('top20')">🔥 Top 20 Piutang</button>
+                    <button class="subtab-btn" id="arSubBtnLengkap" onclick="switchARSub('lengkap')">📋 Data Lengkap</button>
+                    <div class="menu-wrap" id="arMenuWrap" style="margin-left:auto;">
+                        <button class="theme-btn" id="arSettingsBtn" onclick="toggleARMenu()" title="Pengaturan Analisa AR">⚙️</button>
+                        <div class="menu-dd" id="arMenuDd">
+                            <label class="menu-item upload-item"><input type="file" id="arFileInput" accept=".xlsx,.xls"> 📂 Upload Ulang Data AR</label>
+                            <button class="menu-item" id="arClearBtn" onclick="arClearData(); closeARMenu();" style="display:none;">✕ Hapus Data AR</button>
+                            <div class="menu-divider"></div>
+                            <div class="menu-files" id="arFileName">Belum ada data</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="arPanelRingkasan">
+                    <div class="table-wrap" style="display:block;overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                            <thead><tr><th>Sales</th><th class="num">Faktur</th><th class="num">Total Nominal</th><th class="num">Lunas</th><th class="num">Piutang</th><th class="num">% Piutang</th></tr></thead>
+                            <tbody id="arSalesTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="arPanelPiutang" style="display:none;">
+                    <div class="search-bar show">
+                        <input type="text" id="arSearchPiutang" placeholder="Cari nama toko, faktur, atau sales..." oninput="arApplyPiutangFilter()">
+                        <select id="arFilterSalesPiutang" onchange="arApplyPiutangFilter()"><option value="">👤 Semua Sales</option></select>
+                        <button class="btn btn-outline" id="arBtnExportPiutang" onclick="arExportPiutang()" disabled>💾 Simpan ke Excel</button>
+                    </div>
+                    <div class="table-wrap" style="display:block;overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                            <thead><tr><th>Sales</th><th>No Faktur</th><th>Nama Toko</th><th>Alamat</th><th>Tgl Kirim</th><th>Tgl Jatuh Tempo</th><th class="num">Nominal</th><th class="num">Saldo Awal</th><th>Umur Piutang</th><th>Umur Overdue</th></tr></thead>
+                            <tbody id="arPiutangTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="arPanelTop20" style="display:none;">
+                    <div class="table-wrap" style="display:block;overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                            <thead><tr><th>No Faktur</th><th>Sales</th><th>Nama Toko</th><th class="num">Nominal</th><th class="num">Saldo Awal</th><th>Umur Piutang</th><th>Umur Overdue</th></tr></thead>
+                            <tbody id="arTop20Tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="arPanelLengkap" style="display:none;">
+                    <div class="search-bar show">
+                        <input type="text" id="arSearchAll" placeholder="Cari semua data..." oninput="arFilterFullTable(this.value)">
+                    </div>
+                    <div class="table-wrap" style="display:block;overflow-x:auto;max-height:68vh;">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                            <thead><tr><th>No</th><th>Sales</th><th>No Faktur</th><th>Nama Toko</th><th>Alamat</th><th class="num">Nominal</th><th class="num">Saldo Awal</th><th>Status</th><th>Umur Piutang</th><th>Umur Overdue</th></tr></thead>
+                            <tbody id="arFullTbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="loading" id="arLoading" style="display:none;">Memproses file...</div>
         </div>
 
         <!-- TAB RAPIKAN -->
@@ -9622,7 +9708,7 @@
         })();
 
         function switchTab(tab) {
-            const tabs = ['faktur', 'penjualan', 'gudang', 'cek', 'rapikan'];
+            const tabs = ['faktur', 'penjualan', 'gudang', 'cek', 'ar', 'rapikan'];
             tabs.forEach(t => {
                 const panelName = t === 'cek' ? 'tabCek' : ('tab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const btnName = t === 'cek' ? 'tabBtnCek' : ('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -9665,7 +9751,8 @@
                 ['salesDlMenu', 'salesDlWrap'],
                 ['cekDownloadMenu', 'cekDownloadWrap'],
                 ['menuDd', 'menuWrap'],
-                ['salesMenuDd', 'salesMenuWrap']
+                ['salesMenuDd', 'salesMenuWrap'],
+                ['arMenuDd', 'arMenuWrap']
             ].forEach(function(pair) {
                 const m = document.getElementById(pair[0]);
                 const w = document.getElementById(pair[1]);
@@ -9861,6 +9948,293 @@
         const ringkasanRupaSelEl = document.getElementById('ringkasanRupaProdukSel');
         if (ringkasanRupaSelEl) ringkasanRupaSelEl.addEventListener('change', () => renderRingkasanRupa());
 
+        // ================= TAB ANALISA AR (Piutang) =================
+        // Namespace "ar" dipakai di semua variabel/fungsi/elemen di bawah ini
+        // supaya tidak bentrok dengan tab-tab lain yang sudah ada.
+        let arAllData = [];
+        let arCurrentPiutang = [];
+        let arVisiblePiutang = [];
+
+        function arRp(n) { return 'Rp ' + (n || 0).toLocaleString('id-ID'); }
+
+        function toggleARMenu() { const m = document.getElementById('arMenuDd'); if (m) m.classList.toggle('open'); }
+        function closeARMenu() { const m = document.getElementById('arMenuDd'); if (m) m.classList.remove('open'); }
+
+        function arHandleFile(file) {
+            const loadingEl = document.getElementById('arLoading');
+            if (loadingEl) loadingEl.style.display = 'block';
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    arProcessWorkbook(wb);
+                    const fn = document.getElementById('arFileName');
+                    if (fn) fn.textContent = file.name + ' · ' + arAllData.length + ' baris';
+                } catch (err) {
+                    alert('Gagal memuat file Analisa AR: ' + err.message);
+                } finally {
+                    if (loadingEl) loadingEl.style.display = 'none';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function arClearData() {
+            if (!confirm('Hapus semua data Analisa AR yang sudah dimuat di tab ini?')) return;
+            arAllData = [];
+            arCurrentPiutang = [];
+            arVisiblePiutang = [];
+            const contentEl = document.getElementById('arContent');
+            const emptyEl = document.getElementById('arEmptyState');
+            if (contentEl) contentEl.style.display = 'none';
+            if (emptyEl) emptyEl.style.display = 'block';
+            const fn = document.getElementById('arFileName');
+            if (fn) fn.textContent = 'Belum ada data';
+            const clearBtn = document.getElementById('arClearBtn');
+            if (clearBtn) clearBtn.style.display = 'none';
+        }
+
+        function arProcessWorkbook(wb) {
+            const sn = wb.SheetNames.find(s => s.toUpperCase().includes('AGUSTUS')) || wb.SheetNames[0];
+            const ws = wb.Sheets[sn];
+            const json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+            let hr = 0;
+            for (let i = 0; i < Math.min(40, json.length); i++) {
+                const r = json[i].map(v => String(v).trim().toUpperCase());
+                const hasNo = r.some(v => v === 'NO' || v === 'NO.');
+                const hasSales = r.some(v => v.includes('SALES'));
+                const hasFaktur = r.some(v => v.includes('FAKTUR'));
+                if (hasNo && hasSales && hasFaktur) { hr = i; break; }
+            }
+            const headers = json[hr].map(h => String(h).trim());
+            const rows = json.slice(hr + 1);
+            const idx = {};
+            headers.forEach((h, i) => {
+                const u = String(h).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+                if (u === 'NO') idx.no = i;
+                if (u.includes('SALES') && u.includes('NAMA')) idx.sales = i;
+                if (u.includes('FAKTUR') && (u.includes('NO') || u.includes('NOMOR'))) idx.faktur = i;
+                if (u === 'TANGGAL' || u === 'TGL') idx.tanggal = i;
+                if (u.includes('KD') && u.includes('CUS')) idx.kdcus = i;
+                if (u.includes('NAMA') && u.includes('TOKO')) idx.toko = i;
+                if (u === 'ALAMAT' || u.includes('ALAMAT')) idx.alamat = i;
+                if (u.includes('KIRIM') || u.includes('PENGIRIMAN')) idx.tglKirim = i;
+                if ((u.includes('JATUH') && u.includes('TEMPO')) ||
+                    (u.includes('JT') && u.includes('TEMPO')) ||
+                    u === 'JT' || u.includes('DUE DATE') || u.includes('DUEDATE')) idx.tglTempo = i;
+                if (u === 'NOMINAL') idx.nominal = i;
+                if (u.includes('SALDO') && u.includes('AWAL')) idx.saldo = i;
+                if (u === 'STATUS') idx.status = i;
+                if (u.includes('UMUR') && u.includes('PIUTANG')) idx.umur = i;
+                if (u.includes('UMUR') && u.includes('OVERDUE')) idx.overdue = i;
+                if (u === 'SISA') idx.sisa = i;
+            });
+
+            if (idx.alamat !== undefined) {
+                if (idx.tglKirim === undefined && headers[idx.alamat + 1] !== undefined) idx.tglKirim = idx.alamat + 1;
+                if (idx.tglTempo === undefined && headers[idx.alamat + 2] !== undefined) idx.tglTempo = idx.alamat + 2;
+            }
+
+            const arFormatExcelDate = v => {
+                if (v === '' || v === null || v === undefined) return '';
+                const serial = (typeof v === 'number') ? v : (/^\d+(?:\.\d+)?$/.test(String(v).trim()) ? Number(v) : null);
+                if (serial !== null && serial > 20000 && XLSX.SSF && XLSX.SSF.parse_date_code) {
+                    const d = XLSX.SSF.parse_date_code(serial);
+                    if (d) return String(d.d).padStart(2, '0') + '/' + String(d.m).padStart(2, '0') + '/' + d.y;
+                }
+                if (v instanceof Date && !isNaN(v)) {
+                    return String(v.getDate()).padStart(2, '0') + '/' + String(v.getMonth() + 1).padStart(2, '0') + '/' + v.getFullYear();
+                }
+                return String(v).trim();
+            };
+
+            arAllData = rows.map(r => {
+                const g = k => r[idx[k]] !== undefined ? r[idx[k]] : '';
+                const nominal = parseFloat(g('nominal')) || 0;
+                const saldo = parseFloat(g('saldo')) || 0;
+                const sisa = parseFloat(g('sisa')) || 0;
+                const sr = String(g('status') || '').trim().toUpperCase();
+                const status = sr.includes('LUNAS') ? 'SUDAH LUNAS' : (sr ? 'PIUTANG' : '');
+                return {
+                    no: g('no'), sales: String(g('sales') || '').trim().toUpperCase(),
+                    faktur: String(g('faktur') || '').trim(), tanggal: g('tanggal'),
+                    kdcus: String(g('kdcus') || '').trim(), toko: String(g('toko') || '').trim(),
+                    alamat: String(g('alamat') || '').trim(), tglKirim: arFormatExcelDate(g('tglKirim')), tglTempo: arFormatExcelDate(g('tglTempo')),
+                    nominal, saldo, sisa, status,
+                    umur: String(g('umur') || '').trim(), overdue: String(g('overdue') || '').trim()
+                };
+            }).filter(d => d.sales && d.faktur && d.sales !== 'NAN');
+
+            arRenderDashboard();
+        }
+
+        function arRenderCell(v, isMoney, isStatus) {
+            if (isMoney) return arRp(v || 0);
+            if (isStatus) return '<span class="badge ' + (v === 'SUDAH LUNAS' ? 'badge-lunas' : 'badge-retur') + '">' + (v || '-') + '</span>';
+            return (v === '' || v === undefined || v === null) ? '-' : v;
+        }
+
+        function arRenderTable(tbodyId, data, cols, fmt) {
+            const tbody = document.getElementById(tbodyId);
+            if (!tbody) return;
+            tbody.innerHTML = data.map(row => '<tr>' + cols.map(c => {
+                const isMoney = !!(fmt && fmt[c]);
+                const isStatus = c === 'status';
+                return '<td>' + arRenderCell(row[c], isMoney, isStatus) + '</td>';
+            }).join('') + '</tr>').join('');
+        }
+
+        function arRenderDashboard() {
+            const emptyEl = document.getElementById('arEmptyState');
+            const contentEl = document.getElementById('arContent');
+            if (emptyEl) emptyEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+            const clearBtn = document.getElementById('arClearBtn');
+            if (clearBtn) clearBtn.style.display = 'flex';
+
+            const totalFaktur = arAllData.length;
+            const totalNominal = arAllData.reduce((s, d) => s + d.nominal, 0);
+            const lunasD = arAllData.filter(d => d.status === 'SUDAH LUNAS');
+            const piutangD = arAllData.filter(d => d.status === 'PIUTANG');
+            const lc = lunasD.length, pc = piutangD.length;
+            const ln = lunasD.reduce((s, d) => s + d.nominal, 0);
+            const pn = piutangD.reduce((s, d) => s + d.nominal, 0);
+
+            const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+            setTxt('arKpiTotalFaktur', totalFaktur.toLocaleString('id-ID'));
+            setTxt('arKpiTotalNominal', arRp(totalNominal));
+            setTxt('arKpiLunas', lc.toLocaleString('id-ID') + ' · ' + arRp(ln));
+            setTxt('arKpiPiutang', pc.toLocaleString('id-ID') + ' · ' + arRp(pn) + ' (' + (totalNominal ? (pn / totalNominal * 100).toFixed(1) : '0.0') + '%)');
+
+            const sm = {};
+            arAllData.forEach(d => {
+                if (!sm[d.sales]) sm[d.sales] = { faktur: 0, nominal: 0, lunas: 0, piutang: 0, ln: 0, pn: 0 };
+                sm[d.sales].faktur++; sm[d.sales].nominal += d.nominal;
+                if (d.status === 'SUDAH LUNAS') { sm[d.sales].lunas++; sm[d.sales].ln += d.nominal; }
+                else { sm[d.sales].piutang++; sm[d.sales].pn += d.nominal; }
+            });
+            const sa = Object.entries(sm).map(([name, v]) => ({ name, ...v, pct: v.nominal ? (v.pn / v.nominal * 100) : 0 }))
+                .sort((a, b) => b.nominal - a.nominal);
+            const salesTbody = document.getElementById('arSalesTbody');
+            if (salesTbody) {
+                salesTbody.innerHTML = sa.map(s => `<tr>
+                    <td><strong>${s.name}</strong></td>
+                    <td class="num">${s.faktur}</td>
+                    <td class="num">${arRp(s.nominal)}</td>
+                    <td class="num"><span class="badge badge-lunas">${s.lunas} Faktur</span><div style="font-size:.7rem;color:var(--muted);margin-top:2px;">${arRp(s.ln)}</div></td>
+                    <td class="num"><span class="badge badge-retur">${s.piutang} Faktur</span><div style="font-size:.7rem;color:var(--muted);margin-top:2px;">${arRp(s.pn)}</div></td>
+                    <td class="num">${s.pct.toFixed(1)}%</td>
+                </tr>`).join('');
+            }
+
+            arCurrentPiutang = piutangD;
+            arVisiblePiutang = piutangD;
+            const searchEl = document.getElementById('arSearchPiutang');
+            if (searchEl) searchEl.value = '';
+            arPopulateSalesFilter();
+            arRenderPiutangTable();
+            const exportBtn = document.getElementById('arBtnExportPiutang');
+            if (exportBtn) exportBtn.disabled = !arVisiblePiutang.length;
+
+            const top20 = [...piutangD].sort((a, b) => b.nominal - a.nominal).slice(0, 20);
+            arRenderTable('arTop20Tbody', top20,
+                ['faktur', 'sales', 'toko', 'nominal', 'saldo', 'umur', 'overdue'],
+                { nominal: 1, saldo: 1 });
+
+            arRenderTable('arFullTbody', arAllData,
+                ['no', 'sales', 'faktur', 'toko', 'alamat', 'nominal', 'saldo', 'status', 'umur', 'overdue'],
+                { nominal: 1, saldo: 1 });
+        }
+
+        function arPopulateSalesFilter() {
+            const sel = document.getElementById('arFilterSalesPiutang');
+            if (!sel) return;
+            const salesList = [...new Set(arCurrentPiutang.map(d => d.sales).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'id'));
+            sel.innerHTML = '<option value="">👤 Semua Sales</option>' +
+                salesList.map(s => `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`).join('');
+        }
+
+        function arRenderPiutangTable() {
+            arRenderTable('arPiutangTbody', arVisiblePiutang,
+                ['sales', 'faktur', 'toko', 'alamat', 'tglKirim', 'tglTempo', 'nominal', 'saldo', 'umur', 'overdue'],
+                { nominal: 1, saldo: 1 });
+        }
+
+        function arApplyPiutangFilter() {
+            const searchEl = document.getElementById('arSearchPiutang');
+            const selEl = document.getElementById('arFilterSalesPiutang');
+            const q = (searchEl ? searchEl.value : '').trim().toLowerCase();
+            const s = selEl ? selEl.value : '';
+            arVisiblePiutang = arCurrentPiutang.filter(d => {
+                if (s && d.sales !== s) return false;
+                if (q) {
+                    const hay = [d.sales, d.faktur, d.toko, d.alamat].join(' ').toLowerCase();
+                    if (!hay.includes(q)) return false;
+                }
+                return true;
+            });
+            arRenderPiutangTable();
+            const exportBtn = document.getElementById('arBtnExportPiutang');
+            if (exportBtn) exportBtn.disabled = !arVisiblePiutang.length;
+        }
+
+        function arFilterFullTable(q) {
+            const rows = document.querySelectorAll('#arFullTbody tr');
+            q = (q || '').toLowerCase();
+            rows.forEach(r => { r.style.display = r.innerText.toLowerCase().includes(q) ? '' : 'none'; });
+        }
+
+        function arExportPiutang() {
+            if (!arVisiblePiutang.length) { alert('Tidak ada data piutang yang cocok untuk diekspor.'); return; }
+            const headers = ['Sales', 'No Faktur', 'Nama Toko', 'Alamat', 'Tgl Kirim', 'Tgl Jatuh Tempo', 'Nominal', 'Saldo Awal', 'Umur Piutang', 'Umur Overdue'];
+            const cols = ['sales', 'faktur', 'toko', 'alamat', 'tglKirim', 'tglTempo', 'nominal', 'saldo', 'umur', 'overdue'];
+            const rows = arVisiblePiutang.map(d => {
+                const o = {};
+                cols.forEach((c, i) => o[headers[i]] = (c === 'nominal' || c === 'saldo') ? (d[c] || 0) : d[c]);
+                return o;
+            });
+            const ws = XLSX.utils.json_to_sheet(rows);
+            ws['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 26 }, { wch: 32 }, { wch: 12 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 15 }, { wch: 15 }];
+            if (ws['!ref']) {
+                const rng = XLSX.utils.decode_range(ws['!ref']);
+                for (let R = 1; R <= rng.e.r; R++) {
+                    [6, 7].forEach(C => {
+                        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                        if (ws[addr]) ws[addr].z = '#,##0';
+                    });
+                }
+            }
+            const totalN = arVisiblePiutang.reduce((s, d) => s + (d.nominal || 0), 0);
+            const totalS = arVisiblePiutang.reduce((s, d) => s + (d.saldo || 0), 0);
+            const lastIdx = ws['!ref'] ? XLSX.utils.decode_range(ws['!ref']).e.r : 0;
+            const tRow = lastIdx + 2;
+            ws['A' + tRow] = { t: 's', v: 'TOTAL' };
+            ws['G' + tRow] = { t: 'n', v: totalN, z: '#,##0' };
+            ws['H' + tRow] = { t: 'n', v: totalS, z: '#,##0' };
+            ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: lastIdx + 1, c: 9 } });
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Piutang Belum Lunas');
+            XLSX.writeFile(wb, 'Daftar_Faktur_Piutang_Belum_Lunas.xlsx');
+        }
+
+        function switchARSub(sub) {
+            const subs = ['ringkasan', 'piutang', 'top20', 'lengkap'];
+            subs.forEach(s => {
+                const cap = s.charAt(0).toUpperCase() + s.slice(1);
+                const panel = document.getElementById('arPanel' + cap);
+                const btn = document.getElementById('arSubBtn' + cap);
+                if (panel) panel.style.display = (s === sub) ? '' : 'none';
+                if (btn) btn.classList.toggle('active', s === sub);
+            });
+        }
+
+        const arFileInputEl = document.getElementById('arFileInput');
+        if (arFileInputEl) arFileInputEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); closeARMenu(); e.target.value = ''; });
+        const arFileInputEmptyEl = document.getElementById('arFileInputEmpty');
+        if (arFileInputEmptyEl) arFileInputEmptyEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); e.target.value = ''; });
+
         // ---- Ekspos ke window ----
         // Karena <script type="module"> tidak lagi membuat fungsi top-level
         // menjadi global, sedangkan HTML yang dirender lewat innerHTML masih
@@ -9889,7 +10263,8 @@
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
             openFixHargaBeliModal, closeFixHargaBeliModal, onFixHBProdukChange, applyFixHargaBeli,
             openHapusBulanModal, closeHapusBulanModal, toggleHapusBulanSelectAll, syncHapusBulanSelectAll, applyHapusBulan,
-            resetGudangData, hapusDataGudangSepenuhnya
+            resetGudangData, hapusDataGudangSepenuhnya,
+            switchARSub, toggleARMenu, closeARMenu, arClearData, arApplyPiutangFilter, arFilterFullTable, arExportPiutang
         });
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
