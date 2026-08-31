@@ -4877,7 +4877,19 @@
             try {
                 if (!window.XLSX) throw new Error('Pustaka pembaca Excel belum siap, coba lagi.');
                 const buf = await file.arrayBuffer();
-                const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+                // PENTING: JANGAN pakai { cellDates: true } di sini. Library xlsx.js
+                // (versi yang dipakai di sini) punya bug: saat cellDates:true dan
+                // timezone browser bukan UTC (mis. WIB/Asia-Jakarta, UTC+7), Date
+                // object yang dihasilkan bisa bergeser mundur ~1 hari (Date object
+                // dari sel "01/08/2026" jadi berisi "31/07/2026 23:59:xx"). Efeknya:
+                // baris tanggal terakhir bulan (mis. tanggal 31) "hilang" / rentang
+                // data terlihat mundur 1 hari (mis. "31 Juli s/d 30 Agustus" padahal
+                // aslinya "1 s/d 31 Agustus"). Solusinya: baca TANPA cellDates supaya
+                // sel tanggal tetap berupa angka serial Excel mentah (bukan Date
+                // object), lalu gudangCellToISODate() akan mengonversinya lewat
+                // XLSX.SSF.parse_date_code() yang terbukti akurat & tidak
+                // terpengaruh timezone.
+                const wb = XLSX.read(buf, { type: 'array' });
                 const sheetName = wb.SheetNames.find(n => /gudang|stok/i.test(n)) || wb.SheetNames[0];
                 const ws = wb.Sheets[sheetName];
 
