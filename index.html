@@ -622,7 +622,10 @@
             <div class="daily-panel" id="dailyPanel" style="display:block;">
                 <div class="daily-head">
                     <strong>📅 Ringkasan Harian</strong>
-                    <span class="muted" id="dailyHint">Klik baris tanggal untuk filter detail faktur</span>
+                    <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span class="muted" id="dailyHint">Klik baris tanggal untuk filter detail faktur</span>
+                        <button type="button" class="btn btn-outline" onclick="downloadDailyRingkasanExcel()" title="Download tabel Ringkasan Harian ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
+                    </span>
                 </div>
                 <div class="daily-scroll">
                     <table class="daily-table">
@@ -2154,6 +2157,7 @@
                     const db = parseInt(pb[2]) * 100 + parseInt(pb[1]); return da - db; }
                 return a.sheet.localeCompare(b.sheet);
             });
+            lastDailySummaryRows = list;
             let sumC = 0,
                 sumP = 0,
                 sumD = 0,
@@ -2354,6 +2358,7 @@
         }
 
         let lastFakturBulanRows = [];
+        let lastDailySummaryRows = [];
 
         function renderFakturBulan(rows) {
             const map = {};
@@ -2443,6 +2448,45 @@
                 XLSX.writeFile(wb, 'UangMasuk_Data_Bulanan.xlsx');
             } catch (e) {
                 console.error('downloadFakturBulanExcel gagal:', e);
+                alert('Gagal membuat file Excel: ' + (e && e.message ? e.message : e) +
+                    '\n\nCoba lagi. Kalau masih gagal, screenshot pesan ini dan laporkan.');
+            }
+        }
+
+        function downloadDailyRingkasanExcel() {
+            try {
+                if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
+                if (!lastDailySummaryRows.length) { alert('Tidak ada data untuk diunduh.'); return; }
+                const monSel = document.getElementById('filterMonth');
+                const period = monSel && monSel.value !== 'all' ? monSel.value : 'Semua Bulan';
+                const aoa = [
+                    ['RINGKASAN HARIAN - UANG MASUK', '', '', '', '', '', '', '', period]
+                ];
+                aoa.push(['Tanggal', 'Sheet', 'Jml Faktur', 'Piutang', 'Dropping', 'Tagihan', 'Bayar Cash', 'Bayar TF', 'Total Bayar']);
+                let sumC = 0, sumP = 0, sumD = 0, sumT = 0, sumCash = 0, sumTf = 0;
+                lastDailySummaryRows.forEach(g => {
+                    const total = g.cash + g.tf;
+                    sumC += g.count; sumP += g.piutang; sumD += g.dropping; sumT += g.tagihan; sumCash += g.cash; sumTf += g.tf;
+                    aoa.push([g.date, g.sheet, g.count, g.piutang, g.dropping, g.tagihan, g.cash, g.tf, total]);
+                });
+                aoa.push(['TOTAL (' + lastDailySummaryRows.length + ' hari)', '', sumC, sumP, sumD, sumT, sumCash, sumTf, sumCash + sumTf]);
+                // Kolom: 0=Tanggal(teks), 1=Sheet(teks), 2=Jml Faktur(int), 3..8=nominal Rupiah.
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+                ws['!cols'] = [{ wch: 12 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 16 }];
+                try {
+                    styleSalesExportSheet(ws, aoa, {
+                        titleRow: 0,
+                        headerRow: 1,
+                        intCols: new Set([2]),
+                        currCols: new Set([3, 4, 5, 6, 7, 8])
+                    });
+                } catch (e) { /* fallback aman */ }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Ringkasan Harian'.slice(0, 31));
+                const safePeriod = period.replace(/\s+/g, '_');
+                XLSX.writeFile(wb, 'UangMasuk_Ringkasan_Harian_' + safePeriod + '.xlsx');
+            } catch (e) {
+                console.error('downloadDailyRingkasanExcel gagal:', e);
                 alert('Gagal membuat file Excel: ' + (e && e.message ? e.message : e) +
                     '\n\nCoba lagi. Kalau masih gagal, screenshot pesan ini dan laporkan.');
             }
@@ -9832,7 +9876,7 @@
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
             markFakturLunasManualFromCardModal, openManualLunasHistoryModal, undoManualLunasFromHistoryModal,
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
-            downloadFakturExcel, downloadFakturSalesExcel, downloadFakturBulanExcel,
+            downloadFakturExcel, downloadFakturSalesExcel, downloadFakturBulanExcel, downloadFakturDay, downloadDailyRingkasanExcel,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
             downloadCurrentSalesExcel, downloadRingkasanDetailPerTanggalExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
             switchCekSub, toggleCekBulanPanel, onCekBulanAllChange, onCekBulanItemChange,
