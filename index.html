@@ -4901,9 +4901,17 @@
                 // GUDANG/SELISIH/KET) punya render terpisah dari tab Gudang dan
                 // memakai cache ringkasanBaseRows -- refresh juga di sini supaya
                 // datanya langsung sinkron tanpa perlu pindah tab manual.
-                if (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length &&
-                    typeof renderRingkasan === 'function') {
-                    renderRingkasan();
+                // Sinkronkan juga tabel Data Penjualan > Ringkasan > PENJUALAN FITRI.
+                // Jangan hanya bergantung pada ringkasanBaseRows.length: setelah
+                // halaman baru dibuka / filter belum pernah dirender, cache bisa
+                // masih kosong sehingga OUTPUT GUDANG tidak ikut berubah.
+                if (typeof renderRingkasan === 'function') {
+                    const rowsForRingkasan = (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length)
+                        ? ringkasanBaseRows
+                        : ((typeof lastSalesFiltered !== 'undefined' && lastSalesFiltered && lastSalesFiltered.length)
+                            ? lastSalesFiltered
+                            : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
+                    renderRingkasan(rowsForRingkasan);
                 }
                 alert('✅ Data Gudang berhasil diperbarui: ' + parsed.rows.length + ' baris, ' +
                     parsed.products.length + ' produk (periode ' + parsed.bulan + ' ' + parsed.tahun + ').');
@@ -4932,9 +4940,13 @@
             if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
                 renderRingkasanCekTab();
             }
-            if (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length &&
-                typeof renderRingkasan === 'function') {
-                renderRingkasan();
+            if (typeof renderRingkasan === 'function') {
+                const rowsForRingkasan = (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length)
+                    ? ringkasanBaseRows
+                    : ((typeof lastSalesFiltered !== 'undefined' && lastSalesFiltered && lastSalesFiltered.length)
+                        ? lastSalesFiltered
+                        : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
+                renderRingkasan(rowsForRingkasan);
             }
         }
 
@@ -4967,9 +4979,13 @@
             if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
                 renderRingkasanCekTab();
             }
-            if (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length &&
-                typeof renderRingkasan === 'function') {
-                renderRingkasan();
+            if (typeof renderRingkasan === 'function') {
+                const rowsForRingkasan = (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length)
+                    ? ringkasanBaseRows
+                    : ((typeof lastSalesFiltered !== 'undefined' && lastSalesFiltered && lastSalesFiltered.length)
+                        ? lastSalesFiltered
+                        : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
+                renderRingkasan(rowsForRingkasan);
             }
             alert('✅ Data Gudang sudah dikosongkan. Silakan upload ulang file Stok Gudang terbaru (sampai tanggal 31) lewat tombol "📤 Upload Stok Gudang".');
         }
