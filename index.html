@@ -9951,11 +9951,97 @@
         // ================= TAB ANALISA AR (Piutang) =================
         // Namespace "ar" dipakai di semua variabel/fungsi/elemen di bawah ini
         // supaya tidak bentrok dengan tab-tab lain yang sudah ada.
+        //
+        // Penyimpanan pakai IndexedDB TERSENDIRI (database baru, terpisah dari
+        // js/db.js yang dipakai tab Uang Masuk untuk sinkronisasi cloud).
+        // Sengaja dipisah supaya tab ini tidak ikut campur ke sistem
+        // backup/cloud-sync yang sudah ada, tapi tetap dapat kapasitas
+        // penyimpanan besar ala IndexedDB (bukan localStorage yang terbatas).
+        const AR_DB_NAME = 'datacenter_ar_db';
+        const AR_DB_STORE = 'arData';
+        const AR_DB_VERSION = 1;
+
         let arAllData = [];
         let arCurrentPiutang = [];
         let arVisiblePiutang = [];
 
         function arRp(n) { return 'Rp ' + (n || 0).toLocaleString('id-ID'); }
+
+        function arDbOpen() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(AR_DB_NAME, AR_DB_VERSION);
+                req.onupgradeneeded = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(AR_DB_STORE)) db.createObjectStore(AR_DB_STORE);
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function arDbPut(key, value) {
+            const db = await arDbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(AR_DB_STORE, 'readwrite');
+                tx.objectStore(AR_DB_STORE).put(value, key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function arDbGet(key) {
+            const db = await arDbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(AR_DB_STORE, 'readonly');
+                const req = tx.objectStore(AR_DB_STORE).get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function arDbDelete(key) {
+            const db = await arDbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(AR_DB_STORE, 'readwrite');
+                tx.objectStore(AR_DB_STORE).delete(key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function arSaveDataToStorage() {
+            try { await arDbPut('rows', arAllData); }
+            catch (err) { console.error('Gagal menyimpan data Analisa AR ke IndexedDB:', err); }
+        }
+
+        async function arLoadDataFromStorage() {
+            try {
+                const data = await arDbGet('rows');
+                return Array.isArray(data) ? data : null;
+            } catch (err) { return null; }
+        }
+
+        async function arFormatMetaLabel() {
+            let fname = null, ts = null;
+            try { fname = await arDbGet('meta_filename'); } catch (err) {}
+            if (!fname) return 'Belum ada data';
+            let label = fname + ' · ' + arAllData.length + ' baris';
+            try { ts = await arDbGet('meta_uploaded_at'); } catch (err) {}
+            if (ts) {
+                try { label += ' · ' + new Date(ts).toLocaleString('id-ID'); } catch (err) {}
+            }
+            return label;
+        }
+
+        async function arInitFromStorage() {
+            const saved = await arLoadDataFromStorage();
+            if (saved && saved.length) {
+                arAllData = saved;
+                arRenderDashboard();
+                const fn = document.getElementById('arFileName');
+                if (fn) fn.textContent = await arFormatMetaLabel();
+            }
+        }
 
         function toggleARMenu() { const m = document.getElementById('arMenuDd'); if (m) m.classList.toggle('open'); }
         function closeARMenu() { const m = document.getElementById('arMenuDd'); if (m) m.classList.remove('open'); }
@@ -9964,12 +10050,17 @@
             const loadingEl = document.getElementById('arLoading');
             if (loadingEl) loadingEl.style.display = 'block';
             const reader = new FileReader();
-            reader.onload = e => {
+            reader.onload = async e => {
                 try {
                     const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
                     arProcessWorkbook(wb);
+                    await arSaveDataToStorage();
+                    try {
+                        await arDbPut('meta_filename', file.name);
+                        await arDbPut('meta_uploaded_at', new Date().toISOString());
+                    } catch (err) {}
                     const fn = document.getElementById('arFileName');
-                    if (fn) fn.textContent = file.name + ' · ' + arAllData.length + ' baris';
+                    if (fn) fn.textContent = await arFormatMetaLabel();
                 } catch (err) {
                     alert('Gagal memuat file Analisa AR: ' + err.message);
                 } finally {
@@ -9979,11 +10070,16 @@
             reader.readAsArrayBuffer(file);
         }
 
-        function arClearData() {
+        async function arClearData() {
             if (!confirm('Hapus semua data Analisa AR yang sudah dimuat di tab ini?')) return;
             arAllData = [];
             arCurrentPiutang = [];
             arVisiblePiutang = [];
+            try {
+                await arDbDelete('rows');
+                await arDbDelete('meta_filename');
+                await arDbDelete('meta_uploaded_at');
+            } catch (err) {}
             const contentEl = document.getElementById('arContent');
             const emptyEl = document.getElementById('arEmptyState');
             if (contentEl) contentEl.style.display = 'none';
@@ -10234,6 +10330,7 @@
         if (arFileInputEl) arFileInputEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); closeARMenu(); e.target.value = ''; });
         const arFileInputEmptyEl = document.getElementById('arFileInputEmpty');
         if (arFileInputEmptyEl) arFileInputEmptyEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); e.target.value = ''; });
+        arInitFromStorage();
 
         // ---- Ekspos ke window ----
         // Karena <script type="module"> tidak lagi membuat fungsi top-level
