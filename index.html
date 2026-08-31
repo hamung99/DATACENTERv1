@@ -833,7 +833,8 @@
                     📤 Upload Stok Gudang
                     <input type="file" id="fileInputGudang" accept=".xlsx,.xls" style="display:none;">
                 </label>
-                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;" onclick="resetGudangData()" title="Kembalikan ke data bawaan aplikasi">↺ Reset</button>
+                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;" onclick="resetGudangData()" title="Kembalikan ke data contoh bawaan aplikasi (bukan data gudang asli kamu)">↺ Reset ke Contoh</button>
+                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;border-color:var(--red);color:var(--red);" onclick="hapusDataGudangSepenuhnya()" title="Kosongkan semua data gudang (upload maupun contoh bawaan) — supaya tidak ada data lama/basi yang nyangkut di cache browser">🗑️ Hapus Data Bawaan</button>
                 <span class="muted" id="gudangUploadStatus" style="font-size:0.72rem;white-space:nowrap;"></span>
                 <div class="view-toggle" id="gudangInnerTabs" style="margin-left:auto;">
                     <button type="button" class="view-toggle-btn active" id="gudangTabBtnMain" onclick="switchGudangMainSub('gudang')">🏭 Data Gudang</button>
@@ -4907,7 +4908,7 @@
         }
 
         function resetGudangData() {
-            if (!confirm('Hapus data Gudang hasil upload dan kembalikan ke data bawaan aplikasi?')) return;
+            if (!confirm('Hapus data Gudang hasil upload dan kembalikan ke data CONTOH bawaan aplikasi (bukan data gudang asli kamu)?')) return;
             try {
                 localStorage.removeItem(GUDANG_STORAGE_KEY);
                 localStorage.removeItem(GUDANG_META_FILENAME_KEY);
@@ -4920,6 +4921,37 @@
             if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
                 renderRingkasanCekTab();
             }
+            if (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length &&
+                typeof renderRingkasan === 'function') {
+                renderRingkasan();
+            }
+        }
+
+        // Kosongkan SEPENUHNYA data Gudang: hapus cache localStorage DAN jangan
+        // jatuh balik ke GUDANG_DATA_DEFAULT (data contoh bawaan aplikasi).
+        // Berguna kalau ada snapshot lama di localStorage yang basi/salah
+        // (misal ke-parse pakai kode lama sebelum ada perbaikan bug), supaya
+        // tidak diam-diam terus terpakai -- user jadi jelas melihat kosong dan
+        // wajib upload ulang file gudang yang terbaru.
+        function hapusDataGudangSepenuhnya() {
+            if (!confirm('Kosongkan SEMUA data Gudang (baik hasil upload maupun data contoh bawaan)? Kamu perlu upload ulang file Stok Gudang setelah ini.')) return;
+            try {
+                localStorage.removeItem(GUDANG_STORAGE_KEY);
+                localStorage.removeItem(GUDANG_META_FILENAME_KEY);
+                localStorage.removeItem(GUDANG_META_UPLOADED_AT_KEY);
+            } catch (err) {}
+            GUDANG_DATA = { bulan: '—', tahun: '—', products: [], saldo: ['Saldo Awal'], rows: [] };
+            invalidateGudangCaches();
+            updateGudangUploadStatusLabel();
+            renderGudangTable();
+            if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
+                renderRingkasanCekTab();
+            }
+            if (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length &&
+                typeof renderRingkasan === 'function') {
+                renderRingkasan();
+            }
+            alert('✅ Data Gudang sudah dikosongkan. Silakan upload ulang file Stok Gudang terbaru (sampai tanggal 31) lewat tombol "📤 Upload Stok Gudang".');
         }
 
         let currentGudangSub = 'gudang';
