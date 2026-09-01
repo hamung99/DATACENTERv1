@@ -191,6 +191,8 @@
             box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 2px 6px color-mix(in srgb, var(--accent) 30%, transparent);
         }
         .cek-subtab-btn.active:hover { transform: none; }
+        .ar-source-remove { margin-left: 6px; opacity: 0.7; font-weight: 700; }
+        .ar-source-remove:hover { opacity: 1; }
         .subtab-dl { margin-left: auto; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); font-weight: 600; font-size: 0.72rem; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; line-height: 1.3; box-sizing: border-box; font-family: inherit; }
         .subtab-dl:hover { border-color: var(--accent); color: var(--accent); }
         .subtab-dl-wrap { position: relative; display: inline-flex; margin-left: auto; flex-shrink: 0; }
@@ -986,7 +988,7 @@
             <div class="empty-state" id="arEmptyState" style="display:block;">
                 <div class="big">📈</div>
                 <div><strong>Upload file Excel</strong> Analisa AR / Piutang</div>
-                <div class="hint">Upload file Excel Piutang (kolom: No, Sales, No Faktur, Nama Toko, Nominal, Status, dll).<br>Data diproses di browser Anda, tidak diunggah ke server.</div>
+                <div class="hint">Upload file Excel Piutang (kolom: No, Sales, No Faktur, Nama Toko, Nominal, Status, dll).<br>Data diproses di browser Anda, tidak diunggah ke server.<br>Bisa upload beberapa sumber (mis. Minyak &amp; Rupa-Rupa) — semua tersimpan dan tinggal pilih tab-nya, tidak perlu upload ulang bergantian.</div>
                 <br>
                 <label class="upload-btn" style="display:inline-flex;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:0.9rem;font-weight:600;cursor:pointer;">
                     📂 Pilih File Excel
@@ -995,6 +997,15 @@
             </div>
 
             <div id="arContent" style="display:none;">
+                <div id="arSourceSwitch" style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+                    <span style="font-size:0.74rem;color:var(--muted);font-weight:600;">Sumber Data:</span>
+                    <div id="arSourceTabs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                    <label class="cek-subtab-btn" style="cursor:pointer;padding:4px 12px;">
+                        ＋ Upload Sumber Baru
+                        <input type="file" id="arFileInputNewSource" accept=".xlsx,.xls" style="display:none;">
+                    </label>
+                </div>
+
                 <div class="sales-cards show" id="arKpiCards">
                     <div class="scard"><div class="sc-label">TOTAL FAKTUR</div><div class="sc-value" id="arKpiTotalFaktur">0</div></div>
                     <div class="scard"><div class="sc-label">TOTAL NOMINAL</div><div class="sc-value" id="arKpiTotalNominal">Rp 0</div></div>
@@ -1011,8 +1022,8 @@
                         <span id="arLastUpdateLabel" style="font-size:0.68rem;color:var(--text-muted,#888);white-space:nowrap;"></span>
                         <button class="theme-btn" id="arSettingsBtn" onclick="toggleARMenu()" title="Pengaturan Analisa AR">⚙️</button>
                         <div class="menu-dd" id="arMenuDd">
-                            <label class="menu-item upload-item"><input type="file" id="arFileInput" accept=".xlsx,.xls"> 📂 Upload Ulang Data AR</label>
-                            <button class="menu-item" id="arClearBtn" onclick="arClearData(); closeARMenu();" style="display:none;">✕ Hapus Data AR</button>
+                            <label class="menu-item upload-item"><input type="file" id="arFileInput" accept=".xlsx,.xls"> 📂 Upload Ulang (Sumber Aktif)</label>
+                            <button class="menu-item" id="arClearBtn" onclick="arClearData(); closeARMenu();" style="display:none;">✕ Hapus Data (Sumber Aktif)</button>
                             <div class="menu-divider"></div>
                             <div class="menu-files" id="arFileName">Belum ada data</div>
                         </div>
@@ -9965,6 +9976,8 @@
         let arAllData = [];
         let arCurrentPiutang = [];
         let arVisiblePiutang = [];
+        let arSources = {}; // key -> { label, fileName, uploadedAt }
+        let arActiveSource = null;
 
         function arRp(n) { return 'Rp ' + (n || 0).toLocaleString('id-ID'); }
 
@@ -10010,58 +10023,159 @@
             });
         }
 
-        async function arSaveDataToStorage() {
-            try { await arDbPut('rows', arAllData); }
+        async function arGetRegistry() {
+            try {
+                const r = await arDbGet('sources_registry');
+                return (r && typeof r === 'object') ? r : {};
+            } catch (err) { return {}; }
+        }
+
+        async function arSaveRegistry(reg) {
+            try { await arDbPut('sources_registry', reg); } catch (err) {}
+        }
+
+        async function arSaveDataToStorage(key) {
+            try { await arDbPut('rows__' + key, arAllData); }
             catch (err) { console.error('Gagal menyimpan data Analisa AR ke IndexedDB:', err); }
         }
 
-        async function arLoadDataFromStorage() {
+        async function arLoadDataForSource(key) {
             try {
-                const data = await arDbGet('rows');
+                const data = await arDbGet('rows__' + key);
                 return Array.isArray(data) ? data : null;
             } catch (err) { return null; }
         }
 
         const AR_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
-        async function arUpdateLastUpdateLabel() {
+        function arGetSheetJson(wb) {
+            const sn = wb.SheetNames.find(s => s.toUpperCase().includes('AGUSTUS')) || wb.SheetNames[0];
+            const ws = wb.Sheets[sn];
+            return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        }
+
+        // Deteksi otomatis "sumber" data AR (mis. Minyak vs Rupa-Rupa) dari nama file
+        // atau dari isi sel di dalam Excel-nya, supaya tiap sumber tersimpan
+        // terpisah dan bisa dipilih lewat tab tanpa perlu upload ulang bergantian.
+        function arDetectSource(filename, json) {
+            const fn = String(filename || '').toUpperCase();
+            if (fn.includes('MINYAK')) return { key: 'minyak', label: '🛢️ Minyak' };
+            if (fn.includes('RUPARUPA') || fn.includes('RUPA RUPA') || fn.includes('RUPA-RUPA') || fn.includes('RUPA_RUPA')) {
+                return { key: 'ruparupa', label: '📦 Rupa-Rupa' };
+            }
+            try {
+                for (let i = 0; i < Math.min(15, json.length); i++) {
+                    for (const cell of json[i]) {
+                        const c = String(cell === null || cell === undefined ? '' : cell).trim().toUpperCase();
+                        if (c === 'MINYAK') return { key: 'minyak', label: '🛢️ Minyak' };
+                        if (c === 'RUPA RUPA' || c === 'RUPARUPA') return { key: 'ruparupa', label: '📦 Rupa-Rupa' };
+                    }
+                }
+            } catch (err) {}
+            const base = String(filename || 'Data AR').replace(/\.[^.]+$/, '').trim() || 'Data AR';
+            const key = base.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'default';
+            return { key, label: base };
+        }
+
+        function arFormatMetaLabelForSource(key) {
+            const s = arSources[key];
+            if (!s) return 'Belum ada data';
+            let label = (s.fileName || key) + ' · ' + arAllData.length + ' baris';
+            if (s.uploadedAt) {
+                try { label += ' · ' + new Date(s.uploadedAt).toLocaleString('id-ID'); } catch (err) {}
+            }
+            return label;
+        }
+
+        function arUpdateLastUpdateLabel() {
             const el = document.getElementById('arLastUpdateLabel');
             if (!el) return;
-            let ts = null;
-            try { ts = await arDbGet('meta_uploaded_at'); } catch (err) {}
-            if (!ts) { el.textContent = ''; return; }
+            const s = arSources[arActiveSource];
+            if (!s || !s.uploadedAt) { el.textContent = ''; return; }
             try {
-                const d = new Date(ts);
+                const d = new Date(s.uploadedAt);
                 const tgl = String(d.getDate()).padStart(2, '0');
                 const bln = AR_BULAN_ID[d.getMonth()];
                 const thn = d.getFullYear();
                 const jam = String(d.getHours()).padStart(2, '0');
                 const mnt = String(d.getMinutes()).padStart(2, '0');
-                el.textContent = 'Update Data AR tgl ' + tgl + ' ' + bln + ' ' + thn + ', jam ' + jam + ':' + mnt;
+                el.textContent = 'Update ' + (s.label || arActiveSource) + ' tgl ' + tgl + ' ' + bln + ' ' + thn + ', jam ' + jam + ':' + mnt;
             } catch (err) { el.textContent = ''; }
         }
 
-        async function arFormatMetaLabel() {
-            let fname = null, ts = null;
-            try { fname = await arDbGet('meta_filename'); } catch (err) {}
-            if (!fname) return 'Belum ada data';
-            let label = fname + ' · ' + arAllData.length + ' baris';
-            try { ts = await arDbGet('meta_uploaded_at'); } catch (err) {}
-            if (ts) {
-                try { label += ' · ' + new Date(ts).toLocaleString('id-ID'); } catch (err) {}
+        function arRenderSourceTabs() {
+            const wrap = document.getElementById('arSourceTabs');
+            if (!wrap) return;
+            const keys = Object.keys(arSources);
+            wrap.innerHTML = keys.map(k => {
+                const s = arSources[k] || {};
+                const active = k === arActiveSource ? ' active' : '';
+                const kEsc = k.replace(/'/g, "\\'");
+                const labelSafe = String(s.label || k).replace(/</g, '&lt;');
+                return '<button type="button" class="cek-subtab-btn' + active + '" onclick="arSwitchSource(\'' + kEsc + '\')">' +
+                    labelSafe +
+                    '<span class="ar-source-remove" title="Hapus sumber ini" onclick="event.stopPropagation();arRemoveSource(\'' + kEsc + '\')">✕</span></button>';
+            }).join('');
+        }
+
+        async function arSwitchSource(key) {
+            if (!arSources[key] || key === arActiveSource) { closeARMenu(); return; }
+            arActiveSource = key;
+            try { await arDbPut('active_source', key); } catch (err) {}
+            const saved = await arLoadDataForSource(key);
+            arAllData = Array.isArray(saved) ? saved : [];
+            arRenderDashboard();
+            arRenderSourceTabs();
+            const fn = document.getElementById('arFileName');
+            if (fn) fn.textContent = arFormatMetaLabelForSource(key);
+            arUpdateLastUpdateLabel();
+            closeARMenu();
+        }
+
+        async function arRemoveSource(key) {
+            if (!arSources[key]) return;
+            const label = arSources[key].label || key;
+            if (!confirm('Hapus data sumber "' + label + '"? Data yang tersimpan untuk sumber ini akan hilang.')) return;
+            try { await arDbDelete('rows__' + key); } catch (err) {}
+            delete arSources[key];
+            await arSaveRegistry(arSources);
+            const remainingKeys = Object.keys(arSources);
+            if (key === arActiveSource) {
+                if (remainingKeys.length) {
+                    await arSwitchSource(remainingKeys[0]);
+                } else {
+                    arActiveSource = null;
+                    try { await arDbDelete('active_source'); } catch (err) {}
+                    arAllData = [];
+                    arCurrentPiutang = [];
+                    arVisiblePiutang = [];
+                    const contentEl = document.getElementById('arContent');
+                    const emptyEl = document.getElementById('arEmptyState');
+                    if (contentEl) contentEl.style.display = 'none';
+                    if (emptyEl) emptyEl.style.display = 'block';
+                }
+            } else {
+                arRenderSourceTabs();
             }
-            return label;
         }
 
         async function arInitFromStorage() {
-            const saved = await arLoadDataFromStorage();
+            arSources = await arGetRegistry();
+            const keys = Object.keys(arSources);
+            if (!keys.length) return;
+            let active = null;
+            try { active = await arDbGet('active_source'); } catch (err) {}
+            if (!active || !arSources[active]) active = keys[0];
+            arActiveSource = active;
+            const saved = await arLoadDataForSource(active);
             if (saved && saved.length) {
                 arAllData = saved;
                 arRenderDashboard();
-                const fn = document.getElementById('arFileName');
-                if (fn) fn.textContent = await arFormatMetaLabel();
-                await arUpdateLastUpdateLabel();
             }
+            arRenderSourceTabs();
+            const fn = document.getElementById('arFileName');
+            if (fn) fn.textContent = arFormatMetaLabelForSource(active);
+            arUpdateLastUpdateLabel();
         }
 
         function toggleARMenu() { const m = document.getElementById('arMenuDd'); if (m) m.classList.toggle('open'); }
@@ -10074,15 +10188,22 @@
             reader.onload = async e => {
                 try {
                     const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    const json = arGetSheetJson(wb);
+                    const detected = arDetectSource(file.name, json);
+                    arActiveSource = detected.key;
                     arProcessWorkbook(wb);
-                    await arSaveDataToStorage();
-                    try {
-                        await arDbPut('meta_filename', file.name);
-                        await arDbPut('meta_uploaded_at', new Date().toISOString());
-                    } catch (err) {}
+                    await arSaveDataToStorage(detected.key);
+                    arSources[detected.key] = {
+                        label: detected.label,
+                        fileName: file.name,
+                        uploadedAt: new Date().toISOString()
+                    };
+                    await arSaveRegistry(arSources);
+                    try { await arDbPut('active_source', detected.key); } catch (err) {}
+                    arRenderSourceTabs();
                     const fn = document.getElementById('arFileName');
-                    if (fn) fn.textContent = await arFormatMetaLabel();
-                    await arUpdateLastUpdateLabel();
+                    if (fn) fn.textContent = arFormatMetaLabelForSource(detected.key);
+                    arUpdateLastUpdateLabel();
                 } catch (err) {
                     alert('Gagal memuat file Analisa AR: ' + err.message);
                 } finally {
@@ -10093,25 +10214,8 @@
         }
 
         async function arClearData() {
-            if (!confirm('Hapus semua data Analisa AR yang sudah dimuat di tab ini?')) return;
-            arAllData = [];
-            arCurrentPiutang = [];
-            arVisiblePiutang = [];
-            try {
-                await arDbDelete('rows');
-                await arDbDelete('meta_filename');
-                await arDbDelete('meta_uploaded_at');
-            } catch (err) {}
-            const contentEl = document.getElementById('arContent');
-            const emptyEl = document.getElementById('arEmptyState');
-            if (contentEl) contentEl.style.display = 'none';
-            if (emptyEl) emptyEl.style.display = 'block';
-            const fn = document.getElementById('arFileName');
-            if (fn) fn.textContent = 'Belum ada data';
-            const labelEl = document.getElementById('arLastUpdateLabel');
-            if (labelEl) labelEl.textContent = '';
-            const clearBtn = document.getElementById('arClearBtn');
-            if (clearBtn) clearBtn.style.display = 'none';
+            if (!arActiveSource) return;
+            await arRemoveSource(arActiveSource);
         }
 
         function arProcessWorkbook(wb) {
@@ -10354,6 +10458,8 @@
         if (arFileInputEl) arFileInputEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); closeARMenu(); e.target.value = ''; });
         const arFileInputEmptyEl = document.getElementById('arFileInputEmpty');
         if (arFileInputEmptyEl) arFileInputEmptyEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); e.target.value = ''; });
+        const arFileInputNewSourceEl = document.getElementById('arFileInputNewSource');
+        if (arFileInputNewSourceEl) arFileInputNewSourceEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); e.target.value = ''; });
         arInitFromStorage();
 
         // ---- Ekspos ke window ----
