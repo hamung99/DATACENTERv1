@@ -836,13 +836,16 @@
                 </label>
                 <button type="button" class="btn btn-outline" id="ringkasanDateClearBtn" style="font-size:0.72rem;padding:5px 10px;display:none;" onclick="clearRingkasanDateFilter()">✕ Hapus Filter Tanggal</button>
                 <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;" onclick="openRingkasanInvestigationModal()">🔍 Investigasi Perbedaan</button>
-                <label class="btn" style="font-size:0.72rem;padding:5px 10px;cursor:pointer;margin:0;">
-                    📤 Upload Stok Gudang
-                    <input type="file" id="fileInputGudang" accept=".xlsx,.xls" style="display:none;">
-                </label>
-                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;" onclick="resetGudangData()" title="Kembalikan ke data contoh bawaan aplikasi (bukan data gudang asli kamu)">↺ Reset ke Contoh</button>
-                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;border-color:var(--red);color:var(--red);" onclick="hapusDataGudangSepenuhnya()" title="Kosongkan semua data gudang (upload maupun contoh bawaan) — supaya tidak ada data lama/basi yang nyangkut di cache browser">🗑️ Hapus Data Bawaan</button>
-                <span class="muted" id="gudangUploadStatus" style="font-size:0.72rem;white-space:nowrap;"></span>
+                <div class="menu-wrap" id="gudangMenuWrap">
+                    <button class="theme-btn" id="gudangSettingsBtn" onclick="toggleGudangMenu()" title="Pengaturan Data Gudang">⚙️</button>
+                    <div class="menu-dd" id="gudangMenuDd">
+                        <label class="menu-item upload-item"><input type="file" id="fileInputGudang" accept=".xlsx,.xls"> 📤 Upload Stok Gudang</label>
+                        <button class="menu-item" onclick="resetGudangData(); closeGudangMenu();" title="Kembalikan ke data contoh bawaan aplikasi (bukan data gudang asli kamu)">↺ Reset ke Contoh</button>
+                        <button class="menu-item" onclick="hapusDataGudangSepenuhnya(); closeGudangMenu();" style="color:var(--red);" title="Kosongkan semua data gudang (upload maupun contoh bawaan) — supaya tidak ada data lama/basi yang nyangkut di cache browser">🗑️ Hapus Data Bawaan</button>
+                        <div class="menu-divider"></div>
+                        <div class="menu-files" id="gudangUploadStatus"></div>
+                    </div>
+                </div>
                 <div class="view-toggle" id="gudangInnerTabs" style="margin-left:auto;">
                     <button type="button" class="view-toggle-btn active" id="gudangTabBtnMain" onclick="switchGudangMainSub('gudang')">🏭 Data Gudang</button>
                     <button type="button" class="view-toggle-btn" id="gudangTabBtnCek" onclick="switchGudangMainSub('cek')">🔎 Cek Beda</button>
@@ -9754,6 +9757,10 @@
 
         function closeSalesMenu() { document.getElementById('salesMenuDd').classList.remove('open'); }
 
+        function toggleGudangMenu() { document.getElementById('gudangMenuDd').classList.toggle('open'); }
+
+        function closeGudangMenu() { document.getElementById('gudangMenuDd').classList.remove('open'); }
+
         // ---- Listener klik-luar gabungan (menggantikan beberapa listener document terpisah) ----
         document.addEventListener('click', function(e) {
             [
@@ -9761,7 +9768,8 @@
                 ['cekDownloadMenu', 'cekDownloadWrap'],
                 ['menuDd', 'menuWrap'],
                 ['salesMenuDd', 'salesMenuWrap'],
-                ['arMenuDd', 'arMenuWrap']
+                ['arMenuDd', 'arMenuWrap'],
+                ['gudangMenuDd', 'gudangMenuWrap']
             ].forEach(function(pair) {
                 const m = document.getElementById(pair[0]);
                 const w = document.getElementById(pair[1]);
@@ -10487,7 +10495,7 @@
             openHapusBulanModal, closeHapusBulanModal, toggleHapusBulanSelectAll, syncHapusBulanSelectAll, applyHapusBulan,
             resetGudangData, hapusDataGudangSepenuhnya,
             switchARSub, toggleARMenu, closeARMenu, arClearData, arApplyPiutangFilter, arFilterFullTable, arExportPiutang,
-            arSwitchSource, arRemoveSource
+            arSwitchSource, arRemoveSource, toggleGudangMenu, closeGudangMenu
         });
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
