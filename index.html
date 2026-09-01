@@ -179,7 +179,8 @@
             align-items: center;
             justify-content: center;
             gap: 4px;
-            flex: 1 1 140px;
+            flex: 0 0 auto;
+            white-space: nowrap;
             transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
         }
         .cek-subtab-btn:hover { border-color: var(--accent); color: var(--text); transform: translateY(-1px); }
@@ -191,7 +192,7 @@
             box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), 0 2px 6px color-mix(in srgb, var(--accent) 30%, transparent);
         }
         .cek-subtab-btn.active:hover { transform: none; }
-        .ar-source-remove { margin-left: 6px; opacity: 0.7; font-weight: 700; }
+        .ar-source-remove { margin-left: 6px; opacity: 0.55; font-weight: 700; font-size: 0.72em; }
         .ar-source-remove:hover { opacity: 1; }
         .subtab-dl { margin-left: auto; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); font-weight: 600; font-size: 0.72rem; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; line-height: 1.3; box-sizing: border-box; font-family: inherit; }
         .subtab-dl:hover { border-color: var(--accent); color: var(--accent); }
@@ -997,9 +998,9 @@
             </div>
 
             <div id="arContent" style="display:none;">
-                <div id="arSourceSwitch" style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-                    <span style="font-size:0.74rem;color:var(--muted);font-weight:600;">Sumber Data:</span>
-                    <div id="arSourceTabs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                <div id="arSourceSwitch" style="display:flex;align-items:center;margin-bottom:10px;flex-wrap:wrap;border-bottom:1px solid var(--border);gap:0;">
+                    <span style="font-size:0.74rem;color:var(--muted);font-weight:600;padding:7px 10px 7px 0;">Sumber Data:</span>
+                    <div id="arSourceTabs" style="display:flex;align-items:center;flex-wrap:wrap;"></div>
                 </div>
 
                 <div class="sales-cards show" id="arKpiCards">
@@ -10108,7 +10109,7 @@
                 const active = k === arActiveSource ? ' active' : '';
                 const kEsc = k.replace(/'/g, "\\'");
                 const labelSafe = String(s.label || k).replace(/</g, '&lt;');
-                return '<button type="button" class="cek-subtab-btn' + active + '" onclick="arSwitchSource(\'' + kEsc + '\')">' +
+                return '<button type="button" class="subtab-btn ar-source-tab' + active + '" onclick="arSwitchSource(\'' + kEsc + '\')">' +
                     labelSafe +
                     '<span class="ar-source-remove" title="Hapus sumber ini" onclick="event.stopPropagation();arRemoveSource(\'' + kEsc + '\')">✕</span></button>';
             }).join('');
