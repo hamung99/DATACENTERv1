@@ -1007,7 +1007,8 @@
                     <button class="subtab-btn" id="arSubBtnPiutang" onclick="switchARSub('piutang')">⚠️ Piutang Belum Lunas</button>
                     <button class="subtab-btn" id="arSubBtnTop20" onclick="switchARSub('top20')">🔥 Top 20 Piutang</button>
                     <button class="subtab-btn" id="arSubBtnLengkap" onclick="switchARSub('lengkap')">📋 Data Lengkap</button>
-                    <div class="menu-wrap" id="arMenuWrap" style="margin-left:auto;">
+                    <div class="menu-wrap" id="arMenuWrap" style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                        <span id="arLastUpdateLabel" style="font-size:0.68rem;color:var(--text-muted,#888);white-space:nowrap;"></span>
                         <button class="theme-btn" id="arSettingsBtn" onclick="toggleARMenu()" title="Pengaturan Analisa AR">⚙️</button>
                         <div class="menu-dd" id="arMenuDd">
                             <label class="menu-item upload-item"><input type="file" id="arFileInput" accept=".xlsx,.xls"> 📂 Upload Ulang Data AR</label>
@@ -10021,6 +10022,25 @@
             } catch (err) { return null; }
         }
 
+        const AR_BULAN_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+        async function arUpdateLastUpdateLabel() {
+            const el = document.getElementById('arLastUpdateLabel');
+            if (!el) return;
+            let ts = null;
+            try { ts = await arDbGet('meta_uploaded_at'); } catch (err) {}
+            if (!ts) { el.textContent = ''; return; }
+            try {
+                const d = new Date(ts);
+                const tgl = String(d.getDate()).padStart(2, '0');
+                const bln = AR_BULAN_ID[d.getMonth()];
+                const thn = d.getFullYear();
+                const jam = String(d.getHours()).padStart(2, '0');
+                const mnt = String(d.getMinutes()).padStart(2, '0');
+                el.textContent = 'Update Data AR tgl ' + tgl + ' ' + bln + ' ' + thn + ', jam ' + jam + ':' + mnt;
+            } catch (err) { el.textContent = ''; }
+        }
+
         async function arFormatMetaLabel() {
             let fname = null, ts = null;
             try { fname = await arDbGet('meta_filename'); } catch (err) {}
@@ -10040,6 +10060,7 @@
                 arRenderDashboard();
                 const fn = document.getElementById('arFileName');
                 if (fn) fn.textContent = await arFormatMetaLabel();
+                await arUpdateLastUpdateLabel();
             }
         }
 
@@ -10061,6 +10082,7 @@
                     } catch (err) {}
                     const fn = document.getElementById('arFileName');
                     if (fn) fn.textContent = await arFormatMetaLabel();
+                    await arUpdateLastUpdateLabel();
                 } catch (err) {
                     alert('Gagal memuat file Analisa AR: ' + err.message);
                 } finally {
@@ -10086,6 +10108,8 @@
             if (emptyEl) emptyEl.style.display = 'block';
             const fn = document.getElementById('arFileName');
             if (fn) fn.textContent = 'Belum ada data';
+            const labelEl = document.getElementById('arLastUpdateLabel');
+            if (labelEl) labelEl.textContent = '';
             const clearBtn = document.getElementById('arClearBtn');
             if (clearBtn) clearBtn.style.display = 'none';
         }
