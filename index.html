@@ -6118,9 +6118,10 @@
                 let hargaJualRange;
                 if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
                     hargaJualRange = '—';
-                } else if (g.minHargaJual === g.maxHargaJual) {
-                    hargaJualRange = fmt(g.minHargaJual);
                 } else {
+                    // Selalu ditulis "Terendah - Tertinggi" apa adanya, walaupun
+                    // harga jualnya sama semua (TIDAK di-average, TIDAK disingkat
+                    // jadi satu angka).
                     hargaJualRange = fmt(g.minHargaJual) + ' - ' + fmt(g.maxHargaJual);
                 }
                 return {
