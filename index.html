@@ -1000,10 +1000,6 @@
                 <div id="arSourceSwitch" style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
                     <span style="font-size:0.74rem;color:var(--muted);font-weight:600;">Sumber Data:</span>
                     <div id="arSourceTabs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-                    <label class="cek-subtab-btn" style="cursor:pointer;padding:4px 12px;">
-                        ＋ Upload Sumber Baru
-                        <input type="file" id="arFileInputNewSource" accept=".xlsx,.xls" style="display:none;">
-                    </label>
                 </div>
 
                 <div class="sales-cards show" id="arKpiCards">
@@ -10458,8 +10454,6 @@
         if (arFileInputEl) arFileInputEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); closeARMenu(); e.target.value = ''; });
         const arFileInputEmptyEl = document.getElementById('arFileInputEmpty');
         if (arFileInputEmptyEl) arFileInputEmptyEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); e.target.value = ''; });
-        const arFileInputNewSourceEl = document.getElementById('arFileInputNewSource');
-        if (arFileInputNewSourceEl) arFileInputNewSourceEl.addEventListener('change', e => { if (e.target.files.length) arHandleFile(e.target.files[0]); e.target.value = ''; });
         arInitFromStorage();
 
         // ---- Ekspos ke window ----
