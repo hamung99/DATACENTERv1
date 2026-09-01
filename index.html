@@ -789,7 +789,7 @@
             </div>
 
             <div class="profit-wrap" id="profitProdukWrap"><div class="profit-head"><span>PROFIT PENJUALAN / PRODUK</span><span class="muted" id="profitProdukPeriod">—</span></div><table class="profit-table"><thead><tr><th>No</th><th>Produk</th><th class="num">Qty</th><th class="num">Total Penjualan</th><th class="num">Total HPP</th><th class="num">Harga Jual</th><th class="num">Harga Beli</th><th class="num">Profit</th><th class="num">Margin</th></tr></thead><tbody id="profitProdukBody"></tbody></table></div>
-            <div class="profit-wrap" id="profitPayWrap"><div class="profit-head"><span>PROFIT PER PRODUK PER PEMBAYARAN</span><span class="muted" id="profitPayPeriod">—</span></div><table class="profit-table"><thead><tr><th>Produk</th><th class="num">Nominal Penjualan Cash</th><th class="num">Nominal Penjualan Tempo</th><th class="num">Profit Tempo</th><th class="num">Profit Cash</th><th class="num">Total Nominal Penjualan</th><th class="num">Total Profit</th></tr></thead><tbody id="profitPayBody"></tbody></table></div>
+            <div class="profit-wrap" id="profitPayWrap"><div class="profit-head"><span>PROFIT PER PRODUK PER PEMBAYARAN</span><span class="muted" id="profitPayPeriod">—</span></div><table class="profit-table"><thead><tr><th>Produk</th><th class="num">Harga Beli</th><th class="num">Harga Jual</th><th class="num">Nominal Penjualan Cash</th><th class="num">Nominal Penjualan Tempo</th><th class="num">Profit Tempo</th><th class="num">Profit Cash</th><th class="num">Total Nominal Penjualan</th><th class="num">Total Profit</th></tr></thead><tbody id="profitPayBody"></tbody></table></div>
             <div class="profit-wrap" id="profitSalesWrap"><div class="profit-head"><span>PENJUALAN PER SALES PER PRODUK</span><span class="muted" id="profitSalesPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesTable"><thead id="profitSalesHead"></thead><tbody id="profitSalesBody"></tbody></table></div></div>
             <div class="profit-wrap" id="profitSalesProdukWrap"><div class="profit-head"><span>PER SALES PER PRODUK</span><span class="muted" id="profitSalesProdukPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitSalesProdukTable"><thead id="profitSalesProdukHead"></thead><tbody id="profitSalesProdukBody"></tbody></table></div></div>
             <div class="profit-wrap" id="profitLengkapWrap"><div class="profit-head"><span>PENJUALAN PER SALES PER PEMBAYARAN PER PRODUK</span><span class="muted" id="profitLengkapPeriod">—</span></div><div style="overflow-x:auto"><table class="profit-table" id="profitLengkapTable"><thead id="profitLengkapHead"></thead><tbody id="profitLengkapBody"></tbody></table></div></div>
@@ -6089,12 +6089,15 @@
             for (const r of rows) {
                 const name = (r.produk || '').trim() || '—';
                 if (!map[name]) {
-                    map[name] = { produk: name, nomCash: 0, nomTempo: 0, profitCash: 0, profitTempo: 0 };
+                    map[name] = { produk: name, nomCash: 0, nomTempo: 0, profitCash: 0, profitTempo: 0,
+                        totalQty: 0, beliXQty: 0, minHargaJual: Infinity, maxHargaJual: -Infinity };
                 }
                 const g = map[name];
                 const qty = r.jumlah || 0;
                 const tot = r.total || 0;
-                const cost = (r.hargaBeli || 0) * qty;
+                const hargaBeli = r.hargaBeli || 0;
+                const hargaJual = r.hargaJual || 0;
+                const cost = hargaBeli * qty;
                 const profit = tot - cost;
                 const pay = (r.pembayaran || '').toUpperCase();
                 if (pay === 'CASH') {
@@ -6104,21 +6107,39 @@
                     g.nomTempo += tot;
                     g.profitTempo += profit;
                 }
+                g.totalQty += qty;
+                g.beliXQty += cost;
+                if (hargaJual > 0) {
+                    g.minHargaJual = Math.min(g.minHargaJual, hargaJual);
+                    g.maxHargaJual = Math.max(g.maxHargaJual, hargaJual);
+                }
             }
-            lastProfitPayRows = Object.values(map).map(g => ({
-                produk: g.produk,
-                nomCash: g.nomCash,
-                nomTempo: g.nomTempo,
-                profitTempo: g.profitTempo,
-                profitCash: g.profitCash,
-                totalNom: g.nomCash + g.nomTempo,
-                totalProfit: g.profitCash + g.profitTempo
-            })).sort((a, b) => compareProdukName(a.produk, b.produk));
+            lastProfitPayRows = Object.values(map).map(g => {
+                let hargaJualRange;
+                if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
+                    hargaJualRange = '—';
+                } else if (g.minHargaJual === g.maxHargaJual) {
+                    hargaJualRange = fmt(g.minHargaJual);
+                } else {
+                    hargaJualRange = fmt(g.minHargaJual) + ' - ' + fmt(g.maxHargaJual);
+                }
+                return {
+                    produk: g.produk,
+                    hargaBeliSatuan: g.totalQty ? (g.beliXQty / g.totalQty) : 0,
+                    hargaJualRange: hargaJualRange,
+                    nomCash: g.nomCash,
+                    nomTempo: g.nomTempo,
+                    profitTempo: g.profitTempo,
+                    profitCash: g.profitCash,
+                    totalNom: g.nomCash + g.nomTempo,
+                    totalProfit: g.profitCash + g.profitTempo
+                };
+            }).sort((a, b) => compareProdukName(a.produk, b.produk));
             document.getElementById('profitPayPeriod').textContent = getSalesPeriodLabel();
             const body = document.getElementById('profitPayBody');
             if (!lastProfitPayRows.length) {
                 body.innerHTML =
-                    '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
+                    '<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data</td></tr>';
                 return;
             }
             let tNC = 0,
@@ -6136,6 +6157,8 @@
                 tTP += r.totalProfit;
                 return '<tr>' +
                     '<td>' + esc(r.produk) + '</td>' +
+                    '<td class="num">' + fmt(r.hargaBeliSatuan) + '</td>' +
+                    '<td class="num">' + r.hargaJualRange + '</td>' +
                     '<td class="num">' + fmt(r.nomCash) + '</td>' +
                     '<td class="num">' + fmt(r.nomTempo) + '</td>' +
                     '<td class="num">' + fmt(r.profitTempo) + '</td>' +
@@ -6146,6 +6169,8 @@
             }).join('') +
                 '<tr class="total-row">' +
                 '<td>TOTAL</td>' +
+                '<td class="num"></td>' +
+                '<td class="num"></td>' +
                 '<td class="num">' + fmt(tNC) + '</td>' +
                 '<td class="num">' + fmt(tNT) + '</td>' +
                 '<td class="num">' + fmt(tPT) + '</td>' +
@@ -6810,18 +6835,22 @@
                 fileName = 'Profit_Per_Produk_Per_Pembayaran_' + (scope === 'all' ? 'Semua_Data' : safePeriod) + '.xlsx';
                 const periodPay = scope === 'all' ? 'Semua Data' : period;
                 aoa = [
-                    ['PROFIT PER PRODUK PER PEMBAYARAN', '', '', '', '', '', periodPay]
+                    ['PROFIT PER PRODUK PER PEMBAYARAN', '', '', '', '', '', '', '', periodPay]
                 ];
-                aoa.push(['Produk', 'Nominal Penjualan Cash', 'Nominal Penjualan Tempo', 'Profit Tempo', 'Profit Cash',
+                aoa.push(['Produk', 'Harga Beli', 'Harga Jual', 'Nominal Penjualan Cash', 'Nominal Penjualan Tempo', 'Profit Tempo', 'Profit Cash',
                     'Total Nominal Penjualan', 'Total Profit'
                 ]);
                 // Number(...) || 0 di sini murni jaga-jaga: kalau ada nilai yang
                 // ternyata bukan angka valid (mis. NaN/undefined dari data sumber
                 // yang tidak terduga), sel Excel tetap terisi angka 0, bukan nilai
                 // rusak yang bisa bikin XLSX.writeFile gagal total tanpa pesan error.
+                // Harga Jual sengaja TIDAK dirata-rata (tidak di-average); ditampilkan
+                // sebagai teks (angka tunggal, atau rentang "min - max" jika bervariasi).
                 payRows.forEach(r => {
                     aoa.push([
                         r.produk,
+                        Number(r.hargaBeliSatuan) || 0,
+                        String(r.hargaJualRange != null ? r.hargaJualRange : '—'),
                         Number(r.nomCash) || 0,
                         Number(r.nomTempo) || 0,
                         Number(r.profitTempo) || 0,
@@ -6838,7 +6867,7 @@
                     tn: a.tn + (Number(r.totalNom) || 0),
                     tp: a.tp + (Number(r.totalProfit) || 0)
                 }), { nc: 0, nt: 0, pt: 0, pc: 0, tn: 0, tp: 0 });
-                aoa.push(['TOTAL', t.nc, t.nt, t.pt, t.pc, t.tn, t.tp]);
+                aoa.push(['TOTAL', '', '', t.nc, t.nt, t.pt, t.pc, t.tn, t.tp]);
                 // Balikin tampilan layar ke data hasil filter semula (supaya export
                 // "Semua" tidak ikut mengubah apa yang dilihat user di tabel layar).
                 if (scope === 'all') renderProfitPay(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
