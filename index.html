@@ -4725,6 +4725,33 @@
         // Kalau kosong sama sekali (belum pernah upload & belum pernah dikosongkan
         // manual), pakai 1 data contoh bawaan supaya tab tidak kosong total.
         let GUDANG_HISTORY = loadGudangHistoryFromStorage();
+
+        // PERBAIKAN FILTER BULAN: pastikan KEY riwayat selalu sesuai dengan
+        // bulan/tahun yang benar-benar ada pada tanggal baris datanya.
+        // Ini memperbaiki riwayat lama yang bisa saja tersimpan dengan key
+        // September tetapi isi barisnya masih Agustus. Jika key dan isi tidak
+        // cocok, dropdown dapat menampilkan September sementara tabel Agustus.
+        function normalizeGudangHistoryPeriods(historyObj) {
+            const src = (historyObj && typeof historyObj === 'object') ? historyObj : {};
+            const out = {};
+            Object.keys(src).forEach(oldKey => {
+                const data = src[oldKey];
+                const actualKey = gudangPeriodKeyFromData(data) || oldKey;
+                if (!out[actualKey]) {
+                    out[actualKey] = data;
+                } else {
+                    // Jika terjadi benturan key, pilih snapshot yang lebih baru.
+                    const a = out[actualKey] && out[actualKey]._meta && out[actualKey]._meta.uploadedAt;
+                    const b = data && data._meta && data._meta.uploadedAt;
+                    if (b && (!a || String(b) > String(a))) out[actualKey] = data;
+                }
+            });
+            return out;
+        }
+
+        GUDANG_HISTORY = normalizeGudangHistoryPeriods(GUDANG_HISTORY);
+        if (Object.keys(GUDANG_HISTORY).length) saveGudangHistoryToStorage(GUDANG_HISTORY);
+
         if (!Object.keys(GUDANG_HISTORY).length && localStorage.getItem(GUDANG_EMPTY_FLAG_KEY) !== '1') {
             const defKey = gudangPeriodKeyFromData(GUDANG_DATA_DEFAULT);
             if (defKey) GUDANG_HISTORY = { [defKey]: GUDANG_DATA_DEFAULT };
@@ -4756,7 +4783,11 @@
         }
 
         function setGudangSelectedPeriod(key) {
+            // Pastikan pilihan dropdown menunjuk ke snapshot yang periodenya benar.
+            // Ini juga menjadi pengaman untuk data riwayat lama yang belum ternormalisasi.
             if (!GUDANG_HISTORY[key]) return;
+            const actualKey = gudangPeriodKeyFromData(GUDANG_HISTORY[key]);
+            if (actualKey && actualKey !== key && GUDANG_HISTORY[actualKey]) key = actualKey;
             GUDANG_SELECTED_PERIOD = key;
             try { localStorage.setItem(GUDANG_SELECTED_PERIOD_KEY, key); } catch (err) {}
             GUDANG_DATA = GUDANG_HISTORY[key];
@@ -10124,7 +10155,10 @@
                     if (key) { restoredHistory = { [key]: cloud.gudang_data }; restoredSelected = key; }
                 }
                 if (restoredHistory) {
-                    GUDANG_HISTORY = restoredHistory;
+                    // Normalisasi lagi setelah mengambil data cloud, karena cloud
+                    // bisa berisi snapshot lama dengan key periode yang tidak sesuai
+                    // dengan tanggal sebenarnya di rows.
+                    GUDANG_HISTORY = normalizeGudangHistoryPeriods(restoredHistory);
                     saveGudangHistoryToStorage(GUDANG_HISTORY);
                     const keys = gudangHistoryKeysSorted();
                     GUDANG_SELECTED_PERIOD = (restoredSelected && GUDANG_HISTORY[restoredSelected]) ?
