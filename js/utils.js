@@ -344,8 +344,43 @@ export function cekAmountScore(paid, nominal) {
 }
 
 /**
- * Skor kemiripan dua No.Faktur berdasarkan kecocokan digit (0-8), dipakai
- * sebagai penguat kecil saat fuzzy matching (mis. kesalahan ketik 1-2 digit).
+ * Jarak edit Levenshtein antara dua string (jumlah minimum operasi
+ * sisip/hapus/ganti 1 karakter untuk mengubah a menjadi b). Dipakai oleh
+ * cekFakturSimilarity supaya typo "digit kurang/lebih" (bukan cuma digit
+ * tertukar di posisi yang sama) tetap terdeteksi mirip.
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+function levenshteinDistance(a, b) {
+    const m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    let prev = new Array(n + 1);
+    let curr = new Array(n + 1);
+    for (let j = 0; j <= n; j++) prev[j] = j;
+    for (let i = 1; i <= m; i++) {
+        curr[0] = i;
+        for (let j = 1; j <= n; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            curr[j] = Math.min(
+                prev[j] + 1, // hapus
+                curr[j - 1] + 1, // sisip
+                prev[j - 1] + cost // ganti
+            );
+        }
+        [prev, curr] = [curr, prev];
+    }
+    return prev[n];
+}
+
+/**
+ * Skor kemiripan dua No.Faktur (0-8), dipakai sebagai penguat kecil saat
+ * fuzzy matching. Pakai jarak edit Levenshtein (bukan cuma perbandingan
+ * posisi-per-posisi) supaya typo umum seperti digit tertukar, digit
+ * kurang, atau digit kelebihan (mis. "011003260800396" vs
+ * "01100360800396", beda 1 digit hilang) tetap dianggap mirip -- bukan
+ * langsung dianggap "tidak ada kecocokan" hanya karena panjangnya beda.
  * Dipakai bersama oleh tabel Cek Data Tempo & rekonsiliasi Uang Masuk.
  * @param {*} a
  * @param {*} b
@@ -354,12 +389,14 @@ export function cekAmountScore(paid, nominal) {
 export function cekFakturSimilarity(a, b) {
     a = String(a || '').replace(/\D/g, '');
     b = String(b || '').replace(/\D/g, '');
-    if (!a || !b || a.length !== b.length) return 0;
-    let same = 0;
-    for (let i = 0; i < a.length; i++) if (a[i] === b[i]) same++;
-    if (same === a.length) return 8;
-    if (same >= Math.max(4, a.length - 1)) return 3;
-    if (same >= Math.max(4, a.length - 2)) return 1;
+    if (!a || !b) return 0;
+    if (a === b) return 8;
+    // Jangan terapkan toleransi typo ke nomor pendek (< 4 digit) -- terlalu
+    // rawan collision (banyak nomor pendek yang beda transaksi tapi kebetulan mirip).
+    if (Math.min(a.length, b.length) < 4) return 0;
+    const dist = levenshteinDistance(a, b);
+    if (dist <= 1) return 3; // typo 1 digit: tertukar, kurang, atau lebih
+    if (dist <= 2) return 1; // typo 2 digit
     return 0;
 }
 
