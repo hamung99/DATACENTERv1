@@ -10198,40 +10198,84 @@
             if (savedHargaBeli && savedHargaBeli.length && window.__rapSetPriceRows) {
                 window.__rapSetPriceRows(savedHargaBeli);
             }
-            // Data Gudang (Stok Minyak, semua bulan) ikut baris cloud yang sama.
-            // Kalau cloud menang dan memang ada gudang_data tersimpan di sana,
-            // pakai itu (mendukung format baru {history,selected} maupun format
-            // lama {products,rows} dari sebelum fitur riwayat multi-bulan ada);
-            // kalau tidak, biarkan GUDANG_HISTORY lokal apa adanya supaya nanti
-            // ikut terdorong ke cloud lewat shouldPushLocalToCloud di bawah.
-            if (cloudWins && cloud.gudang_data) {
-                let restoredHistory = null, restoredSelected = null;
-                if (cloud.gudang_data.history && typeof cloud.gudang_data.history === 'object') {
-                    restoredHistory = cloud.gudang_data.history;
-                    restoredSelected = cloud.gudang_data.selected || null;
-                } else if (Array.isArray(cloud.gudang_data.products) && Array.isArray(cloud.gudang_data.rows)) {
-                    // Format lama (sebelum fitur riwayat multi-bulan): 1 snapshot saja.
-                    const key = gudangPeriodKeyFromData(cloud.gudang_data);
-                    if (key) { restoredHistory = { [key]: cloud.gudang_data }; restoredSelected = key; }
-                }
-                if (restoredHistory) {
-                    // Normalisasi lagi setelah mengambil data cloud, karena cloud
-                    // bisa berisi snapshot lama dengan key periode yang tidak sesuai
-                    // dengan tanggal sebenarnya di rows.
-                    GUDANG_HISTORY = normalizeGudangHistoryPeriods(restoredHistory);
-                    saveGudangHistoryToStorage(GUDANG_HISTORY);
-                    const keys = gudangHistoryKeysSorted();
-                    GUDANG_SELECTED_PERIOD = (restoredSelected && GUDANG_HISTORY[restoredSelected]) ?
-                        restoredSelected : (keys.length ? keys[keys.length - 1] : null);
-                    try {
-                        if (GUDANG_SELECTED_PERIOD) localStorage.setItem(GUDANG_SELECTED_PERIOD_KEY, GUDANG_SELECTED_PERIOD);
-                    } catch (err) {}
-                    GUDANG_DATA = GUDANG_SELECTED_PERIOD ? GUDANG_HISTORY[GUDANG_SELECTED_PERIOD] : emptyGudangSnapshot();
-                    if (keys.length) { try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {} }
-                    invalidateGudangCaches();
-                    if (typeof populateGudangPeriodFilter === 'function') populateGudangPeriodFilter();
-                    if (typeof updateGudangUploadStatusLabel === 'function') updateGudangUploadStatusLabel();
-                    if (typeof renderGudangTable === 'function') renderGudangTable();
+            // DATA GUDANG: JANGAN PERNAH mengganti seluruh riwayat lokal dengan
+            // riwayat cloud. Data Gudang adalah data BULANAN; cloud bisa saja masih
+            // membawa snapshot lama hanya 1 bulan. Jika langsung di-assign, bulan
+            // Agustus akan hilang ketika user baru upload September.
+            //
+            // Aturan aman:
+            // 1) ambil history cloud (format baru/lama),
+            // 2) normalisasi berdasarkan tanggal sebenarnya,
+            // 3) MERGE per bulan dengan history lokal,
+            // 4) jika bulan yang sama ada di dua tempat, pilih snapshot dengan
+            //    _meta.uploadedAt terbaru; tetapi bulan lain TIDAK BOLEH dihapus.
+            function extractCloudGudangHistory(gudangData) {
+                if (!gudangData) return {};
+                try {
+                    if (gudangData.history && typeof gudangData.history === 'object') {
+                        return normalizeGudangHistoryPeriods(gudangData.history);
+                    }
+                    if (Array.isArray(gudangData.products) && Array.isArray(gudangData.rows)) {
+                        const key = gudangPeriodKeyFromData(gudangData);
+                        return key ? normalizeGudangHistoryPeriods({ [key]: gudangData }) : {};
+                    }
+                } catch (err) { console.warn('Gagal membaca riwayat Gudang cloud:', err); }
+                return {};
+            }
+
+            function mergeGudangHistorySafe(localHistory, cloudHistory) {
+                const localH = normalizeGudangHistoryPeriods(localHistory || {});
+                const cloudH = normalizeGudangHistoryPeriods(cloudHistory || {});
+                const merged = {};
+                const keys = new Set([...Object.keys(localH), ...Object.keys(cloudH)]);
+                keys.forEach(key => {
+                    const l = localH[key];
+                    const c = cloudH[key];
+                    if (!l) { merged[key] = c; return; }
+                    if (!c) { merged[key] = l; return; }
+                    const lt = l._meta && l._meta.uploadedAt ? new Date(l._meta.uploadedAt).getTime() : 0;
+                    const ct = c._meta && c._meta.uploadedAt ? new Date(c._meta.uploadedAt).getTime() : 0;
+                    // Bila timestamp sama/tidak ada, pilih data dengan baris lebih banyak.
+                    // Yang penting: hanya bulan YANG SAMA yang boleh saling mengganti.
+                    merged[key] = (ct > lt || (ct === lt && (c.rows || []).length >= (l.rows || []).length)) ? c : l;
+                });
+                return merged;
+            }
+
+            const localGudangBeforeCloud = normalizeGudangHistoryPeriods(GUDANG_HISTORY || {});
+            const cloudGudangHistory = extractCloudGudangHistory(cloud && cloud.gudang_data);
+            const mergedGudangHistory = mergeGudangHistorySafe(localGudangBeforeCloud, cloudGudangHistory);
+
+            if (Object.keys(mergedGudangHistory).length) {
+                const localChangedDuringStartup = JSON.stringify(mergedGudangHistory) !== JSON.stringify(localGudangBeforeCloud);
+                GUDANG_HISTORY = mergedGudangHistory;
+                saveGudangHistoryToStorage(GUDANG_HISTORY);
+                const keys = gudangHistoryKeysSorted();
+
+                // Pertahankan pilihan bulan lokal bila masih ada. Kalau tidak ada,
+                // gunakan pilihan cloud bila valid, lalu bulan paling baru.
+                let savedSelected = null;
+                try { savedSelected = localStorage.getItem(GUDANG_SELECTED_PERIOD_KEY); } catch (err) {}
+                const cloudSelected = cloud && cloud.gudang_data && cloud.gudang_data.selected;
+                GUDANG_SELECTED_PERIOD = (savedSelected && GUDANG_HISTORY[savedSelected]) ? savedSelected :
+                    ((cloudSelected && GUDANG_HISTORY[cloudSelected]) ? cloudSelected :
+                    (keys.length ? keys[keys.length - 1] : null));
+                try {
+                    if (GUDANG_SELECTED_PERIOD) localStorage.setItem(GUDANG_SELECTED_PERIOD_KEY, GUDANG_SELECTED_PERIOD);
+                } catch (err) {}
+                GUDANG_DATA = GUDANG_SELECTED_PERIOD ? GUDANG_HISTORY[GUDANG_SELECTED_PERIOD] : emptyGudangSnapshot();
+                try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {}
+                invalidateGudangCaches();
+                if (typeof populateGudangPeriodFilter === 'function') populateGudangPeriodFilter();
+                if (typeof updateGudangUploadStatusLabel === 'function') updateGudangUploadStatusLabel();
+                if (typeof renderGudangTable === 'function') renderGudangTable();
+
+                // Bila merge menemukan bulan lokal yang belum ada di cloud, dorong
+                // kembali history LENGKAP ke cloud. Ini mencegah Agustus hilang
+                // hanya karena cloud sebelumnya berisi September saja.
+                if (localChangedDuringStartup || (hasLocalGudangData && cloudGudangHistory &&
+                    Object.keys(localGudangBeforeCloud).length > Object.keys(cloudGudangHistory).length)) {
+                    shouldPushLocalToCloud = true;
                 }
             }
             // Push lokal->cloud (kalau lokal lebih baru) baru dilakukan DI SINI,
