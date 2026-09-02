@@ -4734,17 +4734,59 @@
         function normalizeGudangHistoryPeriods(historyObj) {
             const src = (historyObj && typeof historyObj === 'object') ? historyObj : {};
             const out = {};
+
+            // PENTING:
+            // Jangan menentukan periode hanya dari key atau baris pertama.
+            // Jika sebuah snapshot ternyata berisi tanggal Agustus + September,
+            // pecah menjadi snapshot per bulan. Dengan begitu pilihan "September"
+            // tidak mungkin lagi menampilkan baris "01 Aug".
             Object.keys(src).forEach(oldKey => {
                 const data = src[oldKey];
-                const actualKey = gudangPeriodKeyFromData(data) || oldKey;
-                if (!out[actualKey]) {
-                    out[actualKey] = data;
-                } else {
-                    // Jika terjadi benturan key, pilih snapshot yang lebih baru.
-                    const a = out[actualKey] && out[actualKey]._meta && out[actualKey]._meta.uploadedAt;
-                    const b = data && data._meta && data._meta.uploadedAt;
-                    if (b && (!a || String(b) > String(a))) out[actualKey] = data;
+                if (!data || !Array.isArray(data.rows) || !data.rows.length) {
+                    if (!out[oldKey]) out[oldKey] = data;
+                    return;
                 }
+
+                const groups = {};
+                data.rows.forEach(row => {
+                    const iso = row && row[0] ? String(row[0]) : '';
+                    const m = iso.match(/^(\d{4})-(\d{2})-/);
+                    const key = m ? (m[1] + '-' + m[2]) : oldKey;
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(row);
+                });
+
+                Object.keys(groups).forEach(actualKey => {
+                    const rows = groups[actualKey].slice().sort((a,b) =>
+                        String(a[0] || '').localeCompare(String(b[0] || ''))
+                    );
+
+                    const mm = /^(\d{4})-(\d{2})$/.exec(actualKey);
+                    const monthName = mm ? (GUDANG_MONTHS_ID[Number(mm[2])-1] || data.bulan || '—') : (data.bulan || '—');
+                    const yearValue = mm ? Number(mm[1]) : (data.tahun || '—');
+
+                    const snapshot = Object.assign({}, data, {
+                        bulan: monthName,
+                        tahun: yearValue,
+                        rows: rows
+                    });
+
+                    // Pertahankan metadata upload/file.
+                    if (data._meta) snapshot._meta = Object.assign({}, data._meta);
+
+                    const existing = out[actualKey];
+                    if (!existing) {
+                        out[actualKey] = snapshot;
+                    } else {
+                        const a = existing._meta && existing._meta.uploadedAt;
+                        const b = snapshot._meta && snapshot._meta.uploadedAt;
+                        if (b && (!a || String(b) > String(a))) {
+                            out[actualKey] = snapshot;
+                        } else if (Array.isArray(existing.rows) && existing.rows.length < rows.length) {
+                            out[actualKey] = snapshot;
+                        }
+                    }
+                });
             });
             return out;
         }
@@ -4894,7 +4936,16 @@
                 '<td class="num">—</td>' +
                 '<td class="num">' + gudangFmtNum(d.saldo[d.saldo.length - 1]) + '</td></tr>';
 
-            d.rows.forEach(r => {
+            // PENGAMAN TERAKHIR:
+            // Walaupun ada data lama/corrupt di storage, tabel hanya boleh
+            // menampilkan tanggal yang sesuai dengan bulan pada dropdown.
+            const activePeriodKey = GUDANG_SELECTED_PERIOD || gudangPeriodKeyFromData(d);
+            const tableRows = (d.rows || []).filter(r => {
+                const iso = r && r[0] ? String(r[0]) : '';
+                return !activePeriodKey || iso.indexOf(activePeriodKey + '-') === 0;
+            });
+
+            tableRows.forEach(r => {
                 bodyRows += '<tr><td style="white-space:nowrap;">' + gudangFmtDate(r[0]) + '</td>' +
                     rowCells(r) +
                     '<td class="num">' + gudangFmtNum(r[r.length - 2]) + '</td>' +
@@ -4919,8 +4970,17 @@
             if (!products.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
             el.classList.add('show');
 
+            // Baris kartu dibatasi ke bulan yang sedang dipilih.
+            const activePeriodKey = GUDANG_SELECTED_PERIOD || gudangPeriodKeyFromData(d);
+            const monthRows = (d.rows || []).filter(r => {
+                const iso = r && r[0] ? String(r[0]) : '';
+                return !activePeriodKey || iso.indexOf(activePeriodKey + '-') === 0;
+            });
+
             // Baris (tanggal) yang termasuk cakupan kartu, ikut filter tanggal aktif.
-            let scopeRows = ringkasanFilterDate ? d.rows.filter(r => r[0] === ringkasanFilterDate) : d.rows;
+            let scopeRows = ringkasanFilterDate
+                ? monthRows.filter(r => r[0] === ringkasanFilterDate)
+                : monthRows;
             const num = v => (v === null || v === undefined || v === '') ? 0 : Number(v);
 
             let totalMasuk = 0,
