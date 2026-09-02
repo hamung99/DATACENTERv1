@@ -831,6 +831,10 @@
         <div id="tabGudang" style="display:none;">
             <div class="ringkasan-date-filter" id="ringkasanDateWrap" style="margin-bottom:10px;">
                 <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;white-space:nowrap;">
+                    🗓️ Bulan
+                    <select id="gudangPeriodFilter" onchange="setGudangSelectedPeriod(this.value)" style="font-size:0.78rem;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);"></select>
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;white-space:nowrap;">
                     📅 Filter Tanggal
                     <input type="date" id="ringkasanDateFilter" onchange="onRingkasanDateFilterChange()">
                 </label>
@@ -1624,7 +1628,8 @@
                         sales_rows: salesRows,
                         rapikan_rows: (window.__rapGetCleanRows && window.__rapGetCleanRows()) || [],
                         harga_beli_rows: (window.__rapGetPriceRows && window.__rapGetPriceRows()) || [],
-                        gudang_data: (typeof GUDANG_DATA !== 'undefined') ? GUDANG_DATA : null,
+                        gudang_data: (typeof GUDANG_HISTORY !== 'undefined') ?
+                            { history: GUDANG_HISTORY, selected: (typeof GUDANG_SELECTED_PERIOD !== 'undefined' ? GUDANG_SELECTED_PERIOD : null) } : null,
                         updated_at: nowIso
                     });
                 if (error) throw error;
@@ -4647,42 +4652,146 @@
         const GUDANG_DATA_DEFAULT = {"bulan": "AGUSTUS", "tahun": 2026, "products": [{"name": "FITRI BOTOL 400 ML", "col": 1}, {"name": "FITRI BOTOL 200 ML", "col": 4}, {"name": "FITRI BOTOL 450 ML", "col": 7}, {"name": "FITRI 5 L", "col": 10}, {"name": "FITRI BOTOL 1800 ML", "col": 13}, {"name": "FITRI BOTOL 800 ML", "col": 16}, {"name": "FITRI BOTOL 850 ML", "col": 19}, {"name": "RIZKI BOTOL 850 ML", "col": 22}, {"name": "RIZKI BOTOL 800 ML", "col": 25}, {"name": "MINYAK GORENG CURAH", "col": 28}, {"name": "BONUS MINYAK CURAH", "col": 31}, {"name": "FRAISWELL REFIL 2 L", "col": 34}], "saldo": ["Saldo Awal", null, null, 2556, null, null, 894, null, null, 0, null, null, 0, null, null, 0, null, null, 460, null, null, 0, null, null, 0, null, null, 0, null, null, 1.9166666666665906, null, null, 0, null, null, 0, null, 3910], "rows": [["2026-08-01", null, 54, 2502, null, 142, 752, null, 0, 0, null, 0, 0, null, 0, 0, null, 78, 382, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 274, 3636], ["2026-08-02", null, 0, 2502, null, 0, 752, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 382, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 0, 3636], ["2026-08-03", null, 28, 2474, null, 32, 720, null, 0, 0, null, 0, 0, null, 0, 0, null, 99, 283, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 159, 3477], ["2026-08-04", null, 33, 2441, null, 32, 688, null, 0, 0, null, 0, 0, null, 0, 0, null, 76, 207, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 141, 3336], ["2026-08-05", null, 48, 2393, null, 12, 676, null, 0, 0, null, 0, 0, null, 0, 0, null, 98, 109, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 158, 3178], ["2026-08-06", null, 41, 2352, null, 147, 529, null, 0, 0, null, 0, 0, null, 0, 0, null, 64, 45, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 252, 2926], ["2026-08-07", null, 15, 2337, null, 15, 514, null, 0, 0, null, 0, 0, null, 0, 0, null, 32, 13, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 62, 2864], ["2026-08-08", null, 18, 2319, null, 12, 502, null, 0, 0, null, 0, 0, null, 0, 0, null, 12, 1, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 42, 2822], ["2026-08-09", null, 0, 2319, null, 0, 502, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 0, 2822], ["2026-08-10", null, 6, 2313, null, 19, 483, null, 0, 0, null, 0, 0, null, 0, 0, null, 1, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 26, 2796], ["2026-08-11", null, 25, 2288, null, 23, 460, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 48, 2748], ["2026-08-12", null, 97, 2191, null, 39, 421, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 136, 2612], ["2026-08-13", null, 29, 2162, null, 22, 399, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 51, 2561], ["2026-08-14", null, 57, 2105, null, 25, 374, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 82, 2479], ["2026-08-15", null, 76, 2029, null, 112, 262, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 188, 2291], ["2026-08-16", null, 0, 2029, null, 0, 262, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 0, 2291], ["2026-08-17", null, 36, 1993, null, 77, 185, null, 0, 0, null, 0, 0, null, 0, 0, 2600, 0, 2600, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 113, 4778], ["2026-08-18", null, 40, 1953, null, 27, 158, null, 0, 0, null, 0, 0, null, 0, 0, null, 108, 2492, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 175, 4603], ["2026-08-19", null, 27, 1926, null, 51, 107, null, 0, 0, null, 0, 0, null, 0, 0, null, 169, 2323, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 247, 4356], ["2026-08-20", null, 31, 1895, null, 31, 76, null, 0, 0, null, 0, 0, null, 0, 0, null, 73, 2250, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 135, 4221], ["2026-08-21", null, 37, 1858, null, 15, 61, null, 0, 0, null, 0, 0, null, 0, 0, null, 120, 2130, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 172, 4049], ["2026-08-22", null, 26, 1832, null, 26, 35, null, 0, 0, null, 0, 0, null, 0, 0, null, 88, 2042, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 140, 3909], ["2026-08-23", null, 0, 1832, null, 0, 35, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 2042, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 0, 3909], ["2026-08-24", null, 14, 1818, null, 13, 22, null, 0, 0, null, 0, 0, null, 0, 0, null, 165, 1877, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 192, 3717], ["2026-08-25", null, 38, 1780, null, 19, 3, null, 0, 0, null, 0, 0, null, 0, 0, null, 107, 1770, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 164, 3553], ["2026-08-26", null, 60, 1720, null, 1, 2, null, 0, 0, null, 0, 0, null, 0, 0, null, 96, 1674, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 157, 3396], ["2026-08-27", null, 63, 1657, null, 0, 2, null, 0, 0, null, 0, 0, null, 0, 0, null, 101, 1573, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 164, 3232], ["2026-08-28", null, 45, 1612, null, 0, 2, null, 0, 0, null, 0, 0, null, 0, 0, null, 65, 1508, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 110, 3122], ["2026-08-29", null, 92, 1520, null, 0, 2, null, 0, 0, null, 0, 0, null, 0, 0, null, 144, 1364, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 236, 2886]]}
 ;
 
-        // Kunci localStorage untuk menyimpan data Gudang hasil upload (persisten
-        // di browser ini). Tidak ikut sinkronisasi cloud Supabase seperti
-        // Uang Masuk/Penjualan (itu perlu perubahan skema tabel di server).
-        const GUDANG_STORAGE_KEY = 'gudang_data_v1';
-        const GUDANG_META_FILENAME_KEY = 'gudang_data_filename';
-        const GUDANG_META_UPLOADED_AT_KEY = 'gudang_data_uploaded_at';
+        // Kunci localStorage untuk menyimpan RIWAYAT data Gudang (banyak bulan
+        // sekaligus, key = "YYYY-MM"), persisten di browser ini dan ikut sync
+        // ke cloud Supabase (lihat pushToSupabase/pullFromSupabase).
+        const GUDANG_STORAGE_KEY = 'gudang_data_v1'; // legacy: snapshot 1 bulan (dipakai utk migrasi data lama)
+        const GUDANG_HISTORY_KEY = 'gudang_data_history_v1';
+        const GUDANG_SELECTED_PERIOD_KEY = 'gudang_selected_period_v1';
+        const GUDANG_META_FILENAME_KEY = 'gudang_data_filename'; // legacy, tidak dipakai lagi utk tulis baru
+        const GUDANG_META_UPLOADED_AT_KEY = 'gudang_data_uploaded_at'; // legacy
         // Penanda permanen bahwa user memang memilih mengosongkan Data Gudang.
         // Ini penting agar refresh tidak menghidupkan kembali GUDANG_DATA_DEFAULT.
         const GUDANG_EMPTY_FLAG_KEY = 'gudang_data_empty_v1';
 
-        function loadGudangDataFromStorage() {
-            try {
-                // Jika user sebelumnya menekan "Hapus Data Bawaan", kondisi kosong
-                // harus tetap dipertahankan setelah refresh/reload.
-                if (localStorage.getItem(GUDANG_EMPTY_FLAG_KEY) === '1') {
-                    return { bulan: '—', tahun: '—', products: [], saldo: ['Saldo Awal'], rows: [] };
-                }
-                const raw = localStorage.getItem(GUDANG_STORAGE_KEY);
-                if (!raw) return null;
-                const parsed = JSON.parse(raw);
-                if (parsed && Array.isArray(parsed.products) && Array.isArray(parsed.rows)) return parsed;
-            } catch (err) { /* abaikan, pakai default */ }
+        const GUDANG_MONTHS_ID = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+
+        // Kunci periode "YYYY-MM" dari sebuah objek data gudang (dipakai sebagai
+        // key di GUDANG_HISTORY). Diambil dari tanggal baris pertama supaya akurat
+        // walau field bulan/tahun di objek keliru.
+        function gudangPeriodKeyFromData(d) {
+            if (d && Array.isArray(d.rows) && d.rows.length && d.rows[0][0]) {
+                const iso = String(d.rows[0][0]);
+                const m = iso.match(/^(\d{4})-(\d{2})/);
+                if (m) return m[1] + '-' + m[2];
+            }
+            if (d && d.tahun && d.bulan) {
+                const idx = GUDANG_MONTHS_ID.indexOf(String(d.bulan).toUpperCase());
+                if (idx >= 0) return d.tahun + '-' + String(idx + 1).padStart(2, '0');
+            }
             return null;
         }
 
-        function saveGudangDataToStorage(data) {
-            try { localStorage.setItem(GUDANG_STORAGE_KEY, JSON.stringify(data)); } catch (err) {
-                console.error('Gagal menyimpan data gudang ke localStorage:', err);
+        function gudangPeriodLabel(key) {
+            const m = /^(\d{4})-(\d{2})$/.exec(key || '');
+            if (!m) return key || '—';
+            const bulanNama = GUDANG_MONTHS_ID[Number(m[2]) - 1] || '?';
+            return bulanNama.charAt(0) + bulanNama.slice(1).toLowerCase() + ' ' + m[1];
+        }
+
+        function emptyGudangSnapshot() {
+            return { bulan: '—', tahun: '—', products: [], saldo: ['Saldo Awal'], rows: [] };
+        }
+
+        function loadGudangHistoryFromStorage() {
+            try {
+                if (localStorage.getItem(GUDANG_EMPTY_FLAG_KEY) === '1') return {};
+                const raw = localStorage.getItem(GUDANG_HISTORY_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object') return parsed;
+                }
+                // Migrasi dari format lama (1 snapshot tunggal) kalau ada, supaya
+                // user yang sudah pernah upload sebelum fitur ini tidak kehilangan data.
+                const legacyRaw = localStorage.getItem(GUDANG_STORAGE_KEY);
+                if (legacyRaw) {
+                    const legacy = JSON.parse(legacyRaw);
+                    if (legacy && Array.isArray(legacy.products) && Array.isArray(legacy.rows) && legacy.rows.length) {
+                        const key = gudangPeriodKeyFromData(legacy);
+                        if (key) return { [key]: legacy };
+                    }
+                }
+            } catch (err) { /* abaikan, pakai kosong */ }
+            return {};
+        }
+
+        function saveGudangHistoryToStorage(historyObj) {
+            try { localStorage.setItem(GUDANG_HISTORY_KEY, JSON.stringify(historyObj)); } catch (err) {
+                console.error('Gagal menyimpan riwayat data gudang ke localStorage:', err);
             }
         }
 
-        // GUDANG_DATA yang dipakai di seluruh aplikasi: kalau user pernah upload
-        // (tersimpan di localStorage), pakai itu; kalau belum, pakai snapshot bawaan.
-        let GUDANG_DATA = loadGudangDataFromStorage() || GUDANG_DATA_DEFAULT;
+        // GUDANG_HISTORY: seluruh bulan yang pernah diupload, key "YYYY-MM".
+        // Kalau kosong sama sekali (belum pernah upload & belum pernah dikosongkan
+        // manual), pakai 1 data contoh bawaan supaya tab tidak kosong total.
+        let GUDANG_HISTORY = loadGudangHistoryFromStorage();
+        if (!Object.keys(GUDANG_HISTORY).length && localStorage.getItem(GUDANG_EMPTY_FLAG_KEY) !== '1') {
+            const defKey = gudangPeriodKeyFromData(GUDANG_DATA_DEFAULT);
+            if (defKey) GUDANG_HISTORY = { [defKey]: GUDANG_DATA_DEFAULT };
+        }
 
-        const GUDANG_MONTHS_ID = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
+        function gudangHistoryKeysSorted() {
+            return Object.keys(GUDANG_HISTORY).sort(); // "YYYY-MM" -> urut kronologis
+        }
+
+        // Bulan yang sedang ditampilkan di tab Data Gudang.
+        let GUDANG_SELECTED_PERIOD = null;
+        (function initGudangSelectedPeriod() {
+            const keys = gudangHistoryKeysSorted();
+            if (!keys.length) { GUDANG_SELECTED_PERIOD = null; return; }
+            let saved = null;
+            try { saved = localStorage.getItem(GUDANG_SELECTED_PERIOD_KEY); } catch (err) {}
+            GUDANG_SELECTED_PERIOD = (saved && GUDANG_HISTORY[saved]) ? saved : keys[keys.length - 1];
+        })();
+
+        // GUDANG_DATA: data bulan yang sedang aktif/ditampilkan (dipakai oleh
+        // seluruh fungsi render & perbandingan Output Gudang di bawah, sama
+        // seperti sebelumnya -- sekarang isinya mengikuti pilihan dropdown bulan).
+        let GUDANG_DATA = GUDANG_SELECTED_PERIOD ? GUDANG_HISTORY[GUDANG_SELECTED_PERIOD] : emptyGudangSnapshot();
+
+        // Legacy helper (dipertahankan supaya kode lain yang mungkin masih
+        // memanggilnya tidak error), sekarang menulis ke snapshot bulan terpilih.
+        function saveGudangDataToStorage(data) {
+            try { localStorage.setItem(GUDANG_STORAGE_KEY, JSON.stringify(data)); } catch (err) {}
+        }
+
+        function setGudangSelectedPeriod(key) {
+            if (!GUDANG_HISTORY[key]) return;
+            GUDANG_SELECTED_PERIOD = key;
+            try { localStorage.setItem(GUDANG_SELECTED_PERIOD_KEY, key); } catch (err) {}
+            GUDANG_DATA = GUDANG_HISTORY[key];
+            invalidateGudangCaches();
+            updateGudangUploadStatusLabel();
+            populateGudangPeriodFilter();
+            renderGudangTable();
+            if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
+                renderRingkasanCekTab();
+            }
+            if (typeof renderRingkasan === 'function') {
+                const rowsForRingkasan = (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length)
+                    ? ringkasanBaseRows
+                    : ((typeof lastSalesFiltered !== 'undefined' && lastSalesFiltered && lastSalesFiltered.length)
+                        ? lastSalesFiltered
+                        : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
+                renderRingkasan(rowsForRingkasan);
+            }
+        }
+
+        // Isi ulang dropdown "🗓️ Bulan" di tab Data Gudang berdasarkan
+        // GUDANG_HISTORY yang tersedia (terbaru di atas).
+        function populateGudangPeriodFilter() {
+            const sel = document.getElementById('gudangPeriodFilter');
+            if (!sel) return;
+            const keys = gudangHistoryKeysSorted().slice().reverse();
+            if (!keys.length) {
+                sel.innerHTML = '<option value="">Belum ada data</option>';
+                sel.disabled = true;
+                return;
+            }
+            sel.disabled = false;
+            sel.innerHTML = keys.map(k => '<option value="' + k + '"' +
+                (k === GUDANG_SELECTED_PERIOD ? ' selected' : '') + '>' + esc(gudangPeriodLabel(k)) + '</option>').join('');
+        }
 
         function gudangFmtNum(v) {
             if (v === null || v === undefined || v === '') return '—';
@@ -4999,16 +5108,16 @@
         function updateGudangUploadStatusLabel() {
             const statusEl = document.getElementById('gudangUploadStatus');
             if (!statusEl) return;
-            let fname = null, ts = null;
-            try {
-                fname = localStorage.getItem(GUDANG_META_FILENAME_KEY);
-                ts = localStorage.getItem(GUDANG_META_UPLOADED_AT_KEY);
-            } catch (err) {}
-            if (fname && ts) {
-                const d = new Date(ts);
-                statusEl.textContent = '📄 ' + fname + ' — diupload ' + d.toLocaleString('id-ID');
+            const periodData = GUDANG_SELECTED_PERIOD ? GUDANG_HISTORY[GUDANG_SELECTED_PERIOD] : null;
+            const meta = periodData && periodData._meta;
+            if (meta && meta.filename && meta.uploadedAt) {
+                const d = new Date(meta.uploadedAt);
+                statusEl.textContent = '📄 ' + gudangPeriodLabel(GUDANG_SELECTED_PERIOD) + ': ' + meta.filename +
+                    ' — diupload ' + d.toLocaleString('id-ID');
+            } else if (periodData) {
+                statusEl.textContent = gudangPeriodLabel(GUDANG_SELECTED_PERIOD) + ': memakai data bawaan aplikasi (belum pernah upload)';
             } else {
-                statusEl.textContent = 'Memakai data bawaan aplikasi (belum pernah upload)';
+                statusEl.textContent = 'Belum ada data. Upload file Stok Gudang untuk mulai.';
             }
         }
 
@@ -5063,20 +5172,17 @@
                 parsed.rows.sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')));
 
                 GUDANG_DATA = parsed;
+                const periodKey = gudangPeriodKeyFromData(parsed);
+                if (!periodKey) throw new Error('Tidak bisa menentukan bulan/tahun dari data yang diupload.');
+                parsed._meta = { filename: file.name, uploadedAt: new Date().toISOString() };
+                GUDANG_HISTORY[periodKey] = parsed;
                 invalidateGudangCaches();
                 // Upload baru membatalkan status "kosong" sebelumnya.
                 try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {}
-                saveGudangDataToStorage(parsed);
+                saveGudangHistoryToStorage(GUDANG_HISTORY);
+                setGudangSelectedPeriod(periodKey);
                 queueCloudSync();
-                try {
-                    localStorage.setItem(GUDANG_META_FILENAME_KEY, file.name);
-                    localStorage.setItem(GUDANG_META_UPLOADED_AT_KEY, new Date().toISOString());
-                } catch (err) {}
                 updateGudangUploadStatusLabel();
-                renderGudangTable();
-                if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
-                    renderRingkasanCekTab();
-                }
                 // Tabel "PENJUALAN FITRI" di tab Data Penjualan (kolom OUTPUT
                 // GUDANG/SELISIH/KET) punya render terpisah dari tab Gudang dan
                 // memakai cache ringkasanBaseRows -- refresh juga di sini supaya
@@ -5109,56 +5215,45 @@
         }
 
         function resetGudangData() {
-            if (!confirm('Hapus data Gudang hasil upload dan kembalikan ke data CONTOH bawaan aplikasi (bukan data gudang asli kamu)?')) return;
+            if (!confirm('Hapus SEMUA riwayat data Gudang hasil upload (semua bulan) dan kembalikan ke data CONTOH bawaan aplikasi (bukan data gudang asli kamu)?')) return;
             try {
                 localStorage.removeItem(GUDANG_STORAGE_KEY);
+                localStorage.removeItem(GUDANG_HISTORY_KEY);
+                localStorage.removeItem(GUDANG_SELECTED_PERIOD_KEY);
                 localStorage.removeItem(GUDANG_META_FILENAME_KEY);
                 localStorage.removeItem(GUDANG_META_UPLOADED_AT_KEY);
                 localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY);
             } catch (err) {}
-            GUDANG_DATA = GUDANG_DATA_DEFAULT;
-            invalidateGudangCaches();
-            updateGudangUploadStatusLabel();
-            renderGudangTable();
+            const defKey = gudangPeriodKeyFromData(GUDANG_DATA_DEFAULT);
+            GUDANG_HISTORY = defKey ? { [defKey]: GUDANG_DATA_DEFAULT } : {};
+            setGudangSelectedPeriod(defKey || null);
             queueCloudSync();
-            if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
-                renderRingkasanCekTab();
-            }
-            if (typeof renderRingkasan === 'function') {
-                const rowsForRingkasan = (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length)
-                    ? ringkasanBaseRows
-                    : ((typeof lastSalesFiltered !== 'undefined' && lastSalesFiltered && lastSalesFiltered.length)
-                        ? lastSalesFiltered
-                        : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
-                renderRingkasan(rowsForRingkasan);
-            }
         }
 
-        // Kosongkan SEPENUHNYA data Gudang: hapus cache localStorage DAN jangan
-        // jatuh balik ke GUDANG_DATA_DEFAULT (data contoh bawaan aplikasi).
-        // Berguna kalau ada snapshot lama di localStorage yang basi/salah
-        // (misal ke-parse pakai kode lama sebelum ada perbaikan bug), supaya
-        // tidak diam-diam terus terpakai -- user jadi jelas melihat kosong dan
-        // wajib upload ulang file gudang yang terbaru.
+        // Kosongkan SEPENUHNYA data Gudang: hapus seluruh riwayat bulan di
+        // localStorage DAN jangan jatuh balik ke GUDANG_DATA_DEFAULT (data
+        // contoh bawaan aplikasi). Berguna kalau ada snapshot lama yang
+        // basi/salah, supaya tidak diam-diam terus terpakai -- user jadi jelas
+        // melihat kosong dan wajib upload ulang file gudang yang terbaru.
         function hapusDataGudangSepenuhnya() {
-            if (!confirm('Kosongkan SEMUA data Gudang (baik hasil upload maupun data contoh bawaan)? Kamu perlu upload ulang file Stok Gudang setelah ini.')) return;
-            const empty = { bulan: '—', tahun: '—', products: [], saldo: ['Saldo Awal'], rows: [] };
+            if (!confirm('Kosongkan SEMUA data Gudang (semua bulan hasil upload maupun data contoh bawaan)? Kamu perlu upload ulang file Stok Gudang setelah ini.')) return;
             try {
                 // PENTING: simpan status "kosong" ini KE localStorage (bukan cuma
-                // dihapus), supaya saat halaman di-refresh, loadGudangDataFromStorage()
-                // menemukan objek kosong ini dan TIDAK jatuh balik ke
-                // GUDANG_DATA_DEFAULT (data contoh bawaan). Kalau cuma di-removeItem,
-                // refresh akan bikin data contoh bawaan muncul lagi.
-                // Simpan dua lapis: snapshot kosong + flag khusus.
-                // Flag memastikan refresh TIDAK pernah fallback ke data bawaan.
-                saveGudangDataToStorage(empty);
+                // dihapus), supaya saat halaman di-refresh, loadGudangHistoryFromStorage()
+                // mengembalikan {} dan TIDAK jatuh balik ke GUDANG_DATA_DEFAULT.
                 localStorage.setItem(GUDANG_EMPTY_FLAG_KEY, '1');
+                localStorage.removeItem(GUDANG_STORAGE_KEY);
+                localStorage.removeItem(GUDANG_HISTORY_KEY);
+                localStorage.removeItem(GUDANG_SELECTED_PERIOD_KEY);
                 localStorage.removeItem(GUDANG_META_FILENAME_KEY);
                 localStorage.removeItem(GUDANG_META_UPLOADED_AT_KEY);
             } catch (err) {}
-            GUDANG_DATA = empty;
+            GUDANG_HISTORY = {};
+            GUDANG_SELECTED_PERIOD = null;
+            GUDANG_DATA = emptyGudangSnapshot();
             invalidateGudangCaches();
             updateGudangUploadStatusLabel();
+            populateGudangPeriodFilter();
             renderGudangTable();
             queueCloudSync();
             if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
@@ -5175,6 +5270,7 @@
             alert('✅ Data Gudang sudah dikosongkan. Silakan upload ulang file Stok Gudang terbaru (sampai tanggal 31) lewat tombol "📤 Upload Stok Gudang".');
         }
 
+
         let currentGudangSub = 'gudang';
         function switchGudangMainSub(view) {
             currentGudangSub = view;
@@ -5185,6 +5281,8 @@
             const cek = document.getElementById('ringkasanCekWrap');
             if (gudang) gudang.style.display = isCek ? 'none' : 'block';
             if (cek) cek.style.display = isCek ? 'block' : 'none';
+            populateGudangPeriodFilter();
+            updateGudangUploadStatusLabel();
             if (!isCek) {
                 if (!gudangRendered) renderGudangTable();
                 else renderGudangCards();
@@ -9864,7 +9962,8 @@
                 (Array.isArray(cloud.sales_rows) && cloud.sales_rows.length) ||
                 (Array.isArray(cloud.rapikan_rows) && cloud.rapikan_rows.length) ||
                 (Array.isArray(cloud.harga_beli_rows) && cloud.harga_beli_rows.length) ||
-                (cloud.gudang_data && Array.isArray(cloud.gudang_data.rows) && cloud.gudang_data.rows.length)
+                (cloud.gudang_data && Array.isArray(cloud.gudang_data.rows) && cloud.gudang_data.rows.length) ||
+                (cloud.gudang_data && cloud.gudang_data.history && Object.keys(cloud.gudang_data.history).length)
             ));
             const cloudTs = (cloud && cloud.updated_at) ? (new Date(cloud.updated_at).getTime() || 0) : 0;
 
@@ -9947,17 +10046,38 @@
             if (savedHargaBeli && savedHargaBeli.length && window.__rapSetPriceRows) {
                 window.__rapSetPriceRows(savedHargaBeli);
             }
-            // Data Gudang (Stok Minyak) ikut baris cloud yang sama. Kalau cloud
-            // menang dan memang ada gudang_data tersimpan di sana, pakai itu;
-            // kalau tidak (mis. device ini yang pertama kali push gudang_data),
-            // biarkan GUDANG_DATA lokal apa adanya supaya nanti ikut terdorong
-            // ke cloud lewat shouldPushLocalToCloud di bawah.
-            if (cloudWins && cloud.gudang_data && Array.isArray(cloud.gudang_data.products) && Array.isArray(cloud.gudang_data.rows)) {
-                GUDANG_DATA = cloud.gudang_data;
-                saveGudangDataToStorage(GUDANG_DATA);
-                try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {}
-                invalidateGudangCaches();
-                if (typeof renderGudangTable === 'function') renderGudangTable();
+            // Data Gudang (Stok Minyak, semua bulan) ikut baris cloud yang sama.
+            // Kalau cloud menang dan memang ada gudang_data tersimpan di sana,
+            // pakai itu (mendukung format baru {history,selected} maupun format
+            // lama {products,rows} dari sebelum fitur riwayat multi-bulan ada);
+            // kalau tidak, biarkan GUDANG_HISTORY lokal apa adanya supaya nanti
+            // ikut terdorong ke cloud lewat shouldPushLocalToCloud di bawah.
+            if (cloudWins && cloud.gudang_data) {
+                let restoredHistory = null, restoredSelected = null;
+                if (cloud.gudang_data.history && typeof cloud.gudang_data.history === 'object') {
+                    restoredHistory = cloud.gudang_data.history;
+                    restoredSelected = cloud.gudang_data.selected || null;
+                } else if (Array.isArray(cloud.gudang_data.products) && Array.isArray(cloud.gudang_data.rows)) {
+                    // Format lama (sebelum fitur riwayat multi-bulan): 1 snapshot saja.
+                    const key = gudangPeriodKeyFromData(cloud.gudang_data);
+                    if (key) { restoredHistory = { [key]: cloud.gudang_data }; restoredSelected = key; }
+                }
+                if (restoredHistory) {
+                    GUDANG_HISTORY = restoredHistory;
+                    saveGudangHistoryToStorage(GUDANG_HISTORY);
+                    const keys = gudangHistoryKeysSorted();
+                    GUDANG_SELECTED_PERIOD = (restoredSelected && GUDANG_HISTORY[restoredSelected]) ?
+                        restoredSelected : (keys.length ? keys[keys.length - 1] : null);
+                    try {
+                        if (GUDANG_SELECTED_PERIOD) localStorage.setItem(GUDANG_SELECTED_PERIOD_KEY, GUDANG_SELECTED_PERIOD);
+                    } catch (err) {}
+                    GUDANG_DATA = GUDANG_SELECTED_PERIOD ? GUDANG_HISTORY[GUDANG_SELECTED_PERIOD] : emptyGudangSnapshot();
+                    if (keys.length) { try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {} }
+                    invalidateGudangCaches();
+                    if (typeof populateGudangPeriodFilter === 'function') populateGudangPeriodFilter();
+                    if (typeof updateGudangUploadStatusLabel === 'function') updateGudangUploadStatusLabel();
+                    if (typeof renderGudangTable === 'function') renderGudangTable();
+                }
             }
             // Push lokal->cloud (kalau lokal lebih baru) baru dilakukan DI SINI,
             // setelah Rapikan/Harga Beli sudah masuk ke memori -- supaya payload
