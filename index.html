@@ -3901,7 +3901,7 @@
                 '<td class="toko">' + esc(r.customer) + '</td>' +
                 '<td class="muted">' + esc(r.alamat) + '</td>' +
                 '<td>' + esc(r.pembayaran) + '</td>' +
-                '<td class="num">' + fmt(r.hargaBeli) + '</td>' +
+                '<td class="num">' + r.hargaBeli + '</td>' +
                 '</tr>';
         }, { rowHeight: 54, colspan: 14 });
 
@@ -6234,12 +6234,20 @@
             return mon === 'all' ? 'Semua Bulan' : mon;
         }
 
+        // Tampilkan harga asli sebagai rentang terendah - tertinggi.
+        // Nilai rata-rata hanya boleh dipakai untuk perhitungan HPP/profit,
+        // bukan untuk kolom harga yang dilihat pengguna.
+        function hargaRange(min, max) {
+            if (!Number.isFinite(min) || !Number.isFinite(max)) return '—';
+            return fmt(min) + ' - ' + fmt(max);
+        }
+
         function renderProfitProduk(rows) {
             const map = {};
             for (const r of rows) {
                 const name = (r.produk || '').trim() || '—';
                 if (!map[name]) {
-                    map[name] = { produk: name, qty: 0, totalJual: 0, totalHpp: 0, hjPrices: [], hbSum: 0, hjCnt: 0 };
+                    map[name] = { produk: name, qty: 0, totalJual: 0, totalHpp: 0, hjPrices: [], hbPrices: [], hbSum: 0, hjCnt: 0 };
                 }
                 const g = map[name];
                 const qty = r.jumlah || 0;
@@ -6250,7 +6258,7 @@
                     g.hjPrices.push(r.hargaJual);
                     g.hjCnt++; 
                 }
-                if (r.hargaBeli) { g.hbSum += r.hargaBeli; }
+                if (r.hargaBeli) { g.hbSum += r.hargaBeli; g.hbPrices.push(r.hargaBeli); }
             }
             const list = Object.values(map).sort((a, b) => compareProdukName(a.produk, b.produk));
             lastProfitProdukRows = list.map(g => {
@@ -6260,7 +6268,7 @@
                     const maxHj = Math.max(...g.hjPrices);
                     hargaJual = minHj === maxHj ? minHj : { min: minHj, max: maxHj, isRange: true };
                 }
-                const hargaBeli = g.qty ? Math.round(g.totalHpp / g.qty) : 0;
+                const hargaBeli = g.hbPrices.length ? hargaRange(Math.min(...g.hbPrices), Math.max(...g.hbPrices)) : '—';
                 const profit = g.totalJual - g.totalHpp;
                 const margin = g.totalJual ? (profit / g.totalJual * 100) : 0;
                 return { produk: g.produk, qty: g.qty, totalPenjualan: g.totalJual, totalHpp: g.totalHpp, hargaJual,
@@ -6283,7 +6291,7 @@
                 sumHpp += r.totalHpp;
                 sumProfit += r.profit;
                 const hjDisplay = typeof r.hargaJual === 'object' && r.hargaJual.isRange 
-                    ? fmt(r.hargaJual.max) + ' - ' + fmt(r.hargaJual.min)
+                    ? fmt(r.hargaJual.min) + ' - ' + fmt(r.hargaJual.max)
                     : fmt(r.hargaJual);
                 const hjCell = r.hargaJual ? '<td class="num hj-clickable" onclick="openHargaJualModal(\'' +
                     esc(r.produk).replace(/'/g, "\\'") + '\')" title="Klik untuk lihat detail transaksi per harga jual">' +
@@ -6317,7 +6325,7 @@
                 const name = (r.produk || '').trim() || '—';
                 if (!map[name]) {
                     map[name] = { produk: name, nomCash: 0, nomTempo: 0, profitCash: 0, profitTempo: 0,
-                        totalQty: 0, beliXQty: 0, minHargaJual: Infinity, maxHargaJual: -Infinity };
+                        totalQty: 0, beliXQty: 0, minHargaBeli: Infinity, maxHargaBeli: -Infinity, minHargaJual: Infinity, maxHargaJual: -Infinity };
                 }
                 const g = map[name];
                 const qty = r.jumlah || 0;
@@ -6336,6 +6344,7 @@
                 }
                 g.totalQty += qty;
                 g.beliXQty += cost;
+                if (hargaBeli > 0) { g.minHargaBeli = Math.min(g.minHargaBeli, hargaBeli); g.maxHargaBeli = Math.max(g.maxHargaBeli, hargaBeli); }
                 if (hargaJual > 0) {
                     g.minHargaJual = Math.min(g.minHargaJual, hargaJual);
                     g.maxHargaJual = Math.max(g.maxHargaJual, hargaJual);
@@ -6353,7 +6362,7 @@
                 }
                 return {
                     produk: g.produk,
-                    hargaBeliSatuan: g.totalQty ? (g.beliXQty / g.totalQty) : 0,
+                    hargaBeliSatuan: hargaRange(g.minHargaBeli, g.maxHargaBeli),
                     hargaJualRange: hargaJualRange,
                     nomCash: g.nomCash,
                     nomTempo: g.nomTempo,
@@ -6385,7 +6394,7 @@
                 tTP += r.totalProfit;
                 return '<tr>' +
                     '<td>' + esc(r.produk) + '</td>' +
-                    '<td class="num">' + fmt(r.hargaBeliSatuan) + '</td>' +
+                    '<td class="num">' + r.hargaBeliSatuan + '</td>' +
                     '<td class="num">' + r.hargaJualRange + '</td>' +
                     '<td class="num">' + fmt(r.nomCash) + '</td>' +
                     '<td class="num">' + fmt(r.nomTempo) + '</td>' +
@@ -6422,7 +6431,7 @@
                 const profit = total - (hargaBeli * qty);
                 salesSet.add(sales);
                 if (!map[produk]) map[produk] = { produk, satuan: r.satuan || '', salesQty: {}, salesProfit: {},
-                    salesJual: {}, totalQty: 0, totalProfit: 0, totalJual: 0, beliXQty: 0, minHargaJual: Infinity, maxHargaJual: -Infinity };
+                    salesJual: {}, totalQty: 0, totalProfit: 0, totalJual: 0, beliXQty: 0, minHargaBeli: Infinity, maxHargaBeli: -Infinity, minHargaJual: Infinity, maxHargaJual: -Infinity };
                 const g = map[produk];
                 g.salesQty[sales] = (g.salesQty[sales] || 0) + qty;
                 g.salesProfit[sales] = (g.salesProfit[sales] || 0) + profit;
@@ -6431,6 +6440,7 @@
                 g.totalProfit += profit;
                 g.totalJual += total;
                 g.beliXQty += hargaBeli * qty;
+                if (hargaBeli > 0) { g.minHargaBeli = Math.min(g.minHargaBeli, hargaBeli); g.maxHargaBeli = Math.max(g.maxHargaBeli, hargaBeli); }
                 if (hargaJual > 0) {
                     g.minHargaJual = Math.min(g.minHargaJual, hargaJual);
                     g.maxHargaJual = Math.max(g.maxHargaJual, hargaJual);
@@ -6438,7 +6448,7 @@
                 if (!g.satuan && r.satuan) g.satuan = r.satuan;
             }
             Object.values(map).forEach(g => {
-                g.hargaBeliSatuan = g.totalQty ? (g.beliXQty / g.totalQty) : 0;
+                g.hargaBeliSatuan = hargaRange(g.minHargaBeli, g.maxHargaBeli);
                 if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
                     g.hargaJualRange = '—';
                 } else if (g.minHargaJual === g.maxHargaJual) {
@@ -6478,7 +6488,7 @@
             body.innerHTML = lastProfitSalesRows.map(r => {
                 totals.qty += r.totalQty; totals.profit += r.totalProfit; totals.jual += r.totalJual;
                 return '<tr><td>' + esc(r.produk) + '</td>' +
-                    '<td class="num">' + fmt(r.hargaBeliSatuan) + '</td>' +
+                    '<td class="num">' + r.hargaBeliSatuan + '</td>' +
                     '<td class="num">' + r.hargaJualRange + '</td>' +
                     salesList.map(s => {
                         const q = r.salesQty[s] || 0;
@@ -6519,11 +6529,12 @@
                 const hargaJual = Number(r.hargaJual) || 0;
                 const total = Number(r.total) || 0;
                 salesSet.add(sales);
-                if (!map[produk]) map[produk] = { produk, satuan: r.satuan || '', salesQty: {}, totalQty: 0, beliXQty: 0, jualXQty: 0, profit: 0, minHargaJual: Infinity, maxHargaJual: -Infinity };
+                if (!map[produk]) map[produk] = { produk, satuan: r.satuan || '', salesQty: {}, totalQty: 0, beliXQty: 0, jualXQty: 0, profit: 0, minHargaBeli: Infinity, maxHargaBeli: -Infinity, minHargaJual: Infinity, maxHargaJual: -Infinity };
                 const g = map[produk];
                 g.salesQty[sales] = (g.salesQty[sales] || 0) + qty;
                 g.totalQty += qty;
                 g.beliXQty += hargaBeli * qty;
+                if (hargaBeli > 0) { g.minHargaBeli = Math.min(g.minHargaBeli, hargaBeli); g.maxHargaBeli = Math.max(g.maxHargaBeli, hargaBeli); }
                 g.jualXQty += hargaJual * qty;
                 g.profit += total - (hargaBeli * qty);
                 // Track min dan max harga jual
@@ -6536,7 +6547,7 @@
             // Harga beli per satuan = rata-rata tertimbang (total nilai dibagi total qty)
             // Harga jual = tampilkan sebagai range (terendah - tertinggi)
             Object.values(map).forEach(g => {
-                g.hargaBeliSatuan = g.totalQty ? (g.beliXQty / g.totalQty) : 0;
+                g.hargaBeliSatuan = hargaRange(g.minHargaBeli, g.maxHargaBeli);
                 // Ganti hargaJualSatuan dengan range display
                 if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
                     g.hargaJualRange = '—';
@@ -6568,7 +6579,7 @@
             body.innerHTML = lastProfitSalesProdukRows.map((r,i) => {
                 totals.qty += r.totalQty; totals.beli += r.beliXQty; totals.jual += r.jualXQty; totals.profit += r.profit;
                 return '<tr><td>'+esc(r.produk)+'</td>' + salesList.map(s => { const q=r.salesQty[s]||0; totals.sales[s]=(totals.sales[s]||0)+q; return '<td class="num">'+(q ? q.toLocaleString('id-ID') : '')+'</td>'; }).join('') +
-                    '<td class="num"><strong>'+r.totalQty.toLocaleString('id-ID')+'</strong></td><td>'+esc(r.satuan || '')+'</td><td class="num">'+fmt(r.hargaBeliSatuan)+'</td><td class="num">'+r.hargaJualRange+'</td><td class="num">'+fmt(r.beliXQty)+'</td><td class="num">'+fmt(r.jualXQty)+'</td><td class="num"><strong>'+fmt(r.profit)+'</strong></td><td class="num">'+r.margin.toFixed(1).replace('.', ',')+'%</td></tr>';
+                    '<td class="num"><strong>'+r.totalQty.toLocaleString('id-ID')+'</strong></td><td>'+esc(r.satuan || '')+'</td><td class="num">'+r.hargaBeliSatuan+'</td><td class="num">'+r.hargaJualRange+'</td><td class="num">'+fmt(r.beliXQty)+'</td><td class="num">'+fmt(r.jualXQty)+'</td><td class="num"><strong>'+fmt(r.profit)+'</strong></td><td class="num">'+r.margin.toFixed(1).replace('.', ',')+'%</td></tr>';
             }).join('') +
             '<tr class="total-row"><td>TOTAL</td>' + salesList.map(s => '<td class="num">'+(totals.sales[s]||0).toLocaleString('id-ID')+'</td>').join('') +
             '<td class="num">'+totals.qty.toLocaleString('id-ID')+'</td><td></td><td></td><td></td><td class="num">'+fmt(totals.beli)+'</td><td class="num">'+fmt(totals.jual)+'</td><td class="num">'+fmt(totals.profit)+'</td><td class="num">'+(totals.jual ? ((totals.profit/totals.jual)*100).toFixed(1).replace('.', ',') : '0,0')+'%</td></tr>';
@@ -6592,7 +6603,7 @@
                 salesSet.add(sales);
                 if (!map[produk]) map[produk] = { produk, satuan: r.satuan || '',
                     salesQtyCash: {}, salesQtyTempo: {}, salesProfit: {},
-                    totalQty: 0, totalProfit: 0, beliXQty: 0, minHargaJual: Infinity, maxHargaJual: -Infinity };
+                    totalQty: 0, totalProfit: 0, beliXQty: 0, minHargaBeli: Infinity, maxHargaBeli: -Infinity, minHargaJual: Infinity, maxHargaJual: -Infinity };
                 const g = map[produk];
                 if (isCash) g.salesQtyCash[sales] = (g.salesQtyCash[sales] || 0) + qty;
                 else g.salesQtyTempo[sales] = (g.salesQtyTempo[sales] || 0) + qty;
@@ -6600,6 +6611,7 @@
                 g.totalQty += qty;
                 g.totalProfit += profit;
                 g.beliXQty += hargaBeli * qty;
+                if (hargaBeli > 0) { g.minHargaBeli = Math.min(g.minHargaBeli, hargaBeli); g.maxHargaBeli = Math.max(g.maxHargaBeli, hargaBeli); }
                 if (hargaJual > 0) {
                     g.minHargaJual = Math.min(g.minHargaJual, hargaJual);
                     g.maxHargaJual = Math.max(g.maxHargaJual, hargaJual);
@@ -6607,7 +6619,7 @@
                 if (!g.satuan && r.satuan) g.satuan = r.satuan;
             }
             Object.values(map).forEach(g => {
-                g.hargaBeliSatuan = g.totalQty ? (g.beliXQty / g.totalQty) : 0;
+                g.hargaBeliSatuan = hargaRange(g.minHargaBeli, g.maxHargaBeli);
                 if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
                     g.hargaJualRange = '—';
                 } else if (g.minHargaJual === g.maxHargaJual) {
@@ -6647,7 +6659,7 @@
             body.innerHTML = lastProfitLengkapRows.map(r => {
                 totals.qty += r.totalQty; totals.profit += r.totalProfit;
                 return '<tr><td>' + esc(r.produk) + '</td>' +
-                    '<td class="num">' + fmt(r.hargaBeliSatuan) + '</td>' +
+                    '<td class="num">' + r.hargaBeliSatuan + '</td>' +
                     '<td class="num">' + r.hargaJualRange + '</td>' +
                     salesList.map(s => {
                         const qc = r.salesQtyCash[s] || 0;
@@ -7077,7 +7089,7 @@
                 payRows.forEach(r => {
                     aoa.push([
                         r.produk,
-                        Number(r.hargaBeliSatuan) || 0,
+                        String(r.hargaBeliSatuan != null ? r.hargaBeliSatuan : '—'),
                         String(r.hargaJualRange != null ? r.hargaJualRange : '—'),
                         Number(r.nomCash) || 0,
                         Number(r.nomTempo) || 0,
@@ -10866,6 +10878,7 @@
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v3d52b47920f24c319d37e2661827c42b1787588026925" integrity="sha512-d9sL6GJLXn6fInD1+TVXhTcQOsmxeHfmHAvwGDIxp5TO+uo1fiWW7mHomMj4MLRlCsJDTqXzWLHJFFlPCEIj/A==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 </body>
