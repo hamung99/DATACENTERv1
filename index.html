@@ -5174,6 +5174,40 @@
                 GUDANG_DATA = parsed;
                 const periodKey = gudangPeriodKeyFromData(parsed);
                 if (!periodKey) throw new Error('Tidak bisa menentukan bulan/tahun dari data yang diupload.');
+
+                // PENGAMAN ANTI-TERTIMPA: sebelum file baru MENIMPA data bulan yang
+                // sudah ada di GUDANG_HISTORY, wajib konfirmasi ke user dan
+                // sebutkan dengan jelas bulan apa yang terdeteksi dari file ini,
+                // supaya user bisa membatalkan kalau bulan yang terdeteksi salah
+                // (mis. file Agustus malah terbaca sebagai September, atau
+                // sebaliknya) sebelum data lama hilang.
+                const existingPeriodData = GUDANG_HISTORY[periodKey];
+                const isRealExisting = existingPeriodData && Array.isArray(existingPeriodData.rows) && existingPeriodData.rows.length > 0;
+                if (isRealExisting) {
+                    const existingMeta = existingPeriodData._meta;
+                    const existingInfo = existingMeta && existingMeta.filename
+                        ? ('File sebelumnya: "' + existingMeta.filename + '"' +
+                           (existingMeta.uploadedAt ? ' (diupload ' + new Date(existingMeta.uploadedAt).toLocaleString('id-ID') + ')' : '') +
+                           '\n' + existingPeriodData.rows.length + ' baris data.')
+                        : (existingPeriodData.rows.length + ' baris data (data bawaan/contoh aplikasi).');
+                    const firstIsoNew = parsed.rows.length ? parsed.rows[0][0] : '—';
+                    const lastIsoNew = parsed.rows.length ? parsed.rows[parsed.rows.length - 1][0] : '—';
+                    const confirmMsg =
+                        '⚠️ KONFIRMASI PERIODE\n\n' +
+                        'File "' + file.name + '" terdeteksi sebagai data bulan:\n' +
+                        '➡️ ' + gudangPeriodLabel(periodKey) + '\n' +
+                        '(rentang tanggal isi file: ' + firstIsoNew + ' s/d ' + lastIsoNew + ')\n\n' +
+                        'Sudah ada data untuk bulan ini di aplikasi:\n' + existingInfo + '\n\n' +
+                        'Jika kamu lanjutkan, data bulan ' + gudangPeriodLabel(periodKey) + ' yang lama akan DIGANTI (ditimpa) dengan isi file ini.\n\n' +
+                        'Periksa: apakah bulan "' + gudangPeriodLabel(periodKey) + '" ini SESUAI dengan file yang kamu upload?\n\n' +
+                        'Klik OK untuk lanjut menimpa, atau Batal untuk membatalkan upload.';
+                    if (!confirm(confirmMsg)) {
+                        if (statusEl) statusEl.textContent = 'Upload dibatalkan oleh user (periode yang terdeteksi: ' + gudangPeriodLabel(periodKey) + ').';
+                        e.target.value = '';
+                        return;
+                    }
+                }
+
                 parsed._meta = { filename: file.name, uploadedAt: new Date().toISOString() };
                 GUDANG_HISTORY[periodKey] = parsed;
                 invalidateGudangCaches();
