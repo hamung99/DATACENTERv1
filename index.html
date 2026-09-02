@@ -9982,8 +9982,35 @@
             const localSales = await loadRowsFromDB(DB_KEY_SALES);
             const localRapikan = await loadRowsFromDB(DB_KEY_RAPIKAN);
             const localHargaBeli = await loadRowsFromDB(DB_KEY_HARGA_BELI);
-            const hasLocalData = !!((localAll && localAll.length) || (localSales && localSales.length) ||
-                (localRapikan && localRapikan.length) || (localHargaBeli && localHargaBeli.length));
+
+            // Data Gudang disimpan sebagai RIWAYAT BULANAN di localStorage,
+            // bukan di IndexedDB seperti Uang Masuk/Penjualan. Karena itu
+            // pemeriksaan "apakah ada data lokal" WAJIB ikut melihat
+            // GUDANG_HISTORY. Kalau tidak, saat hanya Data Gudang yang baru
+            // di-upload (mis. Agustus lalu September), aplikasi mengira lokal
+            // kosong dan cloud lama bisa menimpa seluruh riwayat Gudang.
+            let localGudangHistory = {};
+            try {
+                localGudangHistory = loadGudangHistoryFromStorage();
+            } catch (err) {
+                localGudangHistory = {};
+            }
+            const hasLocalGudangData = !!(
+                localGudangHistory &&
+                typeof localGudangHistory === 'object' &&
+                Object.keys(localGudangHistory).some(k => {
+                    const d = localGudangHistory[k];
+                    return d && Array.isArray(d.rows) && d.rows.length;
+                })
+            );
+
+            const hasLocalData = !!(
+                (localAll && localAll.length) ||
+                (localSales && localSales.length) ||
+                (localRapikan && localRapikan.length) ||
+                (localHargaBeli && localHargaBeli.length) ||
+                hasLocalGudangData
+            );
             let localTs = 0;
             try {
                 const raw = localStorage.getItem(LOCAL_DATA_UPDATED_KEY);
@@ -10007,8 +10034,8 @@
             // Kalau data LOKAL lebih baru dari cloud, lokal yang dipakai dan
             // didorong ke cloud (bukan ditimpa) supaya cloud ikut ter-update.
             // Satu keputusan ini dipakai untuk SEMUA data (Uang Masuk, Penjualan,
-            // Rapikan, Harga Beli) karena semuanya berbagi satu baris cloud & satu
-            // updated_at yang sama.
+            // Rapikan, Harga Beli, dan Data Gudang) karena semuanya berbagi satu
+            // baris cloud & satu updated_at yang sama.
             const cloudWins = hasCloudData && (!hasLocalData || !localTs || cloudTs >= localTs);
             // Push lokal->cloud (kalau lokal menang) ditunda sampai SETELAH
             // Rapikan/Harga Beli dimuat ke memori di bawah -- supaya payload
