@@ -1624,6 +1624,7 @@
                         sales_rows: salesRows,
                         rapikan_rows: (window.__rapGetCleanRows && window.__rapGetCleanRows()) || [],
                         harga_beli_rows: (window.__rapGetPriceRows && window.__rapGetPriceRows()) || [],
+                        gudang_data: (typeof GUDANG_DATA !== 'undefined') ? GUDANG_DATA : null,
                         updated_at: nowIso
                     });
                 if (error) throw error;
@@ -1642,7 +1643,7 @@
                 setCloudStatus('Mengambil data dari cloud…', false);
                 const { data, error } = await supabaseClient
                     .from('app_data')
-                    .select('all_rows, sales_rows, rapikan_rows, harga_beli_rows, updated_at')
+                    .select('all_rows, sales_rows, rapikan_rows, harga_beli_rows, gudang_data, updated_at')
                     .eq('id', SUPABASE_ROW_ID)
                     .maybeSingle();
                 if (error) throw error;
@@ -5066,6 +5067,7 @@
                 // Upload baru membatalkan status "kosong" sebelumnya.
                 try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {}
                 saveGudangDataToStorage(parsed);
+                queueCloudSync();
                 try {
                     localStorage.setItem(GUDANG_META_FILENAME_KEY, file.name);
                     localStorage.setItem(GUDANG_META_UPLOADED_AT_KEY, new Date().toISOString());
@@ -5118,6 +5120,7 @@
             invalidateGudangCaches();
             updateGudangUploadStatusLabel();
             renderGudangTable();
+            queueCloudSync();
             if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
                 renderRingkasanCekTab();
             }
@@ -5157,6 +5160,7 @@
             invalidateGudangCaches();
             updateGudangUploadStatusLabel();
             renderGudangTable();
+            queueCloudSync();
             if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
                 renderRingkasanCekTab();
             }
@@ -9859,7 +9863,8 @@
                 (Array.isArray(cloud.all_rows) && cloud.all_rows.length) ||
                 (Array.isArray(cloud.sales_rows) && cloud.sales_rows.length) ||
                 (Array.isArray(cloud.rapikan_rows) && cloud.rapikan_rows.length) ||
-                (Array.isArray(cloud.harga_beli_rows) && cloud.harga_beli_rows.length)
+                (Array.isArray(cloud.harga_beli_rows) && cloud.harga_beli_rows.length) ||
+                (cloud.gudang_data && Array.isArray(cloud.gudang_data.rows) && cloud.gudang_data.rows.length)
             ));
             const cloudTs = (cloud && cloud.updated_at) ? (new Date(cloud.updated_at).getTime() || 0) : 0;
 
@@ -9941,6 +9946,18 @@
             }
             if (savedHargaBeli && savedHargaBeli.length && window.__rapSetPriceRows) {
                 window.__rapSetPriceRows(savedHargaBeli);
+            }
+            // Data Gudang (Stok Minyak) ikut baris cloud yang sama. Kalau cloud
+            // menang dan memang ada gudang_data tersimpan di sana, pakai itu;
+            // kalau tidak (mis. device ini yang pertama kali push gudang_data),
+            // biarkan GUDANG_DATA lokal apa adanya supaya nanti ikut terdorong
+            // ke cloud lewat shouldPushLocalToCloud di bawah.
+            if (cloudWins && cloud.gudang_data && Array.isArray(cloud.gudang_data.products) && Array.isArray(cloud.gudang_data.rows)) {
+                GUDANG_DATA = cloud.gudang_data;
+                saveGudangDataToStorage(GUDANG_DATA);
+                try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {}
+                invalidateGudangCaches();
+                if (typeof renderGudangTable === 'function') renderGudangTable();
             }
             // Push lokal->cloud (kalau lokal lebih baru) baru dilakukan DI SINI,
             // setelah Rapikan/Harga Beli sudah masuk ke memori -- supaya payload
