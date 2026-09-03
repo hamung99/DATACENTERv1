@@ -912,7 +912,6 @@
                 <button class="cek-subtab-btn" id="cekSubNosales" onclick="switchCekSub('nosales')">🧩 Tanpa Penjualan</button>
                 <button class="cek-subtab-btn" id="cekSubAnomali" onclick="switchCekSub('anomali')">🔴 Belum Ada Uang Masuk</button>
                 <button type="button" class="subtab-dl" id="cekLunasManualBtn" onclick="openManualLunasHistoryModal()" title="Lihat/undo semua faktur yang pernah ditandai Lunas Manual">✏️ Riwayat Lunas Manual</button>
-                <button type="button" class="subtab-dl" id="cekMiripBedaBtn" onclick="openMiripBedaFakturModal()" title="Faktur di Belum Ada Uang Masuk yang Customer/Alamat/Sales-nya cocok dengan suatu catatan Uang Masuk, tapi No.Fakturnya beda">🔍 Mirip Tapi Beda Faktur</button>
                 <div class="subtab-dl-wrap cek-download-wrap" id="cekDownloadWrap">
                     <button type="button" class="subtab-dl" id="cekDownloadBtn" onclick="toggleCekDownloadMenu(event)">📥 Download ▾</button>
                     <div class="subtab-dl-menu" id="cekDownloadMenu">
@@ -3238,7 +3237,10 @@
             const actionsEl = document.getElementById('cekTempoModalActions');
             if (actionsEl) {
                 const fakturEscAnomali = String(faktur).replace(/'/g, "\\'");
+                const swapTipe = row.tipeBayar === 'Cash' ? 'Tempo' : 'Cash';
+                const swapLabel = row.tipeBayar === 'Cash' ? '🔁 Ubah ke Tempo' : '🔁 Ubah ke Cash';
                 actionsEl.innerHTML =
+                    '<button class="btn btn-outline" style="border-color:var(--accent);color:var(--accent);margin-right:8px;" title="Pakai ini kalau hasil cek manual ternyata tipe pembayaran faktur ini sudah diubah (mis. Cash -> Tempo) tapi belum tercatat begitu di Data Penjualan" onclick="changeFakturTipeBayarFromModal(encodeURIComponent(\'' + fakturEscAnomali + '\'), \'' + swapTipe + '\')">' + swapLabel + '</button>' +
                     '<button class="btn btn-outline" style="border-color:var(--green,#16a34a);color:var(--green,#16a34a);margin-right:8px;" onclick="markFakturLunasManualFromModal(encodeURIComponent(\'' + fakturEscAnomali + '\'))">✅ Tandai Lunas Manual</button>' +
                     '<button class="btn btn-outline" style="border-color:var(--red);color:var(--red);" onclick="markFakturBatalFromModal(encodeURIComponent(\'' + fakturEscAnomali + '\'))">🚫 Tandai BATAL</button>';
             }
@@ -3321,6 +3323,7 @@
                     <td class="num">${fmt(r.nominal || 0)}</td>
                     ${showJt ? '<td class="num" style="color:var(--red)"><strong>' + daysOverdue + '+ hari</strong></td>' : ''}
                     <td style="white-space:nowrap;">
+                        <button class="btn btn-outline" style="border-color:var(--accent);color:var(--accent);padding:3px 8px;font-size:0.72rem;white-space:nowrap;margin-right:4px;" title="Ubah tipe pembayaran faktur ini (kalau ternyata sudah diubah, mis. Cash -> Tempo, tapi Data Penjualan belum ikut diperbarui)" onclick="changeFakturTipeBayarFromCardModal(encodeURIComponent('${fakturEsc}'), '${r.tipeBayar === 'Cash' ? 'Tempo' : 'Cash'}', '${type}')">🔁 ${r.tipeBayar === 'Cash' ? 'Ke Tempo' : 'Ke Cash'}</button>
                         <button class="btn btn-outline" style="border-color:var(--green,#16a34a);color:var(--green,#16a34a);padding:3px 8px;font-size:0.72rem;white-space:nowrap;margin-right:4px;" title="Tandai faktur ini LUNAS manual (kalau ternyata sudah dibayar, misal No.Faktur di Uang Masuk salah ketik)" onclick="markFakturLunasManualFromCardModal(encodeURIComponent('${fakturEsc}'), '${type}')">✅ Lunas</button>
                         <button class="btn btn-outline" style="border-color:var(--red);color:var(--red);padding:3px 8px;font-size:0.72rem;white-space:nowrap;" title="Tandai faktur ini BATAL (kalau ternyata transaksi penjualannya batal)" onclick="markFakturBatalFromCardModal(encodeURIComponent('${fakturEsc}'), '${type}')">🚫 Batal</button>
                     </td>
@@ -3424,201 +3427,6 @@
             if (typeof renderCekTable === 'function') await renderCekTable();
             // Refresh isi modal pakai data anomali terbaru (yang sudah lunas otomatis hilang)
             openCekAnomaliCardModal(lastCekRows || [], type);
-            alert('Faktur ' + faktur + ' berhasil ditandai LUNAS (manual).');
-        }
-
-        // ---- "Mirip Tapi Beda Faktur": daftar bulk faktur di "Belum Ada Uang
-        // Masuk" yang punya kandidat di Data Uang Masuk dengan Customer/Alamat/
-        // Sales mirip, tapi No.Fakturnya beda jauh (atau ada >1 kandidat mirip
-        // sehingga sistem tidak berani menebak otomatis). Tujuannya supaya user
-        // tidak perlu klik satu-satu faktur untuk cek kandidat mirip -- semua
-        // ditampilkan sekaligus di 1 tabel untuk diverifikasi & ditandai Lunas
-        // manual kalau memang cocok. Dibangun ulang dari salesRows/allRows setiap
-        // dibuka (bukan cache) supaya selalu sinkron dengan status Lunas/Batal
-        // manual terbaru.
-        async function buildMiripBedaFakturList() {
-            // 1) Kelompokkan Data Uang Masuk per No.Faktur (exact), sama seperti
-            // yang dipakai buildCekFakturList(payType==='ANOMALI').
-            const umFakturSet = new Set();
-            const umByFaktur = new Map();
-            let __mb1 = 0;
-            for (const r of allRows) {
-                if (++__mb1 % 800 === 0) await yieldToMain();
-                const fk = String(r.faktur || '').trim();
-                if (!fk) continue;
-                umFakturSet.add(fk);
-                if (!umByFaktur.has(fk)) {
-                    umByFaktur.set(fk, {
-                        paidAmount: 0, tagihanUM: 0, hasLunas: false, hasTitip: false,
-                        dateLabel: '', salesName: '', toko: '', alamat: ''
-                    });
-                }
-                const u = umByFaktur.get(fk);
-                u.tagihanUM = Math.max(u.tagihanUM, Number(r.tagihan) || 0);
-                u.paidAmount += (Number(r.minyakCash) || 0) + (Number(r.minyakTf) || 0) +
-                    (Number(r.rupaCash) || 0) + (Number(r.rupaTf) || 0);
-                if (r.status === 'LUNAS') u.hasLunas = true;
-                if (r.status === 'TITIP') u.hasTitip = true;
-                if (!u.dateLabel && r.date) u.dateLabel = r.date;
-                if (!u.salesName && r.sales) u.salesName = r.sales;
-                if (!u.toko && r.toko && r.toko !== '—') u.toko = r.toko;
-                if (!u.alamat && r.alamat && r.alamat !== '—') u.alamat = r.alamat;
-            }
-            const umFakturNormMap = new Map();
-            for (const fk of umFakturSet) {
-                const nk = normFakturKey(fk);
-                if (!nk) continue;
-                if (!umFakturNormMap.has(nk)) umFakturNormMap.set(nk, new Set());
-                umFakturNormMap.get(nk).add(fk);
-            }
-
-            // 2) Kelompokkan Data Penjualan per No.Faktur (exclude BATAL).
-            const byFaktur = new Map();
-            let __mb2 = 0;
-            for (const r of salesRows) {
-                if (++__mb2 % 800 === 0) await yieldToMain();
-                if (isBatalRow(r)) continue;
-                const fk = String(r.noFaktur || '').trim();
-                if (!fk) continue;
-                if (!byFaktur.has(fk)) {
-                    const td = parseSalesDate(r.tanggal);
-                    byFaktur.set(fk, {
-                        noFaktur: fk, tanggal: r.tanggal || '', tglDate: td,
-                        sales: r.sales || '', customer: r.customer || '', alamat: r.alamat || '',
-                        nominal: 0, month: r.month || monthNameFromDate(td) || 'Lainnya'
-                    });
-                }
-                const g = byFaktur.get(fk);
-                g.nominal += Number(r.total) || 0;
-                const td2 = parseSalesDate(r.tanggal);
-                if (td2 && (!g.tglDate || td2 < g.tglDate)) { g.tglDate = td2; g.tanggal = r.tanggal || g.tanggal; }
-                if (!g.customer && r.customer) g.customer = r.customer;
-                if (!g.sales && r.sales) g.sales = r.sales;
-                if (!g.alamat && r.alamat) g.alamat = r.alamat;
-            }
-
-            // 3) Faktur yang masih anomali setelah exact + normalized-match, dan
-            // belum pernah ditandai Lunas manual sebelumnya.
-            const stillUnresolved = [];
-            for (const g of byFaktur.values()) {
-                if (umFakturSet.has(g.noFaktur)) continue;
-                const nk = normFakturKey(g.noFaktur);
-                if (nk && umFakturNormMap.has(nk)) continue;
-                if (getManualLunasInfo(g.noFaktur)) continue;
-                stillUnresolved.push(g);
-            }
-
-            // 4) Faktur yang SUDAH auto-resolve via fuzzy tidak perlu direview lagi
-            // (sudah aman/ketemu otomatis) -- exclude dari daftar review manual ini.
-            const fuzzyUsedKeys = new Set();
-            const fuzzyResolved = await resolveCekFuzzyMatchesGlobally(stillUnresolved, umByFaktur, fuzzyUsedKeys);
-
-            // 5) Untuk sisanya (BENAR-BENAR belum ketemu, termasuk yang ambigu
-            // karena >1 kandidat mirip skornya berdekatan), cari kandidat terbaik
-            // di Data Uang Masuk berdasarkan Customer/Alamat/Sales + nominal +
-            // tanggal (computeCekFuzzyScore) -- walau No.Fakturnya beda jauh.
-            const tokenIndex = buildCekFuzzyTokenIndex(
-                umByFaktur.entries(),
-                u => ({ customer: u.toko, alamat: u.alamat, sales: u.salesName })
-            );
-            const out = [];
-            let __mb3 = 0;
-            for (const g of stillUnresolved) {
-                if (fuzzyResolved.has(g.noFaktur)) continue;
-                if (++__mb3 % 40 === 0) await yieldToMain();
-                const gFields = { customer: g.customer, alamat: g.alamat, sales: g.sales, tglDate: g.tglDate, faktur: g.noFaktur };
-                const candidateKeys = lookupCekFuzzyCandidates(tokenIndex, gFields) || umByFaktur.keys();
-                const scored = [];
-                for (const fk of candidateKeys) {
-                    const u = umByFaktur.get(fk);
-                    if (!u) continue;
-                    const paymentAmount = Number(u.paidAmount) || 0;
-                    const referenceAmount = Number(g.nominal) || Number(u.tagihanUM) || 0;
-                    if (!paymentAmount && !u.hasLunas) continue;
-                    const amountScoreValue = cekAmountScore(paymentAmount, referenceAmount);
-                    const uFields = { customer: u.toko, alamat: u.alamat, sales: u.salesName, tglDate: parseSalesDate(u.dateLabel), faktur: fk };
-                    const res = computeCekFuzzyScore(gFields, uFields, amountScoreValue);
-                    if (!res) continue; // computeCekFuzzyScore sudah wajibkan minimal 2/3 identitas cocok
-                    scored.push({ fk, u, score: res.score, match: res });
-                }
-                if (!scored.length) continue; // tidak ada kandidat identitas yang cukup kuat
-                scored.sort((a, b) => b.score - a.score);
-                out.push({ g, candidates: scored.slice(0, 3) });
-            }
-            out.sort((a, b) => b.candidates[0].score - a.candidates[0].score);
-            return out;
-        }
-
-        // Buka modal berisi tabel bulk "Mirip Tapi Beda Faktur" (pakai kembali
-        // modal generik tempoJtModal supaya tidak perlu markup modal baru).
-        async function openMiripBedaFakturModal() {
-            document.getElementById('tempoJtModalTitle').textContent = '🔍 Mirip Tapi Beda Faktur (Customer/Alamat/Sales Cocok)';
-            document.getElementById('tempoJtContent').innerHTML =
-                '<div style="padding:20px;text-align:center;color:var(--muted);">⏳ Mencari kandidat, mohon tunggu sebentar...</div>';
-            document.getElementById('tempoJtModal').classList.add('open');
-
-            const list = await buildMiripBedaFakturList();
-
-            if (!list.length) {
-                document.getElementById('tempoJtContent').innerHTML =
-                    '<div style="padding:20px;text-align:center;color:var(--muted);">Tidak ada faktur di "Belum Ada Uang Masuk" yang punya kandidat Customer/Alamat/Sales mirip di Data Uang Masuk saat ini. 👍</div>';
-                return;
-            }
-
-            let html = '<div style="margin-bottom:10px;font-size:0.8rem;color:var(--muted);">' +
-                'Daftar faktur di <b>Data Penjualan</b> yang belum ketemu pasangannya secara otomatis di Data Uang Masuk, ' +
-                'TAPI ditemukan kandidat dengan <b>Customer/Alamat/Sales mirip</b> -- cuma No.Fakturnya beda jauh, atau ada lebih dari 1 kandidat mirip sehingga sistem tidak berani menebak sendiri. ' +
-                'Cek kolom "Kandidat di Uang Masuk", dan kalau memang cocok klik <b>✅ Lunas</b>.</div>';
-
-            html += '<div style="overflow-x:auto;"><table class="modal-table"><thead><tr>' +
-                '<th>No.Faktur (Penjualan)</th><th>Customer / Alamat</th><th>Sales</th><th class="num">Nominal</th>' +
-                '<th>Kandidat No.Faktur di Uang Masuk (skor)</th><th>Cocok Pada</th><th>Aksi</th>' +
-                '</tr></thead><tbody>';
-
-            list.forEach(item => {
-                const g = item.g;
-                const top = item.candidates[0];
-                const fakturEsc = String(g.noFaktur).replace(/'/g, "\\'");
-                const matchLabels = [];
-                if (top.match.sameCustomer) matchLabels.push('Customer');
-                if (top.match.sameAddress) matchLabels.push('Alamat');
-                if (top.match.sameSales) matchLabels.push('Sales');
-                const candList = item.candidates.map(c =>
-                    '<div>' + esc(c.fk) + ' <span style="color:var(--muted);font-size:0.72rem;">(skor ' + c.score + ')</span></div>'
-                ).join('');
-                html += '<tr>' +
-                    '<td><strong>' + esc(g.noFaktur) + '</strong><br><span style="color:var(--muted);font-size:0.72rem;">' + esc(fmtCekTanggalTampilan(g.tanggal, g.tglDate)) + '</span></td>' +
-                    '<td>' + esc(g.customer || '—') + '<br><span style="color:var(--muted);font-size:0.75rem;">' + esc(g.alamat || '—') + '</span></td>' +
-                    '<td>' + esc(g.sales || '—') + '</td>' +
-                    '<td class="num">' + fmt(g.nominal || 0) + '</td>' +
-                    '<td>' + candList + '</td>' +
-                    '<td><span style="font-size:0.72rem;color:var(--accent);">' + (matchLabels.join(' + ') || '—') + '</span></td>' +
-                    '<td style="white-space:nowrap;">' +
-                    '<button class="btn btn-outline" style="border-color:var(--green,#16a34a);color:var(--green,#16a34a);padding:3px 8px;font-size:0.72rem;" title="Tandai faktur ini LUNAS manual" onclick="markFakturLunasFromMiripModal(encodeURIComponent(\'' + fakturEsc + '\'))">✅ Lunas</button>' +
-                    '</td>' +
-                    '</tr>';
-            });
-
-            html += '</tbody></table></div>';
-            html += '<div style="margin-top:12px;padding:10px 12px;background:var(--accent-soft);border-radius:8px;font-size:0.85rem;">Total: <strong>' + list.length + '</strong> faktur punya kandidat mirip yang perlu diverifikasi manual.</div>';
-
-            document.getElementById('tempoJtContent').innerHTML = html;
-        }
-
-        // Tandai LUNAS manual langsung dari daftar "Mirip Tapi Beda Faktur", lalu
-        // refresh tabel Cek Data & modal ini sendiri (faktur yang baru ditandai
-        // lunas otomatis hilang dari daftar).
-        async function markFakturLunasFromMiripModal(encodedFaktur) {
-            const faktur = decodeURIComponent(String(encodedFaktur || ''));
-            const note = prompt('Catatan (opsional) — misal: "Cocok dengan kandidat di Uang Masuk, No.Faktur beda karena salah ketik":', '');
-            if (note === null) return; // user batal
-            if (!confirm('Tandai faktur ' + faktur + ' sebagai LUNAS (manual)?\n\nIni hanya menandai status di aplikasi berdasarkan pengecekan Anda -- TIDAK mengubah Data Uang Masuk asli. Bisa di-undo kapan saja lewat "✏️ Riwayat Lunas Manual".')) return;
-            const changed = setFakturManualLunas(faktur, true, note.trim());
-            if (!changed) return;
-            populateSalesFilters();
-            doSalesSearch();
-            if (typeof renderCekTable === 'function') await renderCekTable();
-            await openMiripBedaFakturModal(); // refresh isi modal
             alert('Faktur ' + faktur + ' berhasil ditandai LUNAS (manual).');
         }
 
@@ -4022,6 +3830,92 @@
             doSalesSearch();
             if (typeof renderCekTable === 'function') renderCekTable();
             alert('Status BATAL untuk faktur ' + faktur + ' sudah dibatalkan (kembali normal).');
+        }
+
+        // Ubah tipe pembayaran (Cash <-> Tempo) sebuah faktur langsung di Data
+        // Penjualan (salesRows). Dipakai ketika hasil cek manual user menemukan
+        // bahwa transaksi yang tercatat Cash ternyata sebenarnya Tempo (atau
+        // sebaliknya), jadi tidak perlu hapus & upload ulang data.
+        function setFakturTipeBayar(noFaktur, newTipe) {
+            const fk = String(noFaktur || '').trim();
+            const tipe = newTipe === 'Cash' ? 'Cash' : 'Tempo';
+            if (!fk) return { changed: false, found: false };
+            // 1) Coba cocokkan persis (exact match) dulu.
+            let matches = salesRows.filter(r => String(r.noFaktur || '').trim() === fk);
+            // 2) Kalau tidak ketemu sama sekali, coba cocokkan pakai kunci ternormalisasi
+            //    (buang spasi/strip/leading-zero) -- sama seperti setFakturBatalStatus.
+            if (!matches.length) {
+                const nk = normFakturKey(fk);
+                if (nk) matches = salesRows.filter(r => normFakturKey(r.noFaktur) === nk);
+            }
+            if (!matches.length) return { changed: false, found: false };
+            let changed = false;
+            const oldValues = [];
+            for (const r of matches) {
+                const payUp = String(r.pembayaran || '').trim().toUpperCase();
+                const isCashRow = payUp === 'CASH' || payUp.startsWith('CASH') || payUp === 'TUNAI';
+                const currentTipe = isCashRow ? 'Cash' : 'Tempo';
+                if (currentTipe !== tipe) {
+                    changed = true;
+                    oldValues.push(r.pembayaran || '');
+                    r.pembayaranSebelumDiubah = r.pembayaranSebelumDiubah || r.pembayaran || currentTipe;
+                    r.pembayaran = tipe;
+                }
+            }
+            if (changed) {
+                cekFakturCacheDirty.cash = true;
+                cekFakturCacheDirty.tempo = true;
+                cekFakturCacheDirty.anomali = true;
+                cekFakturCacheDirty.nosales = true;
+                salesFakturMapDirty = true;
+                saveRowsToDBAndSync(salesRows, DB_KEY_SALES);
+            }
+            return { changed, found: true, count: matches.length };
+        }
+
+        // Dipanggil dari tombol "🔁 Ubah ke Tempo/Cash" di modal detail faktur
+        // (sub-tab Belum Ada Uang Masuk). Menutup & menyegarkan modal setelah
+        // berhasil supaya statusnya langsung update.
+        function changeFakturTipeBayarFromModal(encodedFaktur, newTipe) {
+            const faktur = decodeURIComponent(String(encodedFaktur || ''));
+            const tipeLabel = newTipe === 'Cash' ? '💵 Cash' : '📅 Tempo';
+            if (!confirm('Ubah tipe pembayaran faktur ' + faktur + ' menjadi ' + tipeLabel + '?\n\nIni akan mengubah field Pembayaran faktur ini langsung di Data Penjualan (semua baris/item dengan No.Faktur yang sama). Gunakan ini kalau hasil cek manual Anda menemukan transaksinya sebenarnya sudah diubah tipenya (misal Cash -> Tempo) tapi Data Penjualan belum ikut diperbarui.')) return;
+            const result = setFakturTipeBayar(faktur, newTipe);
+            if (!result.found) {
+                alert('Faktur ' + faktur + ' tidak ditemukan persis di Data Penjualan, jadi belum bisa diubah otomatis. Cek No.Faktur-nya lewat tab Data Penjualan → Transaksi, atau muat ulang halaman dulu lalu coba lagi.');
+                return;
+            }
+            closeCekTempoDetail();
+            populateSalesFilters();
+            doSalesSearch();
+            if (typeof renderCekTable === 'function') renderCekTable();
+            if (!result.changed) {
+                alert('Faktur ' + faktur + ' sudah bertipe ' + tipeLabel + ', tidak ada yang diubah.');
+                return;
+            }
+            alert('Berhasil! Tipe pembayaran faktur ' + faktur + ' (' + result.count + ' baris item) diubah menjadi ' + tipeLabel + '. Faktur ini sekarang akan dicek ulang sesuai tipe barunya di sub-tab Belum Ada Uang Masuk / Tempo.');
+        }
+
+        // Versi dipanggil dari tombol Aksi di tabel/kartu daftar Anomali (bukan dari
+        // modal detail per-faktur), lalu refresh isi modal daftar itu juga.
+        function changeFakturTipeBayarFromCardModal(encodedFaktur, newTipe, cardType) {
+            const faktur = decodeURIComponent(String(encodedFaktur || ''));
+            const tipeLabel = newTipe === 'Cash' ? '💵 Cash' : '📅 Tempo';
+            if (!confirm('Ubah tipe pembayaran faktur ' + faktur + ' menjadi ' + tipeLabel + '?\n\nIni akan mengubah field Pembayaran faktur ini langsung di Data Penjualan (semua baris/item dengan No.Faktur yang sama).')) return;
+            const result = setFakturTipeBayar(faktur, newTipe);
+            if (!result.found) {
+                alert('Faktur ' + faktur + ' tidak ditemukan persis di Data Penjualan, jadi belum bisa diubah otomatis. Cek No.Faktur-nya lewat tab Data Penjualan → Transaksi, atau muat ulang halaman dulu lalu coba lagi.');
+                return;
+            }
+            populateSalesFilters();
+            doSalesSearch();
+            if (typeof renderCekTable === 'function') renderCekTable();
+            if (!result.changed) {
+                alert('Faktur ' + faktur + ' sudah bertipe ' + tipeLabel + ', tidak ada yang diubah.');
+                return;
+            }
+            openCekAnomaliCardModal(lastCekRows || [], cardType);
+            alert('Berhasil! Tipe pembayaran faktur ' + faktur + ' diubah menjadi ' + tipeLabel + '.');
         }
 
         // ---- Sales cached aggregation ----
@@ -11053,7 +10947,6 @@
             openCekAnomaliDetail, openCekBedaFakturDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
             markFakturLunasManualFromCardModal, openManualLunasHistoryModal, undoManualLunasFromHistoryModal,
-            openMiripBedaFakturModal, markFakturLunasFromMiripModal,
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
             downloadFakturExcel, downloadFakturSalesExcel, downloadFakturBulanExcel, downloadFakturDay, downloadDailyRingkasanExcel,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
