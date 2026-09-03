@@ -6358,7 +6358,7 @@
                     const maxHj = Math.max(...g.hjPrices);
                     hargaJual = minHj === maxHj ? minHj : { min: minHj, max: maxHj, isRange: true };
                 }
-                const hargaBeli = g.hbPrices.length ? hargaRange(Math.min(...g.hbPrices), Math.max(...g.hbPrices)) : '—';
+                const hargaBeli = g.qty > 0 ? (g.totalHpp / g.qty) : '—';
                 const profit = g.totalJual - g.totalHpp;
                 const margin = g.totalJual ? (profit / g.totalJual * 100) : 0;
                 return { produk: g.produk, qty: g.qty, totalPenjualan: g.totalJual, totalHpp: g.totalHpp, hargaJual,
@@ -6452,7 +6452,7 @@
                 }
                 return {
                     produk: g.produk,
-                    hargaBeliSatuan: hargaRange(g.minHargaBeli, g.maxHargaBeli),
+                    hargaBeliSatuan: g.totalQty > 0 ? fmt(g.beliXQty / g.totalQty) : '—',
                     hargaJualRange: hargaJualRange,
                     nomCash: g.nomCash,
                     nomTempo: g.nomTempo,
@@ -6538,7 +6538,7 @@
                 if (!g.satuan && r.satuan) g.satuan = r.satuan;
             }
             Object.values(map).forEach(g => {
-                g.hargaBeliSatuan = hargaRange(g.minHargaBeli, g.maxHargaBeli);
+                g.hargaBeliSatuan = g.totalQty > 0 ? fmt(g.beliXQty / g.totalQty) : '—';
                 if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
                     g.hargaJualRange = '—';
                 } else if (g.minHargaJual === g.maxHargaJual) {
@@ -6637,7 +6637,7 @@
             // Harga beli per satuan = rata-rata tertimbang (total nilai dibagi total qty)
             // Harga jual = tampilkan sebagai range (terendah - tertinggi)
             Object.values(map).forEach(g => {
-                g.hargaBeliSatuan = hargaRange(g.minHargaBeli, g.maxHargaBeli);
+                g.hargaBeliSatuan = g.totalQty > 0 ? fmt(g.beliXQty / g.totalQty) : '—';
                 // Ganti hargaJualSatuan dengan range display
                 if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
                     g.hargaJualRange = '—';
@@ -6709,7 +6709,7 @@
                 if (!g.satuan && r.satuan) g.satuan = r.satuan;
             }
             Object.values(map).forEach(g => {
-                g.hargaBeliSatuan = hargaRange(g.minHargaBeli, g.maxHargaBeli);
+                g.hargaBeliSatuan = g.totalQty > 0 ? fmt(g.beliXQty / g.totalQty) : '—';
                 if (g.minHargaJual === Infinity || g.maxHargaJual === -Infinity) {
                     g.hargaJualRange = '—';
                 } else if (g.minHargaJual === g.maxHargaJual) {
