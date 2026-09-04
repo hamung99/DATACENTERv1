@@ -610,6 +610,7 @@
                 <button class="subtab-btn active" id="subBtnFakturRingkasan" onclick="switchFakturSub('ringkasan')">Rekap Harian</button>
                 <button class="subtab-btn" id="subBtnFakturBulan" onclick="switchFakturSub('bulan')">Data Bulanan</button>
                 <button class="subtab-btn" id="subBtnFakturSales" onclick="switchFakturSub('sales')">👤 Per Sales</button>
+                <button class="subtab-btn" id="subBtnFakturPengeluaran" onclick="switchFakturSub('pengeluaran')">🧾 Pengeluaran</button>
             </div>
 
             <div class="search-bar show" id="searchBar">
@@ -675,6 +676,39 @@
                     </thead>
                     <tbody id="fakturSalesBody"></tbody>
                 </table>
+            </div>
+
+            <div class="profit-wrap" id="fakturPengeluaranWrap" style="max-height:none;">
+                <div class="profit-head">
+                    <span>🧾 PENGELUARAN (BACKUP EXCEL BULANAN)</span>
+                    <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <span class="muted" id="pengLastUpdateLabel"></span>
+                        <label class="upload-btn" style="padding:5px 10px;font-size:0.72rem;">
+                            📂 Upload Excel
+                            <input type="file" id="pengFileInput" accept=".xlsx,.xls">
+                        </label>
+                        <button type="button" class="btn btn-outline" id="pengDownloadBtn" onclick="pengDownloadExcel()" title="Download data bulan aktif ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
+                        <button type="button" class="btn btn-outline" id="pengRemoveBtn" onclick="pengRemoveActiveSource()" title="Hapus data bulan aktif" style="font-size:0.72rem;padding:4px 10px;min-height:28px;color:var(--red);">✕ Hapus</button>
+                    </span>
+                </div>
+                <div id="pengSourceTabs" style="display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--border);padding:0 8px;"></div>
+                <div id="pengEmptyState" class="empty-state" style="display:block;">
+                    <div class="big">🧾</div>
+                    <div><strong>Belum ada data Pengeluaran</strong></div>
+                    <div class="hint">Upload file Excel Pengeluaran setiap bulan (kolom sama seperti biasa, hanya nama file beda per bulan). File akan tersimpan di aplikasi ini sebagai backup, jadi mudah dilihat kapan saja tanpa perlu buka file aslinya. Setiap file yang diupload jadi tab bulan tersendiri &mdash; tidak menimpa data bulan lain.</div>
+                    <br>
+                    <label class="upload-btn" style="display:inline-flex;">
+                        📂 Pilih File Excel
+                        <input type="file" id="pengFileInputEmpty" accept=".xlsx,.xls">
+                    </label>
+                </div>
+                <div id="pengTableWrap" style="overflow-x:auto;overflow-y:auto;max-height:60vh;display:none;">
+                    <table class="profit-table" id="pengTable">
+                        <thead id="pengThead"></thead>
+                        <tbody id="pengTbody"></tbody>
+                    </table>
+                </div>
+                <div class="loading" id="pengLoading">Memproses file...</div>
             </div>
         </div>
 
@@ -2601,6 +2635,7 @@
             document.getElementById('subBtnFakturRingkasan').classList.toggle('active', sub === 'ringkasan');
             document.getElementById('subBtnFakturBulan').classList.toggle('active', sub === 'bulan');
             document.getElementById('subBtnFakturSales').classList.toggle('active', sub === 'sales');
+            document.getElementById('subBtnFakturPengeluaran').classList.toggle('active', sub === 'pengeluaran');
             const isRingkasan = sub === 'ringkasan';
             document.getElementById('searchBar').classList.toggle('show', isRingkasan);
             document.getElementById('dailyPanel').style.display = isRingkasan ? 'block' : 'none';
@@ -2608,8 +2643,10 @@
             document.getElementById('tableWrap').style.display = isRingkasan ? 'block' : 'none';
             document.getElementById('fakturBulanWrap').classList.toggle('show', sub === 'bulan');
             document.getElementById('fakturSalesWrap').classList.toggle('show', sub === 'sales');
+            document.getElementById('fakturPengeluaranWrap').classList.toggle('show', sub === 'pengeluaran');
             if (sub === 'bulan') renderFakturBulan(getFakturRowsForBulanCompare());
             else if (sub === 'sales') renderFakturSales(getFakturRowsForSalesTab());
+            else if (sub === 'pengeluaran') { pengUpdateMeta(); pengRenderTable(); }
             else showSummary();
         }
 
@@ -10433,6 +10470,267 @@
         const ringkasanRupaSelEl = document.getElementById('ringkasanRupaProdukSel');
         if (ringkasanRupaSelEl) ringkasanRupaSelEl.addEventListener('change', () => renderRingkasanRupa());
 
+        // ================= SUB TAB "PENGELUARAN" (di dalam TAB UANG MASUK) =================
+        // Tujuan: backup file Excel Pengeluaran per bulan supaya mudah dilihat
+        // dalam satu aplikasi tanpa perlu buka file aslinya satu-satu.
+        // Format kolom Excel-nya sama tiap bulan, hanya nama file yang beda
+        // (sesuai bulan) -> tiap file yang diupload disimpan sebagai "sumber"
+        // terpisah (mirip pola Analisa AR) dan bisa dipilih lewat tab bulan,
+        // tanpa menimpa data bulan lain. Disimpan di IndexedDB tersendiri,
+        // terpisah dari sistem cloud-sync Uang Masuk.
+        const PENG_DB_NAME = 'datacenter_pengeluaran_db';
+        const PENG_DB_STORE = 'pengData';
+        const PENG_DB_VERSION = 1;
+
+        let pengSources = {}; // key -> { label, fileName, uploadedAt, sheetName }
+        let pengActiveSource = null;
+        let pengAllRows = []; // array-of-arrays: baris[0] = header, sisanya = data
+
+        function pengDbOpen() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(PENG_DB_NAME, PENG_DB_VERSION);
+                req.onupgradeneeded = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(PENG_DB_STORE)) db.createObjectStore(PENG_DB_STORE);
+                };
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function pengDbPut(key, value) {
+            const db = await pengDbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(PENG_DB_STORE, 'readwrite');
+                tx.objectStore(PENG_DB_STORE).put(value, key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function pengDbGet(key) {
+            const db = await pengDbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(PENG_DB_STORE, 'readonly');
+                const req = tx.objectStore(PENG_DB_STORE).get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+        }
+
+        async function pengDbDelete(key) {
+            const db = await pengDbOpen();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(PENG_DB_STORE, 'readwrite');
+                tx.objectStore(PENG_DB_STORE).delete(key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function pengGetRegistry() {
+            try {
+                const r = await pengDbGet('sources_registry');
+                return (r && typeof r === 'object') ? r : {};
+            } catch (err) { return {}; }
+        }
+
+        async function pengSaveRegistry(reg) {
+            try { await pengDbPut('sources_registry', reg); } catch (err) {}
+        }
+
+        async function pengSaveDataToStorage(key, data) {
+            try { await pengDbPut('rows__' + key, data); }
+            catch (err) { console.error('Gagal menyimpan data Pengeluaran ke IndexedDB:', err); }
+        }
+
+        async function pengLoadDataForSource(key) {
+            try {
+                const data = await pengDbGet('rows__' + key);
+                return Array.isArray(data) ? data : null;
+            } catch (err) { return null; }
+        }
+
+        // Kunci sumber diambil dari nama file (tanpa ekstensi), supaya tiap
+        // file bulanan otomatis jadi tab tersendiri: "Pengeluaran Juli.xlsx"
+        // dan "Pengeluaran Agustus.xlsx" akan tersimpan sebagai dua sumber
+        // yang berbeda dan tidak saling menimpa.
+        function pengDetectSource(filename) {
+            const base = String(filename || 'Pengeluaran').replace(/\.[^.]+$/, '').trim() || 'Pengeluaran';
+            const key = base.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'default';
+            return { key, label: base };
+        }
+
+        function pengHandleFile(file) {
+            const loadingEl = document.getElementById('pengLoading');
+            if (loadingEl) loadingEl.style.display = 'block';
+            const reader = new FileReader();
+            reader.onload = async e => {
+                try {
+                    const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                    const sn = wb.SheetNames[0];
+                    const ws = wb.Sheets[sn];
+                    let json = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                    // Buang baris kosong total di akhir
+                    while (json.length && json[json.length - 1].every(c => c === '' || c === null || c === undefined)) json.pop();
+                    const detected = pengDetectSource(file.name);
+                    pengActiveSource = detected.key;
+                    pengAllRows = json;
+                    await pengSaveDataToStorage(detected.key, json);
+                    pengSources[detected.key] = {
+                        label: detected.label,
+                        fileName: file.name,
+                        uploadedAt: new Date().toISOString(),
+                        sheetName: sn
+                    };
+                    await pengSaveRegistry(pengSources);
+                    try { await pengDbPut('active_source', detected.key); } catch (err) {}
+                    pengRenderSourceTabs();
+                    pengRenderTable();
+                    pengUpdateMeta();
+                } catch (err) {
+                    alert('Gagal memuat file Pengeluaran: ' + err.message);
+                } finally {
+                    if (loadingEl) loadingEl.style.display = 'none';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function pengRenderSourceTabs() {
+            const wrap = document.getElementById('pengSourceTabs');
+            if (!wrap) return;
+            const keys = Object.keys(pengSources);
+            wrap.innerHTML = keys.map(k => {
+                const s = pengSources[k] || {};
+                const active = k === pengActiveSource ? ' active' : '';
+                const kEsc = k.replace(/'/g, "\\'");
+                const labelSafe = String(s.label || k).replace(/</g, '&lt;');
+                return '<button type="button" class="subtab-btn ar-source-tab' + active + '" onclick="pengSwitchSource(\'' + kEsc + '\')">' +
+                    labelSafe +
+                    '<span class="ar-source-remove" title="Hapus data bulan ini" onclick="event.stopPropagation();pengRemoveSource(\'' + kEsc + '\')">✕</span></button>';
+            }).join('');
+        }
+
+        async function pengSwitchSource(key) {
+            if (!pengSources[key] || key === pengActiveSource) return;
+            pengActiveSource = key;
+            try { await pengDbPut('active_source', key); } catch (err) {}
+            const saved = await pengLoadDataForSource(key);
+            pengAllRows = Array.isArray(saved) ? saved : [];
+            pengRenderSourceTabs();
+            pengRenderTable();
+            pengUpdateMeta();
+        }
+
+        async function pengRemoveSource(key) {
+            if (!pengSources[key]) return;
+            const label = pengSources[key].label || key;
+            if (!confirm('Hapus data Pengeluaran "' + label + '"? Data ini akan hilang dari aplikasi (file Excel aslinya tidak terpengaruh).')) return;
+            try { await pengDbDelete('rows__' + key); } catch (err) {}
+            delete pengSources[key];
+            await pengSaveRegistry(pengSources);
+            const remainingKeys = Object.keys(pengSources);
+            if (key === pengActiveSource) {
+                if (remainingKeys.length) {
+                    await pengSwitchSource(remainingKeys[0]);
+                } else {
+                    pengActiveSource = null;
+                    try { await pengDbDelete('active_source'); } catch (err) {}
+                    pengAllRows = [];
+                    pengRenderSourceTabs();
+                    pengRenderTable();
+                    pengUpdateMeta();
+                }
+            } else {
+                pengRenderSourceTabs();
+            }
+        }
+
+        async function pengRemoveActiveSource() {
+            if (!pengActiveSource) return;
+            await pengRemoveSource(pengActiveSource);
+        }
+
+        function pengUpdateMeta() {
+            const emptyEl = document.getElementById('pengEmptyState');
+            const tableWrapEl = document.getElementById('pengTableWrap');
+            const labelEl = document.getElementById('pengLastUpdateLabel');
+            const dlBtn = document.getElementById('pengDownloadBtn');
+            const rmBtn = document.getElementById('pengRemoveBtn');
+            const hasData = !!(pengActiveSource && pengSources[pengActiveSource]);
+            if (emptyEl) emptyEl.style.display = hasData ? 'none' : 'block';
+            if (tableWrapEl) tableWrapEl.style.display = hasData ? 'block' : 'none';
+            if (dlBtn) dlBtn.disabled = !hasData;
+            if (rmBtn) rmBtn.disabled = !hasData;
+            if (labelEl) {
+                if (hasData) {
+                    const s = pengSources[pengActiveSource];
+                    let txt = (s.fileName || pengActiveSource);
+                    if (s.uploadedAt) {
+                        try { txt += ' · diupload ' + new Date(s.uploadedAt).toLocaleString('id-ID'); } catch (err) {}
+                    }
+                    labelEl.textContent = txt;
+                } else {
+                    labelEl.textContent = '';
+                }
+            }
+        }
+
+        // Render generik: kolom mengikuti header baris pertama file Excel
+        // yang diupload, jadi tidak perlu tahu nama kolom pastinya di awal.
+        function pengRenderTable() {
+            const thead = document.getElementById('pengThead');
+            const tbody = document.getElementById('pengTbody');
+            if (!thead || !tbody) return;
+            const rows = pengAllRows || [];
+            if (!rows.length) { thead.innerHTML = ''; tbody.innerHTML = ''; return; }
+            const headerRow = rows[0];
+            thead.innerHTML = '<tr>' + headerRow.map(h => {
+                const t = (h === '' || h === null || h === undefined) ? '-' : h;
+                return '<th>' + String(t).replace(/</g, '&lt;') + '</th>';
+            }).join('') + '</tr>';
+            const bodyRows = rows.slice(1);
+            tbody.innerHTML = bodyRows.map(r => {
+                return '<tr>' + headerRow.map((_, i) => {
+                    let v = r[i];
+                    if (v === undefined || v === null) v = '';
+                    return '<td>' + String(v).replace(/</g, '&lt;') + '</td>';
+                }).join('') + '</tr>';
+            }).join('');
+        }
+
+        function pengDownloadExcel() {
+            if (!pengActiveSource || !pengAllRows.length) { alert('Tidak ada data Pengeluaran untuk diunduh.'); return; }
+            const ws = XLSX.utils.aoa_to_sheet(pengAllRows);
+            const wb = XLSX.utils.book_new();
+            const s = pengSources[pengActiveSource] || {};
+            XLSX.utils.book_append_sheet(wb, ws, String(s.label || 'Pengeluaran').slice(0, 31));
+            const fname = 'Pengeluaran_' + String(s.label || pengActiveSource).replace(/[^a-zA-Z0-9]+/g, '_') + '.xlsx';
+            XLSX.writeFile(wb, fname);
+        }
+
+        async function pengInitFromStorage() {
+            pengSources = await pengGetRegistry();
+            const keys = Object.keys(pengSources);
+            if (!keys.length) { pengUpdateMeta(); return; }
+            let active = null;
+            try { active = await pengDbGet('active_source'); } catch (err) {}
+            if (!active || !pengSources[active]) active = keys[0];
+            pengActiveSource = active;
+            const saved = await pengLoadDataForSource(active);
+            pengAllRows = Array.isArray(saved) ? saved : [];
+            pengRenderSourceTabs();
+            pengRenderTable();
+            pengUpdateMeta();
+        }
+
+        const pengFileInputEl = document.getElementById('pengFileInput');
+        if (pengFileInputEl) pengFileInputEl.addEventListener('change', e => { if (e.target.files.length) pengHandleFile(e.target.files[0]); e.target.value = ''; });
+        const pengFileInputEmptyEl = document.getElementById('pengFileInputEmpty');
+        if (pengFileInputEmptyEl) pengFileInputEmptyEl.addEventListener('change', e => { if (e.target.files.length) pengHandleFile(e.target.files[0]); e.target.value = ''; });
+        pengInitFromStorage();
+
         // ================= TAB ANALISA AR (Piutang) =================
         // Namespace "ar" dipakai di semua variabel/fungsi/elemen di bawah ini
         // supaya tidak bentrok dengan tab-tab lain yang sudah ada.
@@ -10964,7 +11262,8 @@
             openHapusBulanModal, closeHapusBulanModal, toggleHapusBulanSelectAll, syncHapusBulanSelectAll, applyHapusBulan,
             resetGudangData, hapusDataGudangSepenuhnya, setGudangSelectedPeriod,
             switchARSub, toggleARMenu, closeARMenu, arClearData, arApplyPiutangFilter, arFilterFullTable, arExportPiutang,
-            arSwitchSource, arRemoveSource, toggleGudangMenu, closeGudangMenu
+            arSwitchSource, arRemoveSource, toggleGudangMenu, closeGudangMenu,
+            pengHandleFile, pengSwitchSource, pengRemoveSource, pengRemoveActiveSource, pengDownloadExcel
         });
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
