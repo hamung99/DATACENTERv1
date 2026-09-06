@@ -210,11 +210,6 @@
         .profit-table tr:hover td { background: var(--table-hover); }
         .profit-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
         .profit-table .total-row td { font-weight: 700; border-top: 2px solid var(--border); background: var(--th-bg); }
-        .gudang-scroll-box { max-height: 65vh; overflow-y: auto; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
-        .gudang-scroll-box .profit-table td:first-child, .gudang-scroll-box .profit-table th:first-child { position: sticky; left: 0; background: var(--th-bg); z-index: 3; }
-        .gudang-scroll-box .profit-table thead th:first-child { z-index: 4; }
-        .gudang-scroll-box .profit-table thead tr:first-child th { top: 0; }
-        .gudang-scroll-box .profit-table thead tr:last-child th:not([rowspan]) { top: 32px; }
         #profitSalesTable thead tr:last-child th:not([rowspan]) { top: 32px; }
         .hj-clickable { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
         .hj-clickable:hover { color: var(--accent); }
@@ -584,7 +579,6 @@
         <div class="tabs" id="tabsBar" style="display:flex;">
             <button class="tab-btn active" id="tabBtnFaktur" onclick="switchTab('faktur')">💰 Uang Masuk</button>
             <button class="tab-btn" id="tabBtnPenjualan" onclick="switchTab('penjualan')">📊 Data Penjualan</button>
-            <button class="tab-btn" id="tabBtnGudang" onclick="switchTab('gudang')">🏭 Data Gudang</button>
             <button class="tab-btn" id="tabBtnCek" onclick="switchTab('cek')">🔍 Cek Data</button>
             <button class="tab-btn" id="tabBtnAr" onclick="switchTab('ar')">📈 Analisa AR</button>
         </div>
@@ -798,17 +792,6 @@
                     <div id="ringkasanFitriBody"></div>
                 </div>
 
-                <div class="profit-wrap show" id="ringkasanFitriDetailWrap">
-                    <div class="profit-head">
-                        <span>📅 DETAIL PER TANGGAL — FITRI</span>
-                        <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                            <span class="muted" id="ringkasanFitriDetailPeriod">—</span>
-                            <button type="button" class="btn btn-outline" onclick="downloadRingkasanDetailPerTanggalExcel()" title="Download tabel Detail Per Tanggal ke Excel" style="font-size:0.72rem;padding:4px 10px;min-height:28px;">⬇ Download</button>
-                        </span>
-                    </div>
-                    <div id="ringkasanFitriDetailBody"></div>
-                </div>
-
                 <div class="profit-wrap show" id="ringkasanRupaWrap">
                     <div class="profit-head" style="flex-wrap:wrap;gap:8px;">
                         <span>🧺 RUPA RUPA</span>
@@ -859,83 +842,6 @@
                 <div class="hint">Kolom: Tanggal, No.Faktur, Produk, Jumlah, Satuan, Harga Jual, Disc, Total, Sales, Customer, Alamat, Pembayaran, Harga Beli.<br>Data diproses di browser Anda.</div>
             </div>
             <div class="loading" id="salesLoading" style="display:none;">Memproses file...</div>
-        </div>
-
-        <!-- TAB GUDANG -->
-        <div id="tabGudang" style="display:none;">
-            <div class="ringkasan-date-filter" id="ringkasanDateWrap" style="margin-bottom:10px;">
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;white-space:nowrap;">
-                    🗓️ Bulan
-                    <select id="gudangPeriodFilter" onchange="setGudangSelectedPeriod(this.value)" style="font-size:0.78rem;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);"></select>
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:700;white-space:nowrap;">
-                    📅 Filter Tanggal
-                    <input type="date" id="ringkasanDateFilter" onchange="onRingkasanDateFilterChange()">
-                </label>
-                <button type="button" class="btn btn-outline" id="ringkasanDateClearBtn" style="font-size:0.72rem;padding:5px 10px;display:none;" onclick="clearRingkasanDateFilter()">✕ Hapus Filter Tanggal</button>
-                <button type="button" class="btn btn-outline" style="font-size:0.72rem;padding:5px 10px;" onclick="openRingkasanInvestigationModal()">🔍 Investigasi Perbedaan</button>
-                <div class="menu-wrap" id="gudangMenuWrap">
-                    <button class="theme-btn" id="gudangSettingsBtn" onclick="toggleGudangMenu()" title="Pengaturan Data Gudang">⚙️</button>
-                    <div class="menu-dd" id="gudangMenuDd">
-                        <label class="menu-item upload-item"><input type="file" id="fileInputGudang" accept=".xlsx,.xls"> 📤 Upload Stok Gudang</label>
-                        <button class="menu-item" onclick="resetGudangData(); closeGudangMenu();" title="Kembalikan ke data contoh bawaan aplikasi (bukan data gudang asli kamu)">↺ Reset ke Contoh</button>
-                        <button class="menu-item" onclick="hapusDataGudangSepenuhnya(); closeGudangMenu();" style="color:var(--red);" title="Kosongkan semua data gudang (upload maupun contoh bawaan) — supaya tidak ada data lama/basi yang nyangkut di cache browser">🗑️ Hapus Data Bawaan</button>
-                        <div class="menu-divider"></div>
-                        <div class="menu-files" id="gudangUploadStatus"></div>
-                    </div>
-                </div>
-                <div class="view-toggle" id="gudangInnerTabs" style="margin-left:auto;">
-                    <button type="button" class="view-toggle-btn active" id="gudangTabBtnMain" onclick="switchGudangMainSub('gudang')">🏭 Data Gudang</button>
-                    <button type="button" class="view-toggle-btn" id="gudangTabBtnCek" onclick="switchGudangMainSub('cek')">🔎 Cek Beda</button>
-                </div>
-            </div>
-
-            <div class="profit-wrap show" id="ringkasanGudangWrap">
-                <div class="profit-head">
-                    <span>🏭 DATA GUDANG — STOK MINYAK</span>
-                    <span class="muted" id="ringkasanGudangPeriod">—</span>
-                </div>
-                <div class="sales-cards" id="ringkasanGudangCards" style="margin-bottom:10px;"></div>
-                <div id="ringkasanGudangBody"></div>
-            </div>
-
-            <div class="profit-wrap" id="ringkasanCekWrap" style="display:none;">
-                <div class="profit-head">
-                    <span>🔎 CEK BEDA — TOTAL PENJUALAN vs OUTPUT GUDANG</span>
-                </div>
-                <div style="margin-bottom:12px;font-size:0.8rem;color:var(--muted);">
-                    <p>Daftar <strong>tanggal &amp; produk</strong> yang jumlah Total Penjualan-nya beda dengan Output Gudang. <strong>Jangan menilai hanya dari total NET</strong>, karena selisih positif dan negatif antar produk bisa saling menutup. Untuk audit gunakan <strong>BEDA ABSOLUT</strong> dan rincian per tanggal × produk.</p>
-                </div>
-                <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                    <div id="ringkasanCekSummary" style="font-size:0.82rem;font-weight:600;"></div>
-                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                        <select id="ringkasanCekFilterProduk" onchange="renderRingkasanCekTab()" style="font-size:0.78rem;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
-                            <option value="all">Semua Produk</option>
-                        </select>
-                        <label style="font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
-                            <input type="checkbox" id="ringkasanCekShowAll" onchange="renderRingkasanCekTab()"> Tampilkan semua (termasuk yang Cocok)
-                        </label>
-                    </div>
-                </div>
-                <div style="overflow-x:auto;">
-                    <table class="modal-table" style="width:100%;font-size:0.8rem;">
-                        <thead>
-                            <tr>
-                                <th>Tanggal</th>
-                                <th>Produk</th>
-                                <th class="num">Total Penjualan</th>
-                                <th class="num">Output Gudang</th>
-                                <th class="num">Selisih</th>
-                                <th>Status</th>
-                                <th>Detail Transaksi (No Faktur · Sales · Qty)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ringkasanCekBody">
-                            <tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);">Memuat...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
 
         <!-- TAB CEK -->
@@ -1351,48 +1257,6 @@
             </div>
         </div>
 
-        <!-- Modal Investigasi Perbedaan Ringkasan -->
-        <div class="modal-overlay" id="ringkasanInvestigationModal" onclick="if(event.target===this)closeRingkasanInvestigationModal()">
-            <div class="modal-content" style="max-width:1000px;">
-                <div class="modal-header">
-                    <h2>🔍 Investigasi Perbedaan Total vs Output Gudang</h2>
-                    <button class="modal-close" onclick="closeRingkasanInvestigationModal()">✕</button>
-                </div>
-                <div style="margin-bottom:12px;font-size:0.8rem;color:var(--muted);">
-                    <p><strong>Total Penjualan:</strong> Dihitung per tanggal dari data transaksi Data Penjualan.</p>
-                    <p><strong>Output Gudang:</strong> Diambil per tanggal dari sheet "STOK GUDANG MINYAK FITRI".</p>
-                    <p>Tabel di bawah dipecah <strong>per tanggal &amp; per produk</strong> supaya langsung kelihatan <u>tanggal berapa</u> selisihnya terjadi, dan <u>faktur/sales mana</u> yang tercatat pada tanggal itu.</p>
-                </div>
-                <div style="margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-                    <div id="ringkasanInvestigationSummary" style="font-size:0.82rem;font-weight:600;"></div>
-                    <label style="font-size:0.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
-                        <input type="checkbox" id="ringkasanInvestigationShowAll" onchange="performRingkasanInvestigation()"> Tampilkan semua (termasuk yang Cocok)
-                    </label>
-                </div>
-                <div style="overflow-x:auto;max-height:500px;overflow-y:auto;">
-                    <table class="modal-table" style="width:100%;font-size:0.8rem;">
-                        <thead>
-                            <tr>
-                                <th>Tanggal</th>
-                                <th>Produk</th>
-                                <th class="num">Total Penjualan</th>
-                                <th class="num">Output Gudang</th>
-                                <th class="num">Selisih</th>
-                                <th>Status</th>
-                                <th>Detail Transaksi (No Faktur · Sales · Qty)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ringkasanInvestigationBody">
-                            <tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);">Memuat investigasi...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
-                    <button class="btn btn-outline" onclick="closeRingkasanInvestigationModal()">Tutup</button>
-                </div>
-            </div>
-        </div>
-
         <footer>DATACENTER · Mode terang / gelap · Upload Excel</footer>
     </div>
 
@@ -1662,8 +1526,6 @@
                         sales_rows: salesRows,
                         rapikan_rows: (window.__rapGetCleanRows && window.__rapGetCleanRows()) || [],
                         harga_beli_rows: (window.__rapGetPriceRows && window.__rapGetPriceRows()) || [],
-                        gudang_data: (typeof GUDANG_HISTORY !== 'undefined') ?
-                            { history: GUDANG_HISTORY, selected: (typeof GUDANG_SELECTED_PERIOD !== 'undefined' ? GUDANG_SELECTED_PERIOD : null) } : null,
                         updated_at: nowIso
                     });
                 if (error) throw error;
@@ -1682,7 +1544,7 @@
                 setCloudStatus('Mengambil data dari cloud…', false);
                 const { data, error } = await supabaseClient
                     .from('app_data')
-                    .select('all_rows, sales_rows, rapikan_rows, harga_beli_rows, gudang_data, updated_at')
+                    .select('all_rows, sales_rows, rapikan_rows, harga_beli_rows, updated_at')
                     .eq('id', SUPABASE_ROW_ID)
                     .maybeSingle();
                 if (error) throw error;
@@ -4050,100 +3912,9 @@
         let ringkasanBaseRows = [];
         let ringkasanFilterDate = ''; // format 'YYYY-MM-DD', kosong = tidak difilter tanggal
 
-        // ---- OUTPUT GUDANG OTOMATIS ----
-        // Dulu kolom "OUTPUT GUDANG" diisi manual oleh user lalu dibandingkan
-        // dengan Total penjualan. Sekarang nilainya diambil otomatis dari
-        // GUDANG_DATA (snapshot Excel "STOK GUDANG MINYAK FITRI") berdasarkan
-        // tanggal/filter yang sedang aktif di tabel Ringkasan, dicocokkan per
-        // nama produk. Kolom "KET": kosong kalau tidak cocok / data gudang
-        // tidak ada, dan tulis "Cocok" kalau sama persis dengan Total.
-        let ringkasanDateScopeISO = []; // tanggal (ISO) yang sedang tampil di tabel Ringkasan
-
-        function normalizeGudangName(s) {
-            return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-        }
-        // Catatan: GUDANG_DATA baru dideklarasikan di bawah (const, urutan file).
-        // Index-nya sengaja dihitung lazy (baru dibangun saat pertama dipakai),
-        // bukan langsung saat file di-parse, supaya tidak error "belum
-        // terdefinisi" karena urutan deklarasi di file.
-        let _gudangProductIndexCache = null;
-        function getGudangProductIndex() {
-            if (_gudangProductIndexCache) return _gudangProductIndexCache;
-            const idx = {};
-            (GUDANG_DATA.products || []).forEach(p => { idx[normalizeGudangName(p.name)] = p; });
-            _gudangProductIndexCache = idx;
-            return idx;
-        }
-        function findGudangProduct(produk) {
-            return getGudangProductIndex()[normalizeGudangName(produk)] || null;
-        }
-        // Ambil nilai kolom "Keluar" (Klr) gudang untuk 1 tanggal tertentu.
-        function getGudangKeluarForDate(gp, iso) {
-            const row = (GUDANG_DATA.rows || []).find(r => r[0] === iso);
-            if (!row) return null;
-            const v = row[gp.col + 1];
-            return (v === null || v === undefined || v === '') ? null : Number(v);
-        }
-        // Jumlahkan kolom "Keluar" (Klr) gudang untuk sekumpulan tanggal (atau
-        // seluruh periode gudang kalau isoDates null/kosong).
-        function getGudangKeluarSum(gp, isoDates) {
-            const dateSet = (isoDates && isoDates.length) ? new Set(isoDates) : null;
-            let sum = 0,
-                found = false;
-            (GUDANG_DATA.rows || []).forEach(r => {
-                if (dateSet && !dateSet.has(r[0])) return;
-                const v = r[gp.col + 1];
-                if (v !== null && v !== undefined && v !== '') { sum += Number(v); found = true; }
-            });
-            return found ? sum : null;
-        }
-        // Nilai OUTPUT GUDANG otomatis untuk 1 produk, mengikuti tanggal yang
-        // sedang aktif di tabel Ringkasan (ringkasanDateScopeISO):
-        //  - 1 tanggal spesifik  -> ambil Klr tanggal itu saja
-        //  - beberapa tanggal    -> jumlahkan Klr tanggal-tanggal itu
-        //  - tidak ada tanggal   -> jumlahkan seluruh periode data gudang
-        function getAutoOutputGudang(produk) {
-            const gp = findGudangProduct(produk);
-            if (!gp) return null;
-            if (ringkasanDateScopeISO && ringkasanDateScopeISO.length === 1) {
-                return getGudangKeluarForDate(gp, ringkasanDateScopeISO[0]);
-            }
-            return getGudangKeluarSum(gp, ringkasanDateScopeISO);
-        }
-        // Sel "Ket": tidak ada data gudang / tidak cocok -> dikosongkan,
-        // sama persis dengan Total -> tulis "Cocok".
-        function renderRingkasanKetCell(outputVal, totalVal) {
-            if (outputVal === null || outputVal === undefined) return '<span class="muted">—</span>';
-            if (outputVal === totalVal) {
-                return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;color:var(--green,#16a34a);background:var(--green-bg,rgba(22,163,74,.12));">✅ Cocok</span>';
-            }
-            return '';
-        }
-
         function ringkasanDateToISO(d) {
             if (!(d instanceof Date) || isNaN(d.getTime())) return '';
             return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
-        }
-
-        function onRingkasanDateFilterChange() {
-            const inp = document.getElementById('ringkasanDateFilter');
-            ringkasanFilterDate = inp ? inp.value : '';
-            const clearBtn = document.getElementById('ringkasanDateClearBtn');
-            if (clearBtn) clearBtn.style.display = ringkasanFilterDate ? 'inline-flex' : 'none';
-            renderRingkasan();
-            renderGudangCards();
-            if (document.getElementById('ringkasanCekWrap') && document.getElementById('ringkasanCekWrap').style.display !== 'none') renderRingkasanCekTab();
-        }
-
-        function clearRingkasanDateFilter() {
-            const inp = document.getElementById('ringkasanDateFilter');
-            if (inp) inp.value = '';
-            ringkasanFilterDate = '';
-            const clearBtn = document.getElementById('ringkasanDateClearBtn');
-            if (clearBtn) clearBtn.style.display = 'none';
-            renderRingkasan();
-            renderGudangCards();
-            if (document.getElementById('ringkasanCekWrap') && document.getElementById('ringkasanCekWrap').style.display !== 'none') renderRingkasanCekTab();
         }
 
         function isFitriProduk(produk) { return (produk || '').toUpperCase().includes('FITRI'); }
@@ -4166,239 +3937,6 @@
             return a.localeCompare(b);
         }
 
-        /** Nama pendek produk Fitri untuk tabel detail: Fitri200, Fitri400, Fitri800, ... */
-        function shortFitriName(produk) {
-            const s = String(produk || '').toUpperCase().replace(/\s+/g, ' ').trim();
-            // Ambil angka + satuan (ML / L) di nama produk
-            const m = s.match(/(\d+(?:[.,]\d+)?)\s*(ML|L|LTR|LITER)\b/);
-            if (m) {
-                let num = parseFloat(m[1].replace(',', '.'));
-                const unit = m[2].toUpperCase();
-                if (!isNaN(num) && (unit === 'L' || unit === 'LTR' || unit === 'LITER') && num < 100) {
-                    num = Math.round(num * 1000); // 5 L → 5000
-                }
-                return 'Fitri' + (Number.isInteger(num) ? String(num) : String(num));
-            }
-            // Fallback: angka saja tanpa satuan (mis. "FITRI 200")
-            const m2 = s.match(/\b(\d{2,5})\b/);
-            if (m2) return 'Fitri' + m2[1];
-            return s.replace(/^FITRI\s*/i, 'Fitri').replace(/\s+/g, '') || 'Fitri';
-        }
-
-        /**
-         * Detail penjualan Fitri vs Output Gudang per tanggal × produk.
-         * rows = baris Data Penjualan (sudah difilter periode/tanggal bila perlu).
-         * Mengembalikan array { iso, tanggalStr, produk, shortName, penjualan, output, selisih, ket }
-         */
-        function buildRingkasanDetailPerTanggal(rows) {
-            const fitriRows = (rows || []).filter(r => isFitriProduk(r.produk));
-            // Kelompokkan berdasarkan nama pendek (Fitri200/Fitri400/Fitri800), BUKAN nama
-            // mentah persis — supaya "FITRI BOTOL 200ML" (Data Penjualan) dan
-            // "FITRI BOTOL 200 ML" (Data Gudang) dianggap 1 produk yang sama, bukan
-            // 2 baris terpisah.
-            const salesMap = {}; // iso -> { shortKey -> qty }
-            const keyLabels = {}; // shortKey -> Set(nama mentah yang pernah muncul)
-            fitriRows.forEach(r => {
-                const d = parseSalesDate(r.tanggal);
-                const iso = ringkasanDateToISO(d);
-                if (!iso) return;
-                const prodRaw = String(r.produk || '').trim() || '—';
-                const key = shortFitriName(prodRaw);
-                if (!keyLabels[key]) keyLabels[key] = new Set();
-                keyLabels[key].add(prodRaw);
-                if (!salesMap[iso]) salesMap[iso] = {};
-                salesMap[iso][key] = (salesMap[iso][key] || 0) + (Number(r.jumlah) || 0);
-            });
-
-            // Produk Fitri dari gudang (yang namanya mengandung FITRI)
-            const gudangFitri = (GUDANG_DATA.products || []).filter(p => isFitriProduk(p.name));
-            gudangFitri.forEach(p => {
-                const key = shortFitriName(p.name);
-                if (!keyLabels[key]) keyLabels[key] = new Set();
-                keyLabels[key].add(p.name);
-            });
-
-            // Tanggal cakupan
-            let dates = [];
-            if (ringkasanFilterDate) {
-                dates = [ringkasanFilterDate];
-            } else if (ringkasanDateScopeISO && ringkasanDateScopeISO.length) {
-                dates = ringkasanDateScopeISO.slice().sort();
-            } else {
-                const set = new Set(Object.keys(salesMap));
-                (GUDANG_DATA.rows || []).forEach(r => { if (r[0]) set.add(r[0]); });
-                dates = Array.from(set).sort();
-            }
-
-            // Urutkan produk (per key): prioritaskan yang sering muncul di penjualan, lalu nama
-            const keys = Object.keys(keyLabels).sort((a, b) => {
-                const qa = Object.values(salesMap).reduce((s, m) => s + (m[a] || 0), 0);
-                const qb = Object.values(salesMap).reduce((s, m) => s + (m[b] || 0), 0);
-                if (qb !== qa) return qb - qa;
-                return a.localeCompare(b);
-            });
-
-            function resolveGudangProductByKey(key) {
-                return gudangFitri.find(p => shortFitriName(p.name) === key) || null;
-            }
-
-            // Hanya tampilkan produk yang punya aktivitas (penjualan ATAU output gudang) di periode
-            const activeKeys = keys.filter(key => {
-                const hasSales = Object.values(salesMap).some(m => m[key]);
-                const gp = resolveGudangProductByKey(key);
-                let hasOut = false;
-                if (gp) {
-                    for (const iso of dates) {
-                        const v = getGudangKeluarForDate(gp, iso);
-                        if (v !== null && v !== 0) { hasOut = true; break; }
-                    }
-                }
-                return hasSales || hasOut;
-            });
-
-            function fmtTanggalID(iso) {
-                // 2026-08-01 → 01-Agustus-26
-                const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-                if (!m) return iso || '—';
-                const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-                const mon = months[parseInt(m[2], 10) - 1] || m[2];
-                return m[3] + '-' + mon + '-' + m[1].slice(-2);
-            }
-
-            const out = [];
-            dates.forEach(iso => {
-                activeKeys.forEach(key => {
-                    const penjualan = (salesMap[iso] && salesMap[iso][key]) ? salesMap[iso][key] : 0;
-                    const gp = resolveGudangProductByKey(key);
-                    let output = gp ? getGudangKeluarForDate(gp, iso) : null;
-                    if (output === null) output = 0;
-                    // Skip baris yang keduanya 0 (tidak ada aktivitas hari itu untuk produk ini)
-                    if (!penjualan && !output) return;
-                    const selisih = output - penjualan;
-                    let ket = '';
-                    if (penjualan === output) ket = 'Cocok';
-                    else if (output > penjualan) ket = 'Gudang lebih';
-                    else ket = 'Gudang kurang';
-                    // Label tampilan: pakai nama dari Data Penjualan kalau ada, kalau tidak pakai nama gudang
-                    const labelSet = keyLabels[key];
-                    const label = labelSet ? Array.from(labelSet)[0] : key;
-                    out.push({
-                        iso,
-                        tanggalStr: fmtTanggalID(iso),
-                        produk: label,
-                        shortName: key,
-                        penjualan,
-                        output,
-                        selisih,
-                        ket
-                    });
-                });
-            });
-            return out;
-        }
-
-        function renderRingkasanDetailPerTanggal(rows) {
-            const bodyEl = document.getElementById('ringkasanFitriDetailBody');
-            const periodEl = document.getElementById('ringkasanFitriDetailPeriod');
-            const wrap = document.getElementById('ringkasanFitriDetailWrap');
-            if (!bodyEl) return;
-            const detail = buildRingkasanDetailPerTanggal(rows);
-            if (periodEl) periodEl.textContent = getSalesPeriodLabel ? getSalesPeriodLabel() : '—';
-            if (!detail.length) {
-                bodyEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data detail per tanggal.</div>';
-                return;
-            }
-            let html = '<div class="ringkasan-pivot-wrap"><table class="ringkasan-pivot profit-table"><thead><tr>' +
-                '<th>Tanggal</th><th>Produk</th><th class="num">Penjualan</th><th class="num">Output Gudang</th><th class="num">Selisih</th><th>Ket</th>' +
-                '</tr></thead><tbody>';
-            let lastIso = '';
-            let sumJual = 0, sumOut = 0;
-            detail.forEach(r => {
-                sumJual += r.penjualan;
-                sumOut += r.output;
-                const tglCell = (r.iso !== lastIso)
-                    ? ('<td class="produk-cell" style="white-space:nowrap;">' + esc(r.tanggalStr) + '</td>')
-                    : '<td></td>';
-                lastIso = r.iso;
-                let selHtml = '<span class="selisih-zero">0</span>';
-                if (r.selisih > 0) selHtml = '<span class="selisih-pos">+' + r.selisih.toLocaleString('id-ID') + '</span>';
-                else if (r.selisih < 0) selHtml = '<span class="selisih-neg">' + r.selisih.toLocaleString('id-ID') + '</span>';
-                const ketHtml = r.ket === 'Cocok'
-                    ? '<span class="ket-badge">✅ Cocok</span>'
-                    : ('<span class="muted">' + esc(r.ket) + '</span>');
-                html += '<tr>' + tglCell +
-                    '<td class="produk-cell">' + esc(r.shortName) + '<br><span class="muted" style="font-size:0.68rem;font-weight:400;">' + esc(r.produk) + '</span></td>' +
-                    '<td class="num">' + r.penjualan.toLocaleString('id-ID') + '</td>' +
-                    '<td class="num">' + r.output.toLocaleString('id-ID') + '</td>' +
-                    '<td class="num">' + selHtml + '</td>' +
-                    '<td>' + ketHtml + '</td></tr>';
-            });
-            const net = sumOut - sumJual;
-            html += '<tr class="total-row"><td class="produk-cell" colspan="2">TOTAL</td>' +
-                '<td class="num total-cell">' + sumJual.toLocaleString('id-ID') + '</td>' +
-                '<td class="num total-cell">' + sumOut.toLocaleString('id-ID') + '</td>' +
-                '<td class="num">' + (net > 0 ? '<span class="selisih-pos">+' : (net < 0 ? '<span class="selisih-neg">' : '<span class="selisih-zero">')) +
-                net.toLocaleString('id-ID') + '</span></td>' +
-                '<td class="ket-meta">NET ' + (net > 0 ? '+' : '') + net.toLocaleString('id-ID') + '</td></tr>';
-            html += '</tbody></table></div>';
-            bodyEl.innerHTML = html;
-        }
-
-        function buildRingkasanDetailPerTanggalAOA(rows) {
-            const detail = buildRingkasanDetailPerTanggal(rows);
-            const period = (typeof getSalesPeriodLabel === 'function') ? getSalesPeriodLabel() : '';
-            const aoa = [
-                ['DETAIL PER TANGGAL — PENJUALAN FITRI vs OUTPUT GUDANG', '', '', '', '', period],
-                ['Tanggal', 'Produk', 'Penjualan', 'Output Gudang', 'Selisih', 'Ket']
-            ];
-            let sumJual = 0, sumOut = 0;
-            detail.forEach(r => {
-                sumJual += r.penjualan;
-                sumOut += r.output;
-                aoa.push([r.tanggalStr, r.shortName + ' (' + r.produk + ')', r.penjualan, r.output, r.selisih, r.ket]);
-            });
-            const net = sumOut - sumJual;
-            aoa.push(['TOTAL', '', sumJual, sumOut, net, 'NET ' + (net > 0 ? '+' : '') + net]);
-            return aoa;
-        }
-
-        // Download berdiri sendiri khusus tabel "Detail Per Tanggal — Fitri".
-        // Sebelumnya tombol download di bagian ini memanggil
-        // downloadCurrentSalesExcel('filter') yang sama dengan tombol di
-        // bagian "Penjualan Fitri" -- hasilnya satu file dengan banyak sheet
-        // dan sheet yang aktif pertama kali dibuka adalah "Ringkasan Fitri",
-        // bukan "Detail Per Tanggal", sehingga terasa seperti salah tabel.
-        function downloadRingkasanDetailPerTanggalExcel() {
-            try {
-                if (typeof XLSX === 'undefined') { alert('Library Excel belum siap'); return; }
-                let rows = lastSalesFiltered.length ? lastSalesFiltered : salesRows;
-                if (ringkasanFilterDate) {
-                    rows = rows.filter(r => ringkasanDateToISO(parseSalesDate(r.tanggal)) === ringkasanFilterDate);
-                }
-                ringkasanDateScopeISO = ringkasanFilterDate ? [ringkasanFilterDate] :
-                    [...new Set(rows.map(r => ringkasanDateToISO(parseSalesDate(r.tanggal))).filter(Boolean))];
-                const fitriRows = rows.filter(r => isFitriProduk(r.produk));
-                const aoa = buildRingkasanDetailPerTanggalAOA(fitriRows);
-                const periodLabel = ringkasanFilterDate ? ('Tanggal_' + ringkasanFilterDate) :
-                    getSalesPeriodLabel().replace(/\s+/g, '_');
-                const ws = XLSX.utils.aoa_to_sheet(aoa);
-                ws['!cols'] = [{ wch: 14 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 14 }];
-                try {
-                    styleSalesExportSheet(ws, aoa, {
-                        titleRow: 0,
-                        headerRow: 1,
-                        intCols: ALL_INT_COLS
-                    });
-                } catch (e) { /* fallback aman */ }
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Detail Per Tanggal'.slice(0, 31));
-                XLSX.writeFile(wb, 'Detail_Per_Tanggal_Fitri_' + periodLabel + '.xlsx');
-            } catch (e) {
-                console.error('downloadRingkasanDetailPerTanggalExcel gagal:', e);
-                alert('Gagal membuat file Excel: ' + (e && e.message ? e.message : e) +
-                    '\n\nCoba lagi. Kalau masih gagal, screenshot pesan ini dan laporkan.');
-            }
-        }
 
 
         // ---- Pengaturan Margin Minimal Fitri (markup dari Harga Beli) ----
@@ -4627,70 +4165,28 @@
             return { prodMap, products, salesList, salesTotals, grandTotal };
         }
 
-        function renderRingkasanPivotTable(pivot, productSubset, category) {
+        function renderRingkasanPivotTable(pivot, productSubset) {
             const products = productSubset || pivot.products;
             if (!products.length) {
                 return '<div style="text-align:center;padding:24px;color:var(--muted)">Tidak ada data.</div>';
             }
-            const withGudang = !!category;
             const thead = '<tr><th>PRODUK</th>' +
                 pivot.salesList.map(s => '<th class="num">' + esc(s) + '</th>').join('') +
                 '<th class="num">TOTAL</th>' +
-                // PENTING: tampilkan SELISIH per produk agar selisih antar produk
-                // tidak saling menutup saat dijumlahkan di baris TOTAL.
-                (withGudang ? '<th class="num">OUTPUT GUDANG</th><th class="num">SELISIH</th><th>KET</th>' : '') +
                 '</tr>';
-            let sumOutputGudang = 0;
-            let anyOutputGudang = false;
-            let sumSelisihNet = 0;
-            let sumSelisihAbs = 0;
-            let sumLebihGudang = 0;
-            let sumKurangGudang = 0;
             const bodyRows = products.map(p => {
                 const cells = pivot.salesList.map(s => {
                     const v = (pivot.prodMap[p] && pivot.prodMap[p][s]) || 0;
                     return '<td class="num">' + (v ? v.toLocaleString('id-ID') : '—') + '</td>';
                 }).join('');
                 const tot = (pivot.prodMap[p] && pivot.prodMap[p].__total) || 0;
-                let gudangCells = '';
-                if (withGudang) {
-                    const outputVal = getAutoOutputGudang(p);
-                    let selisihHtml = '<span class="muted">—</span>';
-                    if (outputVal !== null) {
-                        sumOutputGudang += outputVal;
-                        anyOutputGudang = true;
-                        const selisih = outputVal - tot; // (+) gudang lebih banyak, (-) gudang lebih sedikit
-                        sumSelisihNet += selisih;
-                        sumSelisihAbs += Math.abs(selisih);
-                        if (selisih > 0) sumLebihGudang += selisih;
-                        if (selisih < 0) sumKurangGudang += Math.abs(selisih);
-                        if (selisih > 0) selisihHtml = '<strong style="color:var(--yellow)">+' + selisih.toLocaleString('id-ID') + '</strong>';
-                        else if (selisih < 0) selisihHtml = '<strong style="color:var(--red)">' + selisih.toLocaleString('id-ID') + '</strong>';
-                        else selisihHtml = '<strong style="color:var(--green)">0</strong>';
-                    }
-                    gudangCells = '<td class="num">' +
-                        (outputVal !== null ? outputVal.toLocaleString('id-ID', { maximumFractionDigits: 2 }) : '<span class="muted">—</span>') +
-                        '</td><td class="num">' + selisihHtml +
-                        '</td><td>' + renderRingkasanKetCell(outputVal, tot) + '</td>';
-                }
                 return '<tr><td>' + esc(p) + '</td>' + cells + '<td class="num"><strong>' + tot.toLocaleString('id-ID') +
-                    '</strong></td>' + gudangCells + '</tr>';
+                    '</strong></td></tr>';
             }).join('');
             const totalCells = pivot.salesList.map(s => '<td class="num">' + (pivot.salesTotals[s] || 0).toLocaleString(
                 'id-ID') + '</td>').join('');
-            // Jangan hanya memakai NET SELISIH sebagai indikator utama: +2 dan -2 bisa
-            // saling menghapus. Karena itu tampilkan juga BEDA ABSOLUT (total masalah nyata).
-            const totalGudangCells = withGudang ?
-                '<td class="num">' + (anyOutputGudang ? sumOutputGudang.toLocaleString('id-ID') : '—') + '</td>' +
-                '<td class="num"><strong>' + (anyOutputGudang ? (sumSelisihNet > 0 ? '+' : '') + sumSelisihNet.toLocaleString('id-ID') : '—') + '</strong></td>' +
-                '<td style="font-size:0.72rem;white-space:nowrap;">' + (anyOutputGudang
-                    ? ('NET ' + (sumSelisihNet > 0 ? '+' : '') + sumSelisihNet.toLocaleString('id-ID') +
-                       ' · BEDA ABS ' + sumSelisihAbs.toLocaleString('id-ID') +
-                       ' <span style="color:var(--yellow)">(Gudang lebih ' + sumLebihGudang.toLocaleString('id-ID') +
-                       ' / kurang ' + sumKurangGudang.toLocaleString('id-ID') + ')</span>')
-                    : '—') + '</td>' : '';
             const totalRow = '<tr class="total-row"><td>TOTAL</td>' + totalCells + '<td class="num">' + pivot.grandTotal
-                .toLocaleString('id-ID') + '</td>' + totalGudangCells + '</tr>';
+                .toLocaleString('id-ID') + '</td></tr>';
             return '<table class="profit-table"><thead>' + thead + '</thead><tbody>' + bodyRows + totalRow +
                 '</tbody></table>';
         }
@@ -4760,7 +4256,7 @@
             const LIMIT = 8;
             const shown = ringkasanRupaShowAll ? pivot.products : pivot.products.slice(0, LIMIT);
             const bodyEl = document.getElementById('ringkasanRupaBody');
-            if (bodyEl) bodyEl.innerHTML = renderRingkasanPivotTable(pivot, shown, 'rupa');
+            if (bodyEl) bodyEl.innerHTML = renderRingkasanPivotTable(pivot, shown);
             const toggleBtn = document.getElementById('ringkasanRupaToggleBtn');
             if (toggleBtn) {
                 toggleBtn.style.display = pivot.products.length > LIMIT ? 'inline-flex' : 'none';
@@ -4771,776 +4267,6 @@
         function toggleRingkasanRupaShowAll() {
             ringkasanRupaShowAll = !ringkasanRupaShowAll;
             renderRingkasanRupa();
-        }
-
-        // ==================== DATA GUDANG (Stok Minyak) ====================
-        // Data diambil dari file Excel "STOK GUDANG MINYAK FITRI" yang diupload.
-        // Statis (snapshot), tidak berubah mengikuti data penjualan.
-        const GUDANG_DATA_DEFAULT = {"bulan": "AGUSTUS", "tahun": 2026, "products": [{"name": "FITRI BOTOL 400 ML", "col": 1}, {"name": "FITRI BOTOL 200 ML", "col": 4}, {"name": "FITRI BOTOL 450 ML", "col": 7}, {"name": "FITRI 5 L", "col": 10}, {"name": "FITRI BOTOL 1800 ML", "col": 13}, {"name": "FITRI BOTOL 800 ML", "col": 16}, {"name": "FITRI BOTOL 850 ML", "col": 19}, {"name": "RIZKI BOTOL 850 ML", "col": 22}, {"name": "RIZKI BOTOL 800 ML", "col": 25}, {"name": "MINYAK GORENG CURAH", "col": 28}, {"name": "BONUS MINYAK CURAH", "col": 31}, {"name": "FRAISWELL REFIL 2 L", "col": 34}], "saldo": ["Saldo Awal", null, null, 2556, null, null, 894, null, null, 0, null, null, 0, null, null, 0, null, null, 460, null, null, 0, null, null, 0, null, null, 0, null, null, 1.9166666666665906, null, null, 0, null, null, 0, null, 3910], "rows": [["2026-08-01", null, 54, 2502, null, 142, 752, null, 0, 0, null, 0, 0, null, 0, 0, null, 78, 382, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 274, 3636], ["2026-08-02", null, 0, 2502, null, 0, 752, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 382, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 0, 3636], ["2026-08-03", null, 28, 2474, null, 32, 720, null, 0, 0, null, 0, 0, null, 0, 0, null, 99, 283, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 159, 3477], ["2026-08-04", null, 33, 2441, null, 32, 688, null, 0, 0, null, 0, 0, null, 0, 0, null, 76, 207, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 141, 3336], ["2026-08-05", null, 48, 2393, null, 12, 676, null, 0, 0, null, 0, 0, null, 0, 0, null, 98, 109, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 158, 3178], ["2026-08-06", null, 41, 2352, null, 147, 529, null, 0, 0, null, 0, 0, null, 0, 0, null, 64, 45, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 252, 2926], ["2026-08-07", null, 15, 2337, null, 15, 514, null, 0, 0, null, 0, 0, null, 0, 0, null, 32, 13, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 62, 2864], ["2026-08-08", null, 18, 2319, null, 12, 502, null, 0, 0, null, 0, 0, null, 0, 0, null, 12, 1, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 42, 2822], ["2026-08-09", null, 0, 2319, null, 0, 502, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 0, 2822], ["2026-08-10", null, 6, 2313, null, 19, 483, null, 0, 0, null, 0, 0, null, 0, 0, null, 1, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 26, 2796], ["2026-08-11", null, 25, 2288, null, 23, 460, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 48, 2748], ["2026-08-12", null, 97, 2191, null, 39, 421, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 136, 2612], ["2026-08-13", null, 29, 2162, null, 22, 399, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 51, 2561], ["2026-08-14", null, 57, 2105, null, 25, 374, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 82, 2479], ["2026-08-15", null, 76, 2029, null, 112, 262, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 188, 2291], ["2026-08-16", null, 0, 2029, null, 0, 262, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 0, 2291], ["2026-08-17", null, 36, 1993, null, 77, 185, null, 0, 0, null, 0, 0, null, 0, 0, 2600, 0, 2600, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 113, 4778], ["2026-08-18", null, 40, 1953, null, 27, 158, null, 0, 0, null, 0, 0, null, 0, 0, null, 108, 2492, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 175, 4603], ["2026-08-19", null, 27, 1926, null, 51, 107, null, 0, 0, null, 0, 0, null, 0, 0, null, 169, 2323, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 247, 4356], ["2026-08-20", null, 31, 1895, null, 31, 76, null, 0, 0, null, 0, 0, null, 0, 0, null, 73, 2250, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 135, 4221], ["2026-08-21", null, 37, 1858, null, 15, 61, null, 0, 0, null, 0, 0, null, 0, 0, null, 120, 2130, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 172, 4049], ["2026-08-22", null, 26, 1832, null, 26, 35, null, 0, 0, null, 0, 0, null, 0, 0, null, 88, 2042, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 140, 3909], ["2026-08-23", null, 0, 1832, null, 0, 35, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 2042, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 0, 3909], ["2026-08-24", null, 14, 1818, null, 13, 22, null, 0, 0, null, 0, 0, null, 0, 0, null, 165, 1877, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 192, 3717], ["2026-08-25", null, 38, 1780, null, 19, 3, null, 0, 0, null, 0, 0, null, 0, 0, null, 107, 1770, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 164, 3553], ["2026-08-26", null, 60, 1720, null, 1, 2, null, 0, 0, null, 0, 0, null, 0, 0, null, 96, 1674, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 157, 3396], ["2026-08-27", null, 63, 1657, null, 0, 2, null, 0, 0, null, 0, 0, null, 0, 0, null, 101, 1573, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 164, 3232], ["2026-08-28", null, 45, 1612, null, 0, 2, null, 0, 0, null, 0, 0, null, 0, 0, null, 65, 1508, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 110, 3122], ["2026-08-29", null, 92, 1520, null, 0, 2, null, 0, 0, null, 0, 0, null, 0, 0, null, 144, 1364, null, 0, 0, null, 0, 0, null, 0, 0, null, 0, 1.9166666666665906, null, 0, 0, null, 0, 0, 236, 2886]]}
-;
-
-        // Kunci localStorage untuk menyimpan RIWAYAT data Gudang (banyak bulan
-        // sekaligus, key = "YYYY-MM"), persisten di browser ini dan ikut sync
-        // ke cloud Supabase (lihat pushToSupabase/pullFromSupabase).
-        const GUDANG_STORAGE_KEY = 'gudang_data_v1'; // legacy: snapshot 1 bulan (dipakai utk migrasi data lama)
-        const GUDANG_HISTORY_KEY = 'gudang_data_history_v1';
-        const GUDANG_SELECTED_PERIOD_KEY = 'gudang_selected_period_v1';
-        const GUDANG_META_FILENAME_KEY = 'gudang_data_filename'; // legacy, tidak dipakai lagi utk tulis baru
-        const GUDANG_META_UPLOADED_AT_KEY = 'gudang_data_uploaded_at'; // legacy
-        // Penanda permanen bahwa user memang memilih mengosongkan Data Gudang.
-        // Ini penting agar refresh tidak menghidupkan kembali GUDANG_DATA_DEFAULT.
-        const GUDANG_EMPTY_FLAG_KEY = 'gudang_data_empty_v1';
-
-        const GUDANG_MONTHS_ID = ['JANUARI','FEBRUARI','MARET','APRIL','MEI','JUNI','JULI','AGUSTUS','SEPTEMBER','OKTOBER','NOVEMBER','DESEMBER'];
-
-        // Kunci periode "YYYY-MM" dari sebuah objek data gudang (dipakai sebagai
-        // key di GUDANG_HISTORY). Diambil dari tanggal baris pertama supaya akurat
-        // walau field bulan/tahun di objek keliru.
-        function gudangPeriodKeyFromData(d) {
-            if (d && Array.isArray(d.rows) && d.rows.length && d.rows[0][0]) {
-                const iso = String(d.rows[0][0]);
-                const m = iso.match(/^(\d{4})-(\d{2})/);
-                if (m) return m[1] + '-' + m[2];
-            }
-            if (d && d.tahun && d.bulan) {
-                const idx = GUDANG_MONTHS_ID.indexOf(String(d.bulan).toUpperCase());
-                if (idx >= 0) return d.tahun + '-' + String(idx + 1).padStart(2, '0');
-            }
-            return null;
-        }
-
-        function gudangPeriodLabel(key) {
-            const m = /^(\d{4})-(\d{2})$/.exec(key || '');
-            if (!m) return key || '—';
-            const bulanNama = GUDANG_MONTHS_ID[Number(m[2]) - 1] || '?';
-            return bulanNama.charAt(0) + bulanNama.slice(1).toLowerCase() + ' ' + m[1];
-        }
-
-        function emptyGudangSnapshot() {
-            return { bulan: '—', tahun: '—', products: [], saldo: ['Saldo Awal'], rows: [] };
-        }
-
-        function loadGudangHistoryFromStorage() {
-            try {
-                if (localStorage.getItem(GUDANG_EMPTY_FLAG_KEY) === '1') return {};
-                const raw = localStorage.getItem(GUDANG_HISTORY_KEY);
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    if (parsed && typeof parsed === 'object') return parsed;
-                }
-                // Migrasi dari format lama (1 snapshot tunggal) kalau ada, supaya
-                // user yang sudah pernah upload sebelum fitur ini tidak kehilangan data.
-                const legacyRaw = localStorage.getItem(GUDANG_STORAGE_KEY);
-                if (legacyRaw) {
-                    const legacy = JSON.parse(legacyRaw);
-                    if (legacy && Array.isArray(legacy.products) && Array.isArray(legacy.rows) && legacy.rows.length) {
-                        const key = gudangPeriodKeyFromData(legacy);
-                        if (key) return { [key]: legacy };
-                    }
-                }
-            } catch (err) { /* abaikan, pakai kosong */ }
-            return {};
-        }
-
-        function saveGudangHistoryToStorage(historyObj) {
-            try { localStorage.setItem(GUDANG_HISTORY_KEY, JSON.stringify(historyObj)); } catch (err) {
-                console.error('Gagal menyimpan riwayat data gudang ke localStorage:', err);
-            }
-        }
-
-        // GUDANG_HISTORY: seluruh bulan yang pernah diupload, key "YYYY-MM".
-        // Kalau kosong sama sekali (belum pernah upload & belum pernah dikosongkan
-        // manual), pakai 1 data contoh bawaan supaya tab tidak kosong total.
-        let GUDANG_HISTORY = loadGudangHistoryFromStorage();
-
-        // PERBAIKAN FILTER BULAN: pastikan KEY riwayat selalu sesuai dengan
-        // bulan/tahun yang benar-benar ada pada tanggal baris datanya.
-        // Ini memperbaiki riwayat lama yang bisa saja tersimpan dengan key
-        // September tetapi isi barisnya masih Agustus. Jika key dan isi tidak
-        // cocok, dropdown dapat menampilkan September sementara tabel Agustus.
-        function normalizeGudangHistoryPeriods(historyObj) {
-            const src = (historyObj && typeof historyObj === 'object') ? historyObj : {};
-            const out = {};
-
-            // PENTING:
-            // Jangan menentukan periode hanya dari key atau baris pertama.
-            // Jika sebuah snapshot ternyata berisi tanggal Agustus + September,
-            // pecah menjadi snapshot per bulan. Dengan begitu pilihan "September"
-            // tidak mungkin lagi menampilkan baris "01 Aug".
-            Object.keys(src).forEach(oldKey => {
-                const data = src[oldKey];
-                if (!data || !Array.isArray(data.rows) || !data.rows.length) {
-                    if (!out[oldKey]) out[oldKey] = data;
-                    return;
-                }
-
-                const groups = {};
-                data.rows.forEach(row => {
-                    const iso = row && row[0] ? String(row[0]) : '';
-                    const m = iso.match(/^(\d{4})-(\d{2})-/);
-                    const key = m ? (m[1] + '-' + m[2]) : oldKey;
-                    if (!groups[key]) groups[key] = [];
-                    groups[key].push(row);
-                });
-
-                Object.keys(groups).forEach(actualKey => {
-                    const rows = groups[actualKey].slice().sort((a,b) =>
-                        String(a[0] || '').localeCompare(String(b[0] || ''))
-                    );
-
-                    const mm = /^(\d{4})-(\d{2})$/.exec(actualKey);
-                    const monthName = mm ? (GUDANG_MONTHS_ID[Number(mm[2])-1] || data.bulan || '—') : (data.bulan || '—');
-                    const yearValue = mm ? Number(mm[1]) : (data.tahun || '—');
-
-                    const snapshot = Object.assign({}, data, {
-                        bulan: monthName,
-                        tahun: yearValue,
-                        rows: rows
-                    });
-
-                    // Pertahankan metadata upload/file.
-                    if (data._meta) snapshot._meta = Object.assign({}, data._meta);
-
-                    const existing = out[actualKey];
-                    if (!existing) {
-                        out[actualKey] = snapshot;
-                    } else {
-                        const a = existing._meta && existing._meta.uploadedAt;
-                        const b = snapshot._meta && snapshot._meta.uploadedAt;
-                        if (b && (!a || String(b) > String(a))) {
-                            out[actualKey] = snapshot;
-                        } else if (Array.isArray(existing.rows) && existing.rows.length < rows.length) {
-                            out[actualKey] = snapshot;
-                        }
-                    }
-                });
-            });
-            return out;
-        }
-
-        GUDANG_HISTORY = normalizeGudangHistoryPeriods(GUDANG_HISTORY);
-        if (Object.keys(GUDANG_HISTORY).length) saveGudangHistoryToStorage(GUDANG_HISTORY);
-
-        if (!Object.keys(GUDANG_HISTORY).length && localStorage.getItem(GUDANG_EMPTY_FLAG_KEY) !== '1') {
-            const defKey = gudangPeriodKeyFromData(GUDANG_DATA_DEFAULT);
-            if (defKey) GUDANG_HISTORY = { [defKey]: GUDANG_DATA_DEFAULT };
-        }
-
-        function gudangHistoryKeysSorted() {
-            return Object.keys(GUDANG_HISTORY).sort(); // "YYYY-MM" -> urut kronologis
-        }
-
-        // Bulan yang sedang ditampilkan di tab Data Gudang.
-        let GUDANG_SELECTED_PERIOD = null;
-        (function initGudangSelectedPeriod() {
-            const keys = gudangHistoryKeysSorted();
-            if (!keys.length) { GUDANG_SELECTED_PERIOD = null; return; }
-            let saved = null;
-            try { saved = localStorage.getItem(GUDANG_SELECTED_PERIOD_KEY); } catch (err) {}
-            GUDANG_SELECTED_PERIOD = (saved && GUDANG_HISTORY[saved]) ? saved : keys[keys.length - 1];
-        })();
-
-        // GUDANG_DATA: data bulan yang sedang aktif/ditampilkan (dipakai oleh
-        // seluruh fungsi render & perbandingan Output Gudang di bawah, sama
-        // seperti sebelumnya -- sekarang isinya mengikuti pilihan dropdown bulan).
-        let GUDANG_DATA = GUDANG_SELECTED_PERIOD ? GUDANG_HISTORY[GUDANG_SELECTED_PERIOD] : emptyGudangSnapshot();
-
-        // Legacy helper (dipertahankan supaya kode lain yang mungkin masih
-        // memanggilnya tidak error), sekarang menulis ke snapshot bulan terpilih.
-        function saveGudangDataToStorage(data) {
-            try { localStorage.setItem(GUDANG_STORAGE_KEY, JSON.stringify(data)); } catch (err) {}
-        }
-
-        function setGudangSelectedPeriod(key) {
-            // Pastikan pilihan dropdown menunjuk ke snapshot yang periodenya benar.
-            // Ini juga menjadi pengaman untuk data riwayat lama yang belum ternormalisasi.
-            if (!GUDANG_HISTORY[key]) return;
-            const actualKey = gudangPeriodKeyFromData(GUDANG_HISTORY[key]);
-            if (actualKey && actualKey !== key && GUDANG_HISTORY[actualKey]) key = actualKey;
-            GUDANG_SELECTED_PERIOD = key;
-            try { localStorage.setItem(GUDANG_SELECTED_PERIOD_KEY, key); } catch (err) {}
-            GUDANG_DATA = GUDANG_HISTORY[key];
-            invalidateGudangCaches();
-            updateGudangUploadStatusLabel();
-            populateGudangPeriodFilter();
-            renderGudangTable();
-            if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
-                renderRingkasanCekTab();
-            }
-            if (typeof renderRingkasan === 'function') {
-                const rowsForRingkasan = (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length)
-                    ? ringkasanBaseRows
-                    : ((typeof lastSalesFiltered !== 'undefined' && lastSalesFiltered && lastSalesFiltered.length)
-                        ? lastSalesFiltered
-                        : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
-                renderRingkasan(rowsForRingkasan);
-            }
-        }
-
-        // Isi ulang dropdown "🗓️ Bulan" di tab Data Gudang berdasarkan
-        // GUDANG_HISTORY yang tersedia (terbaru di atas).
-        function populateGudangPeriodFilter() {
-            const sel = document.getElementById('gudangPeriodFilter');
-            if (!sel) return;
-            const keys = gudangHistoryKeysSorted().slice().reverse();
-            if (!keys.length) {
-                sel.innerHTML = '<option value="">Belum ada data</option>';
-                sel.disabled = true;
-                return;
-            }
-            sel.disabled = false;
-            sel.innerHTML = keys.map(k => '<option value="' + k + '"' +
-                (k === GUDANG_SELECTED_PERIOD ? ' selected' : '') + '>' + esc(gudangPeriodLabel(k)) + '</option>').join('');
-        }
-
-        function gudangFmtNum(v) {
-            if (v === null || v === undefined || v === '') return '—';
-            const n = Number(v);
-            if (Number.isNaN(n)) return '—';
-            return n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
-        }
-
-        function gudangFmtDate(iso) {
-            if (!iso) return '—';
-            const parts = iso.split('-').map(Number);
-            const bulanNama = GUDANG_MONTHS_ID[parts[1] - 1] || '';
-            return String(parts[2]).padStart(2, '0') + ' ' + bulanNama.slice(0, 3).charAt(0) +
-                bulanNama.slice(1, 3).toLowerCase() + ' ' + parts[0];
-        }
-
-        let gudangRendered = false;
-
-        // Hanya tampilkan produk yang benar-benar ada aktivitas (Masuk/Keluar
-        // pernah terisi di salah satu tanggal) -- produk yang datanya kosong/nol
-        // terus-menerus (belum ada stok & belum ada transaksi) disembunyikan
-        // supaya tabel Data Gudang tidak penuh kolom kosong.
-        let _activeGudangProductsCache = null;
-        function getActiveGudangProducts() {
-            if (_activeGudangProductsCache) return _activeGudangProductsCache;
-            const d = GUDANG_DATA;
-            const isFilled = v => v !== null && v !== undefined && v !== '' && Number(v) !== 0;
-            _activeGudangProductsCache = (d.products || []).filter(p => {
-                return (d.rows || []).some(r => isFilled(r[p.col]) || isFilled(r[p.col + 1]));
-            });
-            return _activeGudangProductsCache;
-        }
-
-        function renderGudangTable() {
-            const bodyEl = document.getElementById('ringkasanGudangBody');
-            const periodEl = document.getElementById('ringkasanGudangPeriod');
-            if (!bodyEl) return;
-            const d = GUDANG_DATA;
-            const activeProducts = getActiveGudangProducts();
-            if (periodEl) periodEl.textContent = 'Periode: ' + (d.bulan || '—') + ' ' + (d.tahun || '—');
-
-            let thead = '<tr><th rowspan="2" style="vertical-align:middle;">Tanggal</th>';
-            activeProducts.forEach(p => {
-                thead += '<th colspan="3" style="text-align:center;">' + esc(p.name) + '</th>';
-            });
-            thead += '<th rowspan="2" style="vertical-align:middle;text-align:right;">Total/Hari</th>' +
-                '<th rowspan="2" style="vertical-align:middle;text-align:right;">Total Stok SFA</th></tr>';
-            thead += '<tr>';
-            activeProducts.forEach(() => {
-                thead += '<th class="num">Msk</th><th class="num">Klr</th><th class="num">Stok</th>';
-            });
-            thead += '</tr>';
-
-            function rowCells(rowArr) {
-                let cells = '';
-                activeProducts.forEach(p => {
-                    const msk = rowArr[p.col];
-                    const klr = rowArr[p.col + 1];
-                    const stok = rowArr[p.col + 2];
-                    cells += '<td class="num">' + gudangFmtNum(msk) + '</td>' +
-                        '<td class="num">' + gudangFmtNum(klr) + '</td>' +
-                        '<td class="num">' + gudangFmtNum(stok) + '</td>';
-                });
-                return cells;
-            }
-
-            let bodyRows = '<tr style="font-weight:700;background:var(--th-bg);">' +
-                '<td>Saldo Awal</td>' + rowCells(d.saldo) +
-                '<td class="num">—</td>' +
-                '<td class="num">' + gudangFmtNum(d.saldo[d.saldo.length - 1]) + '</td></tr>';
-
-            // PENGAMAN TERAKHIR:
-            // Walaupun ada data lama/corrupt di storage, tabel hanya boleh
-            // menampilkan tanggal yang sesuai dengan bulan pada dropdown.
-            const activePeriodKey = GUDANG_SELECTED_PERIOD || gudangPeriodKeyFromData(d);
-            const tableRows = (d.rows || []).filter(r => {
-                const iso = r && r[0] ? String(r[0]) : '';
-                return !activePeriodKey || iso.indexOf(activePeriodKey + '-') === 0;
-            });
-
-            tableRows.forEach(r => {
-                bodyRows += '<tr><td style="white-space:nowrap;">' + gudangFmtDate(r[0]) + '</td>' +
-                    rowCells(r) +
-                    '<td class="num">' + gudangFmtNum(r[r.length - 2]) + '</td>' +
-                    '<td class="num" style="font-weight:700;">' + gudangFmtNum(r[r.length - 1]) + '</td></tr>';
-            });
-
-            bodyEl.innerHTML = '<div class="gudang-scroll-box"><table class="profit-table">' +
-                '<thead>' + thead + '</thead><tbody>' + bodyRows + '</tbody></table></div>';
-            gudangRendered = true;
-            renderGudangCards();
-        }
-
-        // Kartu ringkasan per produk untuk tab Data Gudang: Keluar, Masuk, dan
-        // Stok Akhir dalam periode yang sedang aktif (ikut "Filter Tanggal" yang
-        // sama dengan tabel Ringkasan -- 1 tanggal spesifik, atau 1 bulan penuh
-        // kalau filter tanggal kosong), plus 1 kartu TOTAL untuk semua produk aktif.
-        function renderGudangCards() {
-            const el = document.getElementById('ringkasanGudangCards');
-            if (!el) return;
-            const d = GUDANG_DATA;
-            const products = getActiveGudangProducts();
-            if (!products.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
-            el.classList.add('show');
-
-            // Baris kartu dibatasi ke bulan yang sedang dipilih.
-            const activePeriodKey = GUDANG_SELECTED_PERIOD || gudangPeriodKeyFromData(d);
-            const monthRows = (d.rows || []).filter(r => {
-                const iso = r && r[0] ? String(r[0]) : '';
-                return !activePeriodKey || iso.indexOf(activePeriodKey + '-') === 0;
-            });
-
-            // Baris (tanggal) yang termasuk cakupan kartu, ikut filter tanggal aktif.
-            let scopeRows = ringkasanFilterDate
-                ? monthRows.filter(r => r[0] === ringkasanFilterDate)
-                : monthRows;
-            const num = v => (v === null || v === undefined || v === '') ? 0 : Number(v);
-
-            let totalMasuk = 0,
-                totalKeluar = 0,
-                totalStok = 0;
-            let html = products.map(p => {
-                let masuk = 0,
-                    keluar = 0;
-                scopeRows.forEach(r => { masuk += num(r[p.col]); keluar += num(r[p.col + 1]); });
-                // Stok akhir = stok pada tanggal terakhir dalam cakupan; kalau tanggal
-                // yang difilter tidak ada di data gudang, pakai Saldo Awal sebagai fallback.
-                const stokAkhir = scopeRows.length ?
-                    num(scopeRows[scopeRows.length - 1][p.col + 2]) :
-                    num(d.saldo[p.col + 2]);
-                totalMasuk += masuk;
-                totalKeluar += keluar;
-                totalStok += stokAkhir;
-                return '<div class="scard accent-fitri">' +
-                    '<div class="sc-label">' + esc(p.name) + '</div>' +
-                    '<div class="sc-value" style="font-size:1.15rem">' + keluar.toLocaleString('id-ID') + '</div>' +
-                    '<div class="sc-label" style="margin-top:2px;text-transform:none;font-weight:400">Keluar</div>' +
-                    '<div style="display:flex;gap:10px;margin-top:6px;font-size:0.74rem;color:var(--muted)">' +
-                    '<span>Masuk: <strong style="color:var(--text)">' + masuk.toLocaleString('id-ID') + '</strong></span>' +
-                    '<span>Stok Akhir: <strong style="color:var(--text)">' + stokAkhir.toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '</strong></span>' +
-                    '</div></div>';
-            }).join('');
-
-            html += '<div class="scard accent-total">' +
-                '<div class="sc-label">TOTAL (' + products.length + ' PRODUK)</div>' +
-                '<div class="sc-value" style="font-size:1.15rem">' + totalKeluar.toLocaleString('id-ID') + '</div>' +
-                '<div class="sc-label" style="margin-top:2px;text-transform:none;font-weight:400">Keluar</div>' +
-                '<div style="display:flex;gap:10px;margin-top:6px;font-size:0.74rem;color:var(--muted)">' +
-                '<span>Masuk: <strong style="color:var(--text)">' + totalMasuk.toLocaleString('id-ID') + '</strong></span>' +
-                '<span>Stok Akhir: <strong style="color:var(--text)">' + totalStok.toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '</strong></span>' +
-                '</div></div>';
-
-            el.innerHTML = html;
-        }
-
-        // Versi tabel Data Gudang untuk di-download ke Excel (aoa: array of array),
-        // memakai angka mentah (bukan '—') supaya bisa diformat/dijumlah di Excel.
-        // Hanya produk aktif (ada Msk/Klr) yang disertakan, sama seperti di layar.
-        function buildGudangExportAOA() {
-            const d = GUDANG_DATA;
-            const products = getActiveGudangProducts();
-            const aoa = [];
-            const titleWidth = 1 + products.length * 3 + 2;
-            aoa.push(['DATA GUDANG — STOK MINYAK'].concat(Array(Math.max(titleWidth - 2, 0)).fill(''))
-                .concat([(d.bulan || '—') + ' ' + (d.tahun || '—')]));
-            const head1 = ['Tanggal'];
-            products.forEach(p => head1.push(p.name, '', ''));
-            head1.push('Total/Hari', 'Total Stok SFA');
-            const head2 = [''];
-            products.forEach(() => head2.push('Msk', 'Klr', 'Stok'));
-            head2.push('', '');
-            aoa.push(head1);
-            aoa.push(head2);
-            function numOrBlank(v) { return (v === null || v === undefined || v === '') ? '' : Number(v); }
-            function rowValues(rowArr) {
-                const vals = [];
-                products.forEach(p => {
-                    vals.push(numOrBlank(rowArr[p.col]), numOrBlank(rowArr[p.col + 1]), numOrBlank(rowArr[p.col + 2]));
-                });
-                return vals;
-            }
-            aoa.push(['Saldo Awal'].concat(rowValues(d.saldo)).concat(['', numOrBlank(d.saldo[d.saldo.length - 1])]));
-            d.rows.forEach(r => {
-                aoa.push([r[0]].concat(rowValues(r)).concat([numOrBlank(r[r.length - 2]), numOrBlank(r[r.length - 1])]));
-            });
-            return aoa;
-        }
-
-        // ==================== UPLOAD DATA GUDANG (Stok Minyak) ====================
-        // Membaca file Excel dengan format yang sama seperti snapshot bawaan:
-        // Baris 1: nama produk (merge 3 kolom: Msk/Klr/Stok SFA)
-        // Baris 2: header "MSK / KLR / STOK SFA"
-        // Baris 3: "Saldo Awal" + stok awal tiap produk
-        // Baris 4+: tanggal + Msk/Klr/Stok tiap produk per hari
-        // Setiap upload MENGGANTI TOTAL data Gudang (snapshot bulan tsb), bukan
-        // menambah/menggabung baris.
-        function invalidateGudangCaches() {
-            _gudangProductIndexCache = null;
-            _activeGudangProductsCache = null;
-            gudangRendered = false;
-        }
-
-        function gudangCellToISODate(v) {
-            if (v instanceof Date && !isNaN(v.getTime())) {
-                const y = v.getFullYear(), m = v.getMonth() + 1, day = v.getDate();
-                return y + '-' + String(m).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-            }
-            if (typeof v === 'number' && window.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code) {
-                const p = XLSX.SSF.parse_date_code(v);
-                if (p) return p.y + '-' + String(p.m).padStart(2, '0') + '-' + String(p.d).padStart(2, '0');
-            }
-            if (typeof v === 'string') {
-                const s = v.trim();
-                let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-                if (m) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
-                // Format tanggal/bulan/tahun (konvensi Indonesia, sesuai file
-                // gudang yang diupload user, mis. "31/08/2026" -> 2026-08-31).
-                m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-                if (m) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
-                // Tahun 2 digit (mis. "31/08/26" hasil ketik manual, bukan cell
-                // Date asli) -- dulu bikin baris ini dilewati diam-diam karena
-                // regex di atas mewajibkan tahun 4 digit. Asumsikan 20xx.
-                m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
-                if (m) return (2000 + Number(m[3])) + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
-            }
-            return null;
-        }
-
-        // Parse array-of-array (hasil XLSX.utils.sheet_to_json header:1) jadi
-        // struktur GUDANG_DATA {bulan, tahun, products, saldo, rows}.
-        function parseGudangSheetAOA(aoa) {
-            if (!Array.isArray(aoa) || aoa.length < 3) {
-                throw new Error('Baris data terlalu sedikit — pastikan file sesuai format Stok Gudang.');
-            }
-            const maxCol = aoa.reduce((mx, r) => Math.max(mx, (r ? r.length : 0)), 0);
-
-            // Baris 1 (index 0): nama produk, kolom merge -> forward-fill.
-            const headerRow = aoa[0] || [];
-            const filledHeader = [];
-            let lastName = null;
-            for (let c = 0; c < maxCol; c++) {
-                const v = headerRow[c];
-                if (v !== undefined && v !== null && String(v).trim() !== '') {
-                    lastName = String(v).trim();
-                    filledHeader[c] = lastName;
-                } else {
-                    filledHeader[c] = (c === 0) ? null : lastName;
-                }
-            }
-
-            // Deteksi produk: mulai kolom index 1, tiap produk lebar 3 kolom (Msk/Klr/Stok).
-            const products = [];
-            for (let c = 1; c < maxCol; c += 3) {
-                const name = filledHeader[c];
-                if (!name) break;
-                products.push({ name: name, col: c });
-            }
-            if (!products.length) {
-                throw new Error('Tidak menemukan kolom produk (Msk/Klr/Stok SFA) pada baris pertama file.');
-            }
-
-            // Cari baris "Saldo Awal" (dicari di antara baris ke-2 s.d. ke-6).
-            let saldoRowIdx = -1;
-            for (let r = 1; r < Math.min(aoa.length, 6); r++) {
-                const label = aoa[r] && aoa[r][0];
-                if (typeof label === 'string' && label.toLowerCase().indexOf('saldo') !== -1) {
-                    saldoRowIdx = r;
-                    break;
-                }
-            }
-
-            function extractProductValues(rowArr) {
-                const out = [];
-                products.forEach(p => {
-                    out.push(
-                        (rowArr[p.col] === undefined) ? null : rowArr[p.col],
-                        (rowArr[p.col + 1] === undefined) ? null : rowArr[p.col + 1],
-                        (rowArr[p.col + 2] === undefined) ? null : rowArr[p.col + 2]
-                    );
-                });
-                return out;
-            }
-
-            // ---- Saldo Awal ----
-            let saldo = ['Saldo Awal'];
-            if (saldoRowIdx >= 0) {
-                saldo = saldo.concat(extractProductValues(aoa[saldoRowIdx]));
-            } else {
-                saldo = saldo.concat(products.flatMap(() => [null, null, 0]));
-            }
-            let saldoTotalStok = 0, saldoHasAny = false;
-            products.forEach(p => {
-                const v = Number(saldo[p.col + 2]);
-                if (!isNaN(v)) { saldoTotalStok += v; saldoHasAny = true; }
-            });
-            saldo.push(null, saldoHasAny ? saldoTotalStok : null);
-
-            // ---- Baris data harian ----
-            const dataStartIdx = saldoRowIdx >= 0 ? saldoRowIdx + 1 : 3;
-            const rows = [];
-            let firstIso = null;
-            for (let r = dataStartIdx; r < aoa.length; r++) {
-                const rowArr = aoa[r];
-                if (!rowArr) continue;
-                const iso = gudangCellToISODate(rowArr[0]);
-                if (!iso) continue; // lewati baris kosong/di luar format tanggal
-                if (!firstIso) firstIso = iso;
-                const vals = extractProductValues(rowArr);
-                let sumKlr = 0, sumStok = 0, any = false;
-                products.forEach(p => {
-                    const klr = Number(rowArr[p.col + 1]);
-                    const stok = Number(rowArr[p.col + 2]);
-                    if (!isNaN(klr)) { sumKlr += klr; any = true; }
-                    if (!isNaN(stok)) { sumStok += stok; any = true; }
-                });
-                rows.push([iso].concat(vals, [any ? sumKlr : null, any ? sumStok : null]));
-            }
-            if (!rows.length) {
-                throw new Error('Tidak menemukan baris data harian (kolom Tanggal) pada file.');
-            }
-
-            let bulan = '—', tahun = '—';
-            if (firstIso) {
-                const parts = firstIso.split('-').map(Number);
-                tahun = parts[0];
-                bulan = GUDANG_MONTHS_ID[parts[1] - 1] || '—';
-            }
-
-            return { bulan: bulan, tahun: tahun, products: products, saldo: saldo, rows: rows };
-        }
-
-        function updateGudangUploadStatusLabel() {
-            const statusEl = document.getElementById('gudangUploadStatus');
-            if (!statusEl) return;
-            const periodData = GUDANG_SELECTED_PERIOD ? GUDANG_HISTORY[GUDANG_SELECTED_PERIOD] : null;
-            const meta = periodData && periodData._meta;
-            if (meta && meta.filename && meta.uploadedAt) {
-                const d = new Date(meta.uploadedAt);
-                statusEl.textContent = '📄 ' + gudangPeriodLabel(GUDANG_SELECTED_PERIOD) + ': ' + meta.filename +
-                    ' — diupload ' + d.toLocaleString('id-ID');
-            } else if (periodData) {
-                statusEl.textContent = gudangPeriodLabel(GUDANG_SELECTED_PERIOD) + ': memakai data bawaan aplikasi (belum pernah upload)';
-            } else {
-                statusEl.textContent = 'Belum ada data. Upload file Stok Gudang untuk mulai.';
-            }
-        }
-
-        async function handleGudangFileUpload(e) {
-            const file = e.target.files && e.target.files[0];
-            if (!file) return;
-            const statusEl = document.getElementById('gudangUploadStatus');
-            if (statusEl) statusEl.textContent = 'Memproses file "' + file.name + '"...';
-            try {
-                if (!window.XLSX) throw new Error('Pustaka pembaca Excel belum siap, coba lagi.');
-                const buf = await file.arrayBuffer();
-                // PENTING: JANGAN pakai { cellDates: true } di sini. Library xlsx.js
-                // (versi yang dipakai di sini) punya bug: saat cellDates:true dan
-                // timezone browser bukan UTC (mis. WIB/Asia-Jakarta, UTC+7), Date
-                // object yang dihasilkan bisa bergeser mundur ~1 hari (Date object
-                // dari sel "01/08/2026" jadi berisi "31/07/2026 23:59:xx"). Efeknya:
-                // baris tanggal terakhir bulan (mis. tanggal 31) "hilang" / rentang
-                // data terlihat mundur 1 hari (mis. "31 Juli s/d 30 Agustus" padahal
-                // aslinya "1 s/d 31 Agustus"). Solusinya: baca TANPA cellDates supaya
-                // sel tanggal tetap berupa angka serial Excel mentah (bukan Date
-                // object), lalu gudangCellToISODate() akan mengonversinya lewat
-                // XLSX.SSF.parse_date_code() yang terbukti akurat & tidak
-                // terpengaruh timezone.
-                const wb = XLSX.read(buf, { type: 'array' });
-                const sheetName = wb.SheetNames.find(n => /gudang|stok/i.test(n)) || wb.SheetNames[0];
-                const ws = wb.Sheets[sheetName];
-
-                // Jangan hanya mengandalkan !ref dari Excel. Beberapa file Excel
-                // menyimpan baris terakhir (mis. tanggal 31) di luar range !ref,
-                // sehingga sheet_to_json biasa berhenti di tanggal 30. Cari cell
-                // terakhir yang benar-benar ada di worksheet lalu paksa range sampai
-                // cell tersebut agar seluruh baris, termasuk tanggal 31, ikut terbaca.
-                let lastRow = 0;
-                let lastCol = 0;
-                Object.keys(ws || {}).forEach(addr => {
-                    if (!addr || addr[0] === '!') return;
-                    const m = XLSX.utils.decode_cell(addr);
-                    if (m && Number.isFinite(m.r) && Number.isFinite(m.c)) {
-                        lastRow = Math.max(lastRow, m.r);
-                        lastCol = Math.max(lastCol, m.c);
-                    }
-                });
-                let readOpts = { header: 1, raw: true, defval: null };
-                if (lastRow > 0) {
-                    const endCell = XLSX.utils.encode_cell({ r: lastRow, c: lastCol });
-                    readOpts.range = 'A1:' + endCell;
-                }
-                const aoa = XLSX.utils.sheet_to_json(ws, readOpts);
-                const parsed = parseGudangSheetAOA(aoa);
-                // Pastikan urutan tanggal selalu kronologis; jangan pernah memotong
-                // data hanya karena bulan memiliki 30 hari atau karena !ref Excel salah.
-                parsed.rows.sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')));
-
-                GUDANG_DATA = parsed;
-                const periodKey = gudangPeriodKeyFromData(parsed);
-                if (!periodKey) throw new Error('Tidak bisa menentukan bulan/tahun dari data yang diupload.');
-
-                // PENGAMAN ANTI-TERTIMPA: sebelum file baru MENIMPA data bulan yang
-                // sudah ada di GUDANG_HISTORY, wajib konfirmasi ke user dan
-                // sebutkan dengan jelas bulan apa yang terdeteksi dari file ini,
-                // supaya user bisa membatalkan kalau bulan yang terdeteksi salah
-                // (mis. file Agustus malah terbaca sebagai September, atau
-                // sebaliknya) sebelum data lama hilang.
-                const existingPeriodData = GUDANG_HISTORY[periodKey];
-                const isRealExisting = existingPeriodData && Array.isArray(existingPeriodData.rows) && existingPeriodData.rows.length > 0;
-                if (isRealExisting) {
-                    const existingMeta = existingPeriodData._meta;
-                    const existingInfo = existingMeta && existingMeta.filename
-                        ? ('File sebelumnya: "' + existingMeta.filename + '"' +
-                           (existingMeta.uploadedAt ? ' (diupload ' + new Date(existingMeta.uploadedAt).toLocaleString('id-ID') + ')' : '') +
-                           '\n' + existingPeriodData.rows.length + ' baris data.')
-                        : (existingPeriodData.rows.length + ' baris data (data bawaan/contoh aplikasi).');
-                    const firstIsoNew = parsed.rows.length ? parsed.rows[0][0] : '—';
-                    const lastIsoNew = parsed.rows.length ? parsed.rows[parsed.rows.length - 1][0] : '—';
-                    const confirmMsg =
-                        '⚠️ KONFIRMASI PERIODE\n\n' +
-                        'File "' + file.name + '" terdeteksi sebagai data bulan:\n' +
-                        '➡️ ' + gudangPeriodLabel(periodKey) + '\n' +
-                        '(rentang tanggal isi file: ' + firstIsoNew + ' s/d ' + lastIsoNew + ')\n\n' +
-                        'Sudah ada data untuk bulan ini di aplikasi:\n' + existingInfo + '\n\n' +
-                        'Jika kamu lanjutkan, data bulan ' + gudangPeriodLabel(periodKey) + ' yang lama akan DIGANTI (ditimpa) dengan isi file ini.\n\n' +
-                        'Periksa: apakah bulan "' + gudangPeriodLabel(periodKey) + '" ini SESUAI dengan file yang kamu upload?\n\n' +
-                        'Klik OK untuk lanjut menimpa, atau Batal untuk membatalkan upload.';
-                    if (!confirm(confirmMsg)) {
-                        if (statusEl) statusEl.textContent = 'Upload dibatalkan oleh user (periode yang terdeteksi: ' + gudangPeriodLabel(periodKey) + ').';
-                        e.target.value = '';
-                        return;
-                    }
-                }
-
-                parsed._meta = { filename: file.name, uploadedAt: new Date().toISOString() };
-                GUDANG_HISTORY[periodKey] = parsed;
-                invalidateGudangCaches();
-                // Upload baru membatalkan status "kosong" sebelumnya.
-                try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {}
-                saveGudangHistoryToStorage(GUDANG_HISTORY);
-                setGudangSelectedPeriod(periodKey);
-                queueCloudSync();
-                updateGudangUploadStatusLabel();
-                // Tabel "PENJUALAN FITRI" di tab Data Penjualan (kolom OUTPUT
-                // GUDANG/SELISIH/KET) punya render terpisah dari tab Gudang dan
-                // memakai cache ringkasanBaseRows -- refresh juga di sini supaya
-                // datanya langsung sinkron tanpa perlu pindah tab manual.
-                // Sinkronkan juga tabel Data Penjualan > Ringkasan > PENJUALAN FITRI.
-                // Jangan hanya bergantung pada ringkasanBaseRows.length: setelah
-                // halaman baru dibuka / filter belum pernah dirender, cache bisa
-                // masih kosong sehingga OUTPUT GUDANG tidak ikut berubah.
-                if (typeof renderRingkasan === 'function') {
-                    const rowsForRingkasan = (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length)
-                        ? ringkasanBaseRows
-                        : ((typeof lastSalesFiltered !== 'undefined' && lastSalesFiltered && lastSalesFiltered.length)
-                            ? lastSalesFiltered
-                            : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
-                    renderRingkasan(rowsForRingkasan);
-                }
-                const firstDate = parsed.rows.length ? parsed.rows[0][0] : '—';
-                const lastDate = parsed.rows.length ? parsed.rows[parsed.rows.length - 1][0] : '—';
-                alert('✅ Data Gudang berhasil diperbarui: ' + parsed.rows.length + ' baris, ' +
-                    parsed.products.length + ' produk (periode ' + parsed.bulan + ' ' + parsed.tahun + ').' +
-                    '\nRentang data: ' + firstDate + ' s/d ' + lastDate);
-            } catch (err) {
-                console.error('Gagal upload data gudang:', err);
-                alert('❌ Gagal membaca file: ' + (err && err.message ? err.message : 'format tidak dikenali') +
-                    '\n\nPastikan file Excel mengikuti format "STOK GUDANG": baris 1 nama produk, baris 2 header Msk/Klr/Stok SFA, baris 3 Saldo Awal, baris berikutnya data harian per tanggal.');
-                updateGudangUploadStatusLabel();
-            } finally {
-                e.target.value = '';
-            }
-        }
-
-        function resetGudangData() {
-            if (!confirm('Hapus SEMUA riwayat data Gudang hasil upload (semua bulan) dan kembalikan ke data CONTOH bawaan aplikasi (bukan data gudang asli kamu)?')) return;
-            try {
-                localStorage.removeItem(GUDANG_STORAGE_KEY);
-                localStorage.removeItem(GUDANG_HISTORY_KEY);
-                localStorage.removeItem(GUDANG_SELECTED_PERIOD_KEY);
-                localStorage.removeItem(GUDANG_META_FILENAME_KEY);
-                localStorage.removeItem(GUDANG_META_UPLOADED_AT_KEY);
-                localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY);
-            } catch (err) {}
-            const defKey = gudangPeriodKeyFromData(GUDANG_DATA_DEFAULT);
-            GUDANG_HISTORY = defKey ? { [defKey]: GUDANG_DATA_DEFAULT } : {};
-            setGudangSelectedPeriod(defKey || null);
-            queueCloudSync();
-        }
-
-        // Kosongkan SEPENUHNYA data Gudang: hapus seluruh riwayat bulan di
-        // localStorage DAN jangan jatuh balik ke GUDANG_DATA_DEFAULT (data
-        // contoh bawaan aplikasi). Berguna kalau ada snapshot lama yang
-        // basi/salah, supaya tidak diam-diam terus terpakai -- user jadi jelas
-        // melihat kosong dan wajib upload ulang file gudang yang terbaru.
-        function hapusDataGudangSepenuhnya() {
-            if (!confirm('Kosongkan SEMUA data Gudang (semua bulan hasil upload maupun data contoh bawaan)? Kamu perlu upload ulang file Stok Gudang setelah ini.')) return;
-            try {
-                // PENTING: simpan status "kosong" ini KE localStorage (bukan cuma
-                // dihapus), supaya saat halaman di-refresh, loadGudangHistoryFromStorage()
-                // mengembalikan {} dan TIDAK jatuh balik ke GUDANG_DATA_DEFAULT.
-                localStorage.setItem(GUDANG_EMPTY_FLAG_KEY, '1');
-                localStorage.removeItem(GUDANG_STORAGE_KEY);
-                localStorage.removeItem(GUDANG_HISTORY_KEY);
-                localStorage.removeItem(GUDANG_SELECTED_PERIOD_KEY);
-                localStorage.removeItem(GUDANG_META_FILENAME_KEY);
-                localStorage.removeItem(GUDANG_META_UPLOADED_AT_KEY);
-            } catch (err) {}
-            GUDANG_HISTORY = {};
-            GUDANG_SELECTED_PERIOD = null;
-            GUDANG_DATA = emptyGudangSnapshot();
-            invalidateGudangCaches();
-            updateGudangUploadStatusLabel();
-            populateGudangPeriodFilter();
-            renderGudangTable();
-            queueCloudSync();
-            if (typeof currentGudangSub !== 'undefined' && currentGudangSub === 'cek' && typeof renderRingkasanCekTab === 'function') {
-                renderRingkasanCekTab();
-            }
-            if (typeof renderRingkasan === 'function') {
-                const rowsForRingkasan = (typeof ringkasanBaseRows !== 'undefined' && ringkasanBaseRows && ringkasanBaseRows.length)
-                    ? ringkasanBaseRows
-                    : ((typeof lastSalesFiltered !== 'undefined' && lastSalesFiltered && lastSalesFiltered.length)
-                        ? lastSalesFiltered
-                        : ((typeof salesRows !== 'undefined' && salesRows) ? salesRows : []));
-                renderRingkasan(rowsForRingkasan);
-            }
-            alert('✅ Data Gudang sudah dikosongkan. Silakan upload ulang file Stok Gudang terbaru (sampai tanggal 31) lewat tombol "📤 Upload Stok Gudang".');
-        }
-
-
-        let currentGudangSub = 'gudang';
-        function switchGudangMainSub(view) {
-            currentGudangSub = view;
-            const isCek = view === 'cek';
-            document.getElementById('gudangTabBtnMain').classList.toggle('active', !isCek);
-            document.getElementById('gudangTabBtnCek').classList.toggle('active', isCek);
-            const gudang = document.getElementById('ringkasanGudangWrap');
-            const cek = document.getElementById('ringkasanCekWrap');
-            if (gudang) gudang.style.display = isCek ? 'none' : 'block';
-            if (cek) cek.style.display = isCek ? 'block' : 'none';
-            populateGudangPeriodFilter();
-            updateGudangUploadStatusLabel();
-            if (!isCek) {
-                if (!gudangRendered) renderGudangTable();
-                else renderGudangCards();
-            } else {
-                renderRingkasanCekTab();
-            }
         }
 
         function renderRingkasan(rows) {
@@ -5561,17 +4287,9 @@
             const fitriRows = filteredRows.filter(r => isFitriProduk(r.produk));
             const rupaRows = filteredRows.filter(r => !isFitriProduk(r.produk));
 
-            // Tanggal yang sedang aktif di tabel Ringkasan (dipakai OUTPUT GUDANG
-            // otomatis): kalau filter tanggal dipilih -> 1 tanggal itu saja,
-            // kalau tidak -> semua tanggal yang muncul di data yang tampil.
-            ringkasanDateScopeISO = ringkasanFilterDate ? [ringkasanFilterDate] :
-                [...new Set(filteredRows.map(r => ringkasanDateToISO(parseSalesDate(r.tanggal))).filter(Boolean))];
-
             const pivotFitriTable = buildRingkasanPivot(fitriRows);
             const fitriBody = document.getElementById('ringkasanFitriBody');
-            if (fitriBody) fitriBody.innerHTML = renderRingkasanPivotTable(pivotFitriTable, null, 'fitri');
-            // Detail per tanggal (Fitri × Output Gudang)
-            try { renderRingkasanDetailPerTanggal(fitriRows); } catch (e) { console.warn('detail per tanggal', e); }
+            if (fitriBody) fitriBody.innerHTML = renderRingkasanPivotTable(pivotFitriTable);
             const fitriPeriod = document.getElementById('ringkasanFitriPeriod');
             if (fitriPeriod) {
                 if (ringkasanFilterDate) {
@@ -5584,385 +4302,6 @@
             }
             populateRingkasanRupaFilter(rupaRows);
             renderRingkasanRupa(rupaRows);
-        }
-
-        // ---- INVESTIGASI PERBEDAAN TOTAL vs OUTPUT GUDANG ----
-        function openRingkasanInvestigationModal() {
-            const modal = document.getElementById('ringkasanInvestigationModal');
-            if (modal) {
-                modal.classList.add('open');
-                performRingkasanInvestigation();
-            }
-        }
-
-        function closeRingkasanInvestigationModal() {
-            const modal = document.getElementById('ringkasanInvestigationModal');
-            if (modal) modal.classList.remove('open');
-        }
-
-        // Fungsi inti: hitung baris investigasi (tanggal x produk) dengan opsi
-        // showAll (true = tampilkan semua termasuk yang Cocok, false = hanya beda).
-        // Dipakai bersama oleh Modal "Investigasi Perbedaan" DAN tab "🔎 Cek Beda".
-        function buildRingkasanCekRows(showAll, filterProduk) {
-            const allRows = ringkasanBaseRows || [];
-            const fitriRowsAll = allRows.filter(r => isFitriProduk(r.produk));
-            const fitriRowsAktif = fitriRowsAll.filter(r => !isBatalRow(r));
-            const fitriRowsBatal = fitriRowsAll.filter(r => isBatalRow(r));
-
-            // ---- Tentukan tanggal-tanggal yang perlu dicek ----
-            let scopeDates = (ringkasanDateScopeISO && ringkasanDateScopeISO.length) ? ringkasanDateScopeISO.slice() : null;
-            if (!scopeDates) {
-                const dateSet = new Set();
-                fitriRowsAll.forEach(r => {
-                    const iso = ringkasanDateToISO(parseSalesDate(r.tanggal));
-                    if (iso) dateSet.add(iso);
-                });
-                (GUDANG_DATA.rows || []).forEach(r => { if (r[0]) dateSet.add(r[0]); });
-                scopeDates = Array.from(dateSet);
-            }
-            scopeDates.sort();
-
-            // ---- Kumpulkan semua produk Fitri (dari penjualan & dari gudang) ----
-            // PENTING:
-            // 1) Hanya produk FITRI yang dipakai (bukan seluruh daftar Data
-            //    Gudang) -- tab ini memang khusus PENJUALAN FITRI vs OUTPUT
-            //    GUDANG, jadi produk lain seperti RIZKI BOTOL, BONUS MINYAK
-            //    CURAH, MINYAK GORENG CURAH, FRAISWELL, dll TIDAK relevan &
-            //    tidak boleh muncul di filter/pengecekan ini.
-            // 2) Disatukan berdasarkan nama yang SUDAH DINORMALISASI
-            //    (normalizeGudangName -> huruf besar & tanpa spasi/simbol),
-            //    supaya varian ejaan seperti "FITRI BOTOL 800ML" (dari Data
-            //    Penjualan) vs "FITRI BOTOL 800 ML" (dari Data Gudang) tidak
-            //    dianggap 2 produk berbeda -- kalau dianggap beda, muncul
-            //    baris "hantu" (Total Penjualan 0 vs Output Gudang X) padahal
-            //    penjualannya sebenarnya sudah tercatat, cuma di ejaan lain.
-            const produkCanon = {}; // normKey -> nama tampilan (canonical)
-            // Prioritaskan nama dari Data Gudang (yang mengandung "FITRI")
-            // sebagai nama tampilan resmi.
-            (GUDANG_DATA.products || []).forEach(p => {
-                if (!isFitriProduk(p.name)) return; // skip produk non-Fitri
-                const norm = normalizeGudangName(p.name);
-                if (norm && !produkCanon[norm]) produkCanon[norm] = p.name;
-            });
-            // fitriRowsAll sudah pasti produk Fitri (sudah difilter isFitriProduk
-            // di atas), jadi semua nama dari sini aman dimasukkan.
-            fitriRowsAll.forEach(r => {
-                const p = (r.produk || '').trim();
-                const norm = normalizeGudangName(p);
-                if (norm && !produkCanon[norm]) produkCanon[norm] = p;
-            });
-            const produkList = Object.keys(produkCanon).map(k => produkCanon[k]).sort(compareProdukName);
-
-            // ---- Index transaksi & total penjualan per tanggal + produk ----
-            // Key produk yang dipakai di sini JUGA dinormalisasi, biar
-            // penjualan dengan ejaan produk yang sedikit beda tetap ke-index
-            // ke produk (kanonis) yang sama.
-            const txByDateProduk = {};    // iso -> normKey -> [{noFaktur, sales, qty}]
-            const totalByDateProduk = {}; // iso -> normKey -> total qty
-            fitriRowsAktif.forEach(r => {
-                const iso = ringkasanDateToISO(parseSalesDate(r.tanggal));
-                const produkRaw = (r.produk || '').trim();
-                const normKey = normalizeGudangName(produkRaw);
-                if (!iso || !normKey) return;
-                const qty = Number(r.jumlah) || 0;
-                totalByDateProduk[iso] = totalByDateProduk[iso] || {};
-                totalByDateProduk[iso][normKey] = (totalByDateProduk[iso][normKey] || 0) + qty;
-                txByDateProduk[iso] = txByDateProduk[iso] || {};
-                txByDateProduk[iso][normKey] = txByDateProduk[iso][normKey] || [];
-                txByDateProduk[iso][normKey].push({
-                    noFaktur: (r.noFaktur || '').trim() || '—',
-                    sales: (r.sales || '').trim() || '—',
-                    satuan: (r.satuan || '').trim() || 'pcs',
-                    qty,
-                    batal: false
-                });
-            });
-            // Transaksi BATAL tidak menambah Total Penjualan, tetapi tetap ditampilkan
-            // sebagai informasi audit karena bisa menjelaskan barang yang masih keluar gudang.
-            const batalByDateProduk = {};
-            fitriRowsBatal.forEach(r => {
-                const iso = ringkasanDateToISO(parseSalesDate(r.tanggal));
-                const produkRaw = (r.produk || '').trim();
-                const normKey = normalizeGudangName(produkRaw);
-                if (!iso || !normKey) return;
-                const qty = Number(r.jumlah) || 0;
-                batalByDateProduk[iso] = batalByDateProduk[iso] || {};
-                batalByDateProduk[iso][normKey] = batalByDateProduk[iso][normKey] || [];
-                batalByDateProduk[iso][normKey].push({
-                    noFaktur: (r.noFaktur || '').trim() || '—',
-                    sales: (r.sales || '').trim() || '—',
-                    satuan: (r.satuan || '').trim() || 'pcs',
-                    qty,
-                    batal: true
-                });
-            });
-
-            let rowsHtml = '';
-            let mismatchCount = 0;
-            // Statistik rekonsiliasi: NET saja tidak cukup karena selisih + dan - bisa saling menutup.
-            let statSales = 0, statGudang = 0, statNet = 0, statAbs = 0, statLebih = 0, statKurang = 0, statCompared = 0;
-
-            scopeDates.forEach(iso => {
-                const dObj = new Date(iso + 'T00:00:00');
-                const tanggalFormat = fmtDateID(dObj) || iso;
-
-                produkList.forEach(produk => {
-                    if (filterProduk && filterProduk !== 'all' && produk !== filterProduk) return;
-                    const normKey = normalizeGudangName(produk);
-                    const gp = findGudangProduct(produk);
-                    const outputGudang = gp ? getGudangKeluarForDate(gp, iso) : null;
-                    const totalPenjualan = (totalByDateProduk[iso] && totalByDateProduk[iso][normKey]) || 0;
-                    const txs = (txByDateProduk[iso] && txByDateProduk[iso][normKey]) || [];
-                    const batalTxs = (batalByDateProduk[iso] && batalByDateProduk[iso][normKey]) || [];
-                    const auditTxs = txs.concat(batalTxs);
-
-                    // Lewati kombinasi tanggal+produk yang memang tidak ada
-                    // data sama sekali (tidak ada penjualan & tidak ada data gudang)
-                    if (outputGudang === null && totalPenjualan === 0 && batalTxs.length === 0) return;
-
-                    let status;
-                    if (outputGudang === null) status = 'nogudang';
-                    else if (outputGudang === totalPenjualan) status = 'match';
-                    else { status = 'mismatch'; mismatchCount++; }
-
-                    if (!showAll && status !== 'mismatch') return; // default: hanya tampilkan yang beda
-
-                    const selisih = (outputGudang !== null) ? (outputGudang - totalPenjualan) : null;
-                    if (outputGudang !== null) {
-                        statCompared++;
-                        statSales += totalPenjualan;
-                        statGudang += outputGudang;
-                        statNet += selisih;
-                        statAbs += Math.abs(selisih);
-                        if (selisih > 0) statLebih += selisih;
-                        if (selisih < 0) statKurang += Math.abs(selisih);
-                    }
-                    const totalTx = txs.reduce((s, t) => s + t.qty, 0);
-
-                    let rowStyle = '', statusHtml;
-                    if (status === 'mismatch') {
-                        const bedaAbs = Math.abs(selisih).toLocaleString('id-ID');
-                        statusHtml = (selisih > 0)
-                            ? ('<strong style="color:var(--yellow);">⚠ Keluar Gudang LEBIH BANYAK ' + bedaAbs + ' dibanding Data Penjualan</strong>')
-                            : ('<strong style="color:var(--yellow);">⚠ Keluar Gudang LEBIH SEDIKIT ' + bedaAbs + ' dibanding Data Penjualan</strong>');
-                    } else if (status === 'match') {
-                        statusHtml = '<span style="color:var(--green,#16a34a);">✅ Cocok</span>';
-                    } else {
-                        statusHtml = '<span class="muted">— (tidak ada data gudang)</span>';
-                    }
-
-                    let detailStr;
-                    if (auditTxs.length) {
-                        // ---- Deteksi transaksi yang PALING MUNGKIN jadi penyebab selisih ----
-                        // Pola 1: qty transaksi itu PERSIS sama dengan |selisih| -> indikasi kuat.
-                        // Pola 2: nomor fakturnya "meloncat jauh" dari urutan faktur lain di
-                        //         tanggal & produk yang sama (indikasi transaksi nyasar / salah tanggal).
-                        const absSelisih = (status === 'mismatch') ? Math.abs(selisih) : null;
-                        const fakturNums = auditTxs.map(t => {
-                            const digits = String(t.noFaktur).replace(/\D/g, '');
-                            return digits ? Number(digits) : null;
-                        });
-                        const validNums = fakturNums.filter(n => n !== null).slice().sort((a, b) => a - b);
-                        let medianGap = 0;
-                        if (validNums.length > 2) {
-                            const gaps = [];
-                            for (let i = 1; i < validNums.length; i++) gaps.push(validNums[i] - validNums[i - 1]);
-                            gaps.sort((a, b) => a - b);
-                            medianGap = gaps[Math.floor(gaps.length / 2)] || 0;
-                        }
-                        // Urutkan transaksi berdasarkan nomor faktur supaya lompatan langsung kelihatan
-                        const order = auditTxs.map((t, i) => i).sort((a, b) => {
-                            const na = fakturNums[a], nb = fakturNums[b];
-                            if (na === null || nb === null) return 0;
-                            return na - nb;
-                        });
-                        const lines = order.map(i => {
-                            const t = auditTxs[i];
-                            const n = fakturNums[i];
-                            let suspect = false, reason = '';
-                            if (absSelisih !== null && absSelisih > 0 && t.qty === absSelisih) {
-                                suspect = true; reason = t.batal ? 'qty transaksi BATAL = selisih' : 'qty = selisih';
-                            }
-                            if (!suspect && n !== null && validNums.length > 2 && medianGap > 0) {
-                                const idx = validNums.indexOf(n);
-                                const prevGap = idx > 0 ? n - validNums[idx - 1] : Infinity;
-                                const nextGap = idx < validNums.length - 1 ? validNums[idx + 1] - n : Infinity;
-                                const minGap = Math.min(prevGap, nextGap);
-                                if (minGap > medianGap * 3 && minGap >= 4) { suspect = true; reason = 'no.faktur meloncat'; }
-                            }
-                            const fakturLinkHtml = (t.noFaktur && t.noFaktur !== '—')
-                                ? ('<span class="faktur-link" title="Klik untuk lihat detail faktur" onclick="openCekBedaFakturDetail(\'' + encodeURIComponent(String(t.noFaktur).trim()) + '\')">' + esc(t.noFaktur) + '</span>')
-                                : esc(t.noFaktur);
-                            const line = (t.batal
-                                ? '<span style="color:var(--red,#dc2626);font-weight:700;">🚫 BATAL</span> ' + fakturLinkHtml
-                                : fakturLinkHtml) + ' · ' + esc(t.sales) + ' · ' +
-                                (t.batal ? 'Qty Faktur Batal: ' : 'Penjualan di Faktur: ') + '<strong>' + t.qty + ' ' + esc(t.satuan) + '</strong>';
-                            return suspect
-                                ? ('<span style="background:rgba(220,38,38,.16);border-radius:4px;padding:1px 5px;" title="Kemungkinan penyebab: ' + reason + '">🎯 ' + line + '</span>')
-                                : line;
-                        });
-                        detailStr = lines.join('<br>') +
-                            '<div style="margin-top:4px;color:var(--muted);">Total penjualan aktif: <strong>' + totalTx.toLocaleString('id-ID') + 'x</strong>' +
-                            (batalTxs.length ? ' &nbsp;·&nbsp; <span style="color:var(--red,#dc2626);">🚫 Ada ' + batalTxs.length + ' baris transaksi BATAL — tidak dihitung ke Total Penjualan.</span>' : '') +
-                            (lines.some(l => l.indexOf('🎯') !== -1) ? ' &nbsp;·&nbsp; <span style="color:#dc2626;">🎯 = kemungkinan penyebab selisih</span>' : '') +
-                            '</div>';
-                    } else if (status === 'mismatch') {
-                        detailStr = batalTxs.length
-                            ? '<span style="color:var(--red,#dc2626);"><strong>🚫 Ada transaksi BATAL</strong>, tetapi tidak dihitung sebagai penjualan aktif. Cek apakah barang tetap keluar dari gudang atau transaksi batal tersebut seharusnya tidak ikut Output Gudang.</span>'
-                            : '<span class="muted">Tidak ada transaksi penjualan aktif tercatat pada tanggal ini — cek apakah output gudang salah tanggal / salah produk.</span>';
-                    } else {
-                        detailStr = '<span class="muted">—</span>';
-                    }
-
-                    rowsHtml += '<tr' + rowStyle + '>' +
-                        '<td style="white-space:nowrap;">' + esc(tanggalFormat) + '</td>' +
-                        '<td>' + esc(produk) + '</td>' +
-                        '<td class="num">' + totalPenjualan.toLocaleString('id-ID') + '</td>' +
-                        '<td class="num">' + (outputGudang !== null ? outputGudang.toLocaleString('id-ID') : '—') + '</td>' +
-                        '<td class="num"><strong>' + (selisih !== null ? selisih.toLocaleString('id-ID') : '—') + '</strong></td>' +
-                        '<td style="font-size:0.75rem;max-width:190px;">' + statusHtml + '</td>' +
-                        '<td style="font-size:0.75rem;max-width:280px;word-break:break-word;">' + detailStr + '</td>' +
-                        '</tr>';
-                });
-            });
-
-            return { rowsHtml, mismatchCount, produkList, stats: { sales: statSales, gudang: statGudang, net: statNet, abs: statAbs, lebih: statLebih, kurang: statKurang, compared: statCompared } };
-        }
-
-        function performRingkasanInvestigation() {
-            const showAllChk = document.getElementById('ringkasanInvestigationShowAll');
-            const showAll = showAllChk ? showAllChk.checked : false;
-            const { rowsHtml, mismatchCount } = buildRingkasanCekRows(showAll);
-
-            const tbody = document.getElementById('ringkasanInvestigationBody');
-            const summaryEl = document.getElementById('ringkasanInvestigationSummary');
-            if (summaryEl) {
-                summaryEl.innerHTML = mismatchCount > 0
-                    ? ('⚠ Ditemukan <span style="color:var(--yellow);">' + mismatchCount + ' baris (tanggal × produk)</span> dengan selisih' + (!showAll ? ' — hanya baris beda yang ditampilkan di bawah.' : '.'))
-                    : '✅ Tidak ada selisih ditemukan untuk periode ini.';
-            }
-            if (tbody) {
-                tbody.innerHTML = rowsHtml || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);">' +
-                    (showAll ? 'Tidak ada data untuk periode ini.' : 'Tidak ada perbedaan ditemukan untuk periode ini. 🎉') + '</td></tr>';
-            }
-        }
-
-        // ---- Modal detail faktur untuk tab "🔎 Cek Beda" — dipanggil saat
-        // No Faktur di kolom "Detail Transaksi" diklik. Menampilkan seluruh
-        // item dalam faktur tsb (dari Data Penjualan) supaya gampang
-        // dicocokkan ke nota fisik.
-        function openCekBedaFakturDetail(encodedFaktur) {
-            const faktur = decodeURIComponent(String(encodedFaktur || '')).trim();
-            document.getElementById('cekTempoModalTitle').textContent = 'Detail Faktur ' + (faktur || '—');
-            const actionsEl = document.getElementById('cekTempoModalActions');
-            if (actionsEl) actionsEl.innerHTML = '';
-
-            if (!faktur || faktur === '—') return;
-            const rows = (salesRows || []).filter(r => String(r.noFaktur || '').trim() === faktur);
-
-            if (!rows.length) {
-                document.getElementById('cekTempoModalSub').textContent = '—';
-                document.getElementById('cekTempoCustomer').textContent = '—';
-                document.getElementById('cekTempoSales').textContent = '—';
-                document.getElementById('cekTempoAlamat').textContent = '—';
-                document.getElementById('cekTempoModalStatus').innerHTML = '';
-                document.getElementById('cekTempoModalStats').innerHTML = '';
-                document.getElementById('cekTempoModalProduk').innerHTML = '';
-                document.getElementById('cekTempoModalConclusion').innerHTML =
-                    '<span class="muted">Tidak ditemukan detail transaksi untuk No Faktur ini di Data Penjualan.</span>';
-                document.getElementById('cekTempoDetailModal').classList.add('open');
-                return;
-            }
-
-            const first = rows[0];
-            const totalNominal = rows.reduce((s, r) => s + (Number(r.total) || 0), 0);
-            const totalQty = rows.reduce((s, r) => s + (Number(r.jumlah) || 0), 0);
-
-            document.getElementById('cekTempoModalSub').textContent =
-                (first.customer || '—') + (first.alamat ? ' · ' + first.alamat : '');
-            document.getElementById('cekTempoCustomer').textContent = first.customer || '—';
-            document.getElementById('cekTempoSales').textContent = first.sales || '—';
-            document.getElementById('cekTempoAlamat').textContent = first.alamat || '—';
-
-            const payUp = String(first.pembayaran || '').trim().toUpperCase();
-            const isCashRow = payUp === 'CASH' || payUp.startsWith('CASH') || payUp === 'TUNAI';
-            const payLabel = first.pembayaran ? (isCashRow ? '💵 CASH' : '📅 TEMPO') : '—';
-            const payColor = isCashRow ? 'var(--green,#16a34a)' : 'var(--accent)';
-            document.getElementById('cekTempoModalStatus').innerHTML =
-                '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;color:#fff;background:' +
-                payColor + ';">' + payLabel + '</span>';
-
-            document.getElementById('cekTempoModalStats').innerHTML =
-                '<div class="modal-stat"><div class="l">Tanggal Transaksi</div><div class="v">' + esc(first.tanggal || '—') + '</div></div>' +
-                '<div class="modal-stat"><div class="l">Jumlah Item</div><div class="v">' + rows.length.toLocaleString('id-ID') + '</div></div>' +
-                '<div class="modal-stat"><div class="l">Total Qty</div><div class="v">' + totalQty.toLocaleString('id-ID') + '</div></div>' +
-                '<div class="modal-stat"><div class="l">Total Nominal Faktur</div><div class="v">' + fmt(totalNominal) + '</div></div>';
-
-            let ph = '<div class="l" style="margin-bottom:6px;font-size:0.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;">Rincian Produk dalam Faktur ini</div>' +
-                '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.8rem;">' +
-                '<thead><tr style="border-bottom:1px solid var(--border);text-align:left;">' +
-                '<th style="padding:5px 6px;">Produk</th><th style="padding:5px 6px;text-align:right;">Jumlah</th>' +
-                '<th style="padding:5px 6px;">Satuan</th><th style="padding:5px 6px;text-align:right;">Harga Jual</th>' +
-                '<th style="padding:5px 6px;text-align:right;">Disc</th><th style="padding:5px 6px;text-align:right;">Total</th></tr></thead><tbody>';
-            for (const it of rows) {
-                ph += '<tr style="border-bottom:1px solid var(--border);">' +
-                    '<td style="padding:5px 6px;">' + esc(it.produk || '—') + '</td>' +
-                    '<td style="padding:5px 6px;text-align:right;">' + (Number(it.jumlah) || 0).toLocaleString('id-ID') + '</td>' +
-                    '<td style="padding:5px 6px;">' + esc(it.satuan || '—') + '</td>' +
-                    '<td style="padding:5px 6px;text-align:right;">' + fmt(Number(it.hargaJual) || 0) + '</td>' +
-                    '<td style="padding:5px 6px;text-align:right;">' + fmt(Number(it.disc) || 0) + '</td>' +
-                    '<td style="padding:5px 6px;text-align:right;"><strong>' + fmt(Number(it.total) || 0) + '</strong></td>' +
-                    '</tr>';
-            }
-            ph += '</tbody></table></div>';
-            document.getElementById('cekTempoModalProduk').innerHTML = ph;
-
-            document.getElementById('cekTempoModalConclusion').innerHTML =
-                '<span class="muted">Rincian di atas diambil dari Data Penjualan untuk No Faktur ini. Cocokkan dengan nota fisik untuk verifikasi penyebab selisih Output Gudang.</span>';
-
-            document.getElementById('cekTempoDetailModal').classList.add('open');
-        }
-
-        // ---- TAB "🔎 Cek Beda" — sama isinya dengan modal Investigasi, tapi
-        // ditampilkan langsung sebagai tab (tidak perlu buka modal) ----
-        function renderRingkasanCekTab() {
-            const showAllChk = document.getElementById('ringkasanCekShowAll');
-            const showAll = showAllChk ? showAllChk.checked : false;
-            const filterSel = document.getElementById('ringkasanCekFilterProduk');
-            const filterProduk = filterSel ? filterSel.value : 'all';
-            const { rowsHtml, mismatchCount, produkList, stats } = buildRingkasanCekRows(showAll, filterProduk);
-
-            if (filterSel) {
-                const currentVal = filterSel.value || 'all';
-                const optionsHtml = '<option value="all">Semua Produk</option>' +
-                    produkList.map(p => '<option value="' + esc(p) + '">' + esc(p) + '</option>').join('');
-                if (filterSel.getAttribute('data-opt-key') !== optionsHtml) {
-                    filterSel.innerHTML = optionsHtml;
-                    filterSel.setAttribute('data-opt-key', optionsHtml);
-                    filterSel.value = (currentVal === 'all' || produkList.includes(currentVal)) ? currentVal : 'all';
-                }
-            }
-
-            const tbody = document.getElementById('ringkasanCekBody');
-            const summaryEl = document.getElementById('ringkasanCekSummary');
-            if (summaryEl) {
-                if (mismatchCount > 0) {
-                    const netTxt = (stats.net > 0 ? '+' : '') + stats.net.toLocaleString('id-ID');
-                    summaryEl.innerHTML =
-                        '⚠ <span style="color:var(--yellow);">' + mismatchCount + ' baris beda</span> · ' +
-                        'Penjualan <strong>' + stats.sales.toLocaleString('id-ID') + '</strong> vs Gudang <strong>' + stats.gudang.toLocaleString('id-ID') + '</strong> · ' +
-                        'NET <strong>' + netTxt + '</strong> · ' +
-                        '<strong style="color:var(--red);">BEDA ABSOLUT ' + stats.abs.toLocaleString('id-ID') + '</strong> ' +
-                        '<span class="muted">(Gudang lebih ' + stats.lebih.toLocaleString('id-ID') + ' / kurang ' + stats.kurang.toLocaleString('id-ID') + ')</span>' +
-                        (!showAll ? '<div style="font-weight:400;margin-top:3px;color:var(--muted);">Catatan: NET bisa kecil karena selisih positif dan negatif saling menutup. Untuk audit, lihat BEDA ABSOLUT dan rincian per tanggal × produk.</div>' : '');
-                } else {
-                    summaryEl.innerHTML = '✅ Tidak ada selisih ditemukan untuk periode ini.';
-                }
-            }
-            if (tbody) {
-                tbody.innerHTML = rowsHtml || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted);">' +
-                    (showAll ? 'Tidak ada data untuk periode ini.' : 'Tidak ada perbedaan ditemukan untuk periode ini. 🎉') + '</td></tr>';
-            }
         }
 
         function rebuildFakturNominalMap(rows) {
@@ -7084,7 +5423,7 @@
             let mainIntCols = null; // diisi ALL_INT_COLS untuk sheet yang isinya murni jumlah barang (bukan uang)
             let mainCurrCols = null; // Set index kolom uang eksplisit (dipakai bareng mainIntCols supaya kolom qty tidak ikut diformat "Rp")
             let mainHeaderRow = 1; // baris header (0-based di aoa); bisa array [1,2] untuk header 2 baris
-            const extraSheets = []; // { name, aoa, intCols? } - sheet-sheet tambahan (Rupa Rupa, Data Gudang, dst)
+            const extraSheets = []; // { name, aoa, intCols? } - sheet-sheet tambahan (Rupa Rupa, dst)
             if (currentSalesSub === 'ringkasan') {
                 // Ikutkan filter tanggal khusus tabel Ringkasan (kalau sedang dipilih)
                 // supaya isi file download sama persis dengan yang tampil di layar.
@@ -7092,9 +5431,6 @@
                 if (ringkasanFilterDate) {
                     rows = rows.filter(r => ringkasanDateToISO(parseSalesDate(r.tanggal)) === ringkasanFilterDate);
                 }
-                // Tanggal aktif untuk OUTPUT GUDANG otomatis, sama seperti logika di layar.
-                ringkasanDateScopeISO = ringkasanFilterDate ? [ringkasanFilterDate] :
-                    [...new Set(rows.map(r => ringkasanDateToISO(parseSalesDate(r.tanggal))).filter(Boolean))];
                 const periodExport = ringkasanFilterDate ? ('Tanggal ' + ringkasanFilterDate) : period;
 
                 const fitriRows = rows.filter(r => isFitriProduk(r.produk));
@@ -7105,22 +5441,13 @@
                 aoa = [
                     ['RINGKASAN PENJUALAN FITRI'].concat(pivot.salesList.map(() => '')).concat(['', '', periodExport])
                 ];
-                aoa.push(['Produk'].concat(pivot.salesList).concat(['Total', 'Output Gudang', 'Ket']));
+                aoa.push(['Produk'].concat(pivot.salesList).concat(['Total']));
                 pivot.products.forEach(p => {
                     const tot = pivot.prodMap[p].__total;
-                    const outputVal = getAutoOutputGudang(p);
-                    aoa.push([p].concat(pivot.salesList.map(s => (pivot.prodMap[p][s] || 0))).concat([
-                        tot, outputVal !== null ? outputVal : '',
-                        outputVal !== null && outputVal === tot ? 'Cocok' : ''
-                    ]));
+                    aoa.push([p].concat(pivot.salesList.map(s => (pivot.prodMap[p][s] || 0))).concat([tot]));
                 });
                 {
-                    let sumOut = 0, anyOut = false;
-                    pivot.products.forEach(p => { const v = getAutoOutputGudang(p); if (v !== null) { sumOut += v; anyOut = true; } });
-                    aoa.push(['TOTAL'].concat(pivot.salesList.map(s => (pivot.salesTotals[s] || 0))).concat([
-                        pivot.grandTotal, anyOut ? sumOut : '',
-                        anyOut && sumOut === pivot.grandTotal ? 'Cocok' : ''
-                    ]));
+                    aoa.push(['TOTAL'].concat(pivot.salesList.map(s => (pivot.salesTotals[s] || 0))).concat([pivot.grandTotal]));
                 }
 
                 // Sheet kedua: Ringkasan Rupa Rupa (pivot Produk x Sales yang sama seperti
@@ -7131,37 +5458,15 @@
                 const aoaRupa = [
                     ['RINGKASAN PENJUALAN RUPA RUPA'].concat(pivotRupa.salesList.map(() => '')).concat(['', '', periodExport])
                 ];
-                aoaRupa.push(['Produk'].concat(pivotRupa.salesList).concat(['Total', 'Output Gudang', 'Ket']));
+                aoaRupa.push(['Produk'].concat(pivotRupa.salesList).concat(['Total']));
                 pivotRupa.products.forEach(p => {
                     const tot = pivotRupa.prodMap[p].__total;
-                    const outputVal = getAutoOutputGudang(p);
-                    aoaRupa.push([p].concat(pivotRupa.salesList.map(s => (pivotRupa.prodMap[p][s] || 0))).concat([
-                        tot, outputVal !== null ? outputVal : '',
-                        outputVal !== null && outputVal === tot ? 'Cocok' : ''
-                    ]));
+                    aoaRupa.push([p].concat(pivotRupa.salesList.map(s => (pivotRupa.prodMap[p][s] || 0))).concat([tot]));
                 });
                 {
-                    let sumOut2 = 0, anyOut2 = false;
-                    pivotRupa.products.forEach(p => { const v = getAutoOutputGudang(p); if (v !== null) { sumOut2 += v; anyOut2 = true; } });
-                    aoaRupa.push(['TOTAL'].concat(pivotRupa.salesList.map(s => (pivotRupa.salesTotals[s] || 0))).concat([
-                        pivotRupa.grandTotal, anyOut2 ? sumOut2 : '',
-                        anyOut2 && sumOut2 === pivotRupa.grandTotal ? 'Cocok' : ''
-                    ]));
+                    aoaRupa.push(['TOTAL'].concat(pivotRupa.salesList.map(s => (pivotRupa.salesTotals[s] || 0))).concat([pivotRupa.grandTotal]));
                 }
                 extraSheets.push({ name: 'Ringkasan Rupa Rupa', aoa: aoaRupa, intCols: ALL_INT_COLS });
-
-                // Sheet: Detail per tanggal (Tanggal × Produk × Penjualan × Output Gudang)
-                try {
-                    const aoaDetail = buildRingkasanDetailPerTanggalAOA(fitriRows);
-                    if (aoaDetail && aoaDetail.length > 2) {
-                        extraSheets.push({ name: 'Detail Per Tanggal', aoa: aoaDetail, intCols: ALL_INT_COLS });
-                    }
-                } catch (e) { console.warn('detail per tanggal export', e); }
-
-                // Sheet: Data Gudang (mutasi stok harian lengkap), supaya
-                // download di sub-tab Ringkasan juga menyertakan data pembanding
-                // yang sama seperti tab "🏭 Data Gudang" di layar.
-                extraSheets.push({ name: 'Data Gudang', aoa: buildGudangExportAOA(), intCols: ALL_INT_COLS });
             } else if (currentSalesSub === 'produk') {
                 if (!lastProfitProdukRows.length) renderProfitProduk(lastSalesFiltered.length ? lastSalesFiltered :
                     salesRows);
@@ -7472,7 +5777,6 @@
             // ini XLSX.utils.book_append_sheet melempar error "Sheet names
             // cannot exceed 31 chars" dan seluruh proses download gagal total.
             XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31));
-            // Sheet-sheet tambahan (mis. Rupa Rupa & Data Gudang di sub-tab Ringkasan),
             // dirapikan dengan format angka, merge judul, dan lebar kolom yang sama
             // seperti sheet utama supaya seluruh file download konsisten & rapi.
             extraSheets.forEach(extra => {
@@ -10116,7 +8420,7 @@
         })();
 
         function switchTab(tab) {
-            const tabs = ['faktur', 'penjualan', 'gudang', 'cek', 'ar', 'rapikan'];
+            const tabs = ['faktur', 'penjualan', 'cek', 'ar', 'rapikan'];
             tabs.forEach(t => {
                 const panelName = t === 'cek' ? 'tabCek' : ('tab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const btnName = t === 'cek' ? 'tabBtnCek' : ('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -10128,13 +8432,7 @@
             if (tab === 'rapikan') {
                 document.getElementById('tabBtnFaktur').classList.remove('active');
                 document.getElementById('tabBtnPenjualan').classList.remove('active');
-                document.getElementById('tabBtnGudang').classList.remove('active');
                 document.getElementById('tabBtnCek').classList.remove('active');
-            }
-            if (tab === 'gudang') {
-                // Render ulang sub-view Data Gudang / Cek Beda yang sedang aktif
-                // supaya datanya selalu up to date saat tab ini dibuka.
-                switchGudangMainSub(currentGudangSub);
             }
             if (tab === 'cek') {
                 // Cukup render ulang tampilan; cache faktur/sales hanya perlu
@@ -10153,10 +8451,6 @@
 
         function closeSalesMenu() { document.getElementById('salesMenuDd').classList.remove('open'); }
 
-        function toggleGudangMenu() { document.getElementById('gudangMenuDd').classList.toggle('open'); }
-
-        function closeGudangMenu() { document.getElementById('gudangMenuDd').classList.remove('open'); }
-
         // ---- Listener klik-luar gabungan (menggantikan beberapa listener document terpisah) ----
         document.addEventListener('click', function(e) {
             [
@@ -10164,8 +8458,7 @@
                 ['cekDownloadMenu', 'cekDownloadWrap'],
                 ['menuDd', 'menuWrap'],
                 ['salesMenuDd', 'salesMenuWrap'],
-                ['arMenuDd', 'arMenuWrap'],
-                ['gudangMenuDd', 'gudangMenuWrap']
+                ['arMenuDd', 'arMenuWrap']
             ].forEach(function(pair) {
                 const m = document.getElementById(pair[0]);
                 const w = document.getElementById(pair[1]);
@@ -10213,33 +8506,11 @@
             const localRapikan = await loadRowsFromDB(DB_KEY_RAPIKAN);
             const localHargaBeli = await loadRowsFromDB(DB_KEY_HARGA_BELI);
 
-            // Data Gudang disimpan sebagai RIWAYAT BULANAN di localStorage,
-            // bukan di IndexedDB seperti Uang Masuk/Penjualan. Karena itu
-            // pemeriksaan "apakah ada data lokal" WAJIB ikut melihat
-            // GUDANG_HISTORY. Kalau tidak, saat hanya Data Gudang yang baru
-            // di-upload (mis. Agustus lalu September), aplikasi mengira lokal
-            // kosong dan cloud lama bisa menimpa seluruh riwayat Gudang.
-            let localGudangHistory = {};
-            try {
-                localGudangHistory = loadGudangHistoryFromStorage();
-            } catch (err) {
-                localGudangHistory = {};
-            }
-            const hasLocalGudangData = !!(
-                localGudangHistory &&
-                typeof localGudangHistory === 'object' &&
-                Object.keys(localGudangHistory).some(k => {
-                    const d = localGudangHistory[k];
-                    return d && Array.isArray(d.rows) && d.rows.length;
-                })
-            );
-
             const hasLocalData = !!(
                 (localAll && localAll.length) ||
                 (localSales && localSales.length) ||
                 (localRapikan && localRapikan.length) ||
-                (localHargaBeli && localHargaBeli.length) ||
-                hasLocalGudangData
+                (localHargaBeli && localHargaBeli.length)
             );
             let localTs = 0;
             try {
@@ -10252,9 +8523,7 @@
                 (Array.isArray(cloud.all_rows) && cloud.all_rows.length) ||
                 (Array.isArray(cloud.sales_rows) && cloud.sales_rows.length) ||
                 (Array.isArray(cloud.rapikan_rows) && cloud.rapikan_rows.length) ||
-                (Array.isArray(cloud.harga_beli_rows) && cloud.harga_beli_rows.length) ||
-                (cloud.gudang_data && Array.isArray(cloud.gudang_data.rows) && cloud.gudang_data.rows.length) ||
-                (cloud.gudang_data && cloud.gudang_data.history && Object.keys(cloud.gudang_data.history).length)
+                (Array.isArray(cloud.harga_beli_rows) && cloud.harga_beli_rows.length)
             ));
             const cloudTs = (cloud && cloud.updated_at) ? (new Date(cloud.updated_at).getTime() || 0) : 0;
 
@@ -10264,7 +8533,7 @@
             // Kalau data LOKAL lebih baru dari cloud, lokal yang dipakai dan
             // didorong ke cloud (bukan ditimpa) supaya cloud ikut ter-update.
             // Satu keputusan ini dipakai untuk SEMUA data (Uang Masuk, Penjualan,
-            // Rapikan, Harga Beli, dan Data Gudang) karena semuanya berbagi satu
+            // Rapikan, dan Harga Beli) karena semuanya berbagi satu
             // baris cloud & satu updated_at yang sama.
             const cloudWins = hasCloudData && (!hasLocalData || !localTs || cloudTs >= localTs);
             // Push lokal->cloud (kalau lokal menang) ditunda sampai SETELAH
@@ -10337,89 +8606,6 @@
             if (savedHargaBeli && savedHargaBeli.length && window.__rapSetPriceRows) {
                 window.__rapSetPriceRows(savedHargaBeli);
             }
-            // DATA GUDANG: JANGAN PERNAH mengganti seluruh riwayat lokal dengan
-            // riwayat cloud. Data Gudang adalah data BULANAN; cloud bisa saja masih
-            // membawa snapshot lama hanya 1 bulan. Jika langsung di-assign, bulan
-            // Agustus akan hilang ketika user baru upload September.
-            //
-            // Aturan aman:
-            // 1) ambil history cloud (format baru/lama),
-            // 2) normalisasi berdasarkan tanggal sebenarnya,
-            // 3) MERGE per bulan dengan history lokal,
-            // 4) jika bulan yang sama ada di dua tempat, pilih snapshot dengan
-            //    _meta.uploadedAt terbaru; tetapi bulan lain TIDAK BOLEH dihapus.
-            function extractCloudGudangHistory(gudangData) {
-                if (!gudangData) return {};
-                try {
-                    if (gudangData.history && typeof gudangData.history === 'object') {
-                        return normalizeGudangHistoryPeriods(gudangData.history);
-                    }
-                    if (Array.isArray(gudangData.products) && Array.isArray(gudangData.rows)) {
-                        const key = gudangPeriodKeyFromData(gudangData);
-                        return key ? normalizeGudangHistoryPeriods({ [key]: gudangData }) : {};
-                    }
-                } catch (err) { console.warn('Gagal membaca riwayat Gudang cloud:', err); }
-                return {};
-            }
-
-            function mergeGudangHistorySafe(localHistory, cloudHistory) {
-                const localH = normalizeGudangHistoryPeriods(localHistory || {});
-                const cloudH = normalizeGudangHistoryPeriods(cloudHistory || {});
-                const merged = {};
-                const keys = new Set([...Object.keys(localH), ...Object.keys(cloudH)]);
-                keys.forEach(key => {
-                    const l = localH[key];
-                    const c = cloudH[key];
-                    if (!l) { merged[key] = c; return; }
-                    if (!c) { merged[key] = l; return; }
-                    const lt = l._meta && l._meta.uploadedAt ? new Date(l._meta.uploadedAt).getTime() : 0;
-                    const ct = c._meta && c._meta.uploadedAt ? new Date(c._meta.uploadedAt).getTime() : 0;
-                    // Bila timestamp sama/tidak ada, pilih data dengan baris lebih banyak.
-                    // Yang penting: hanya bulan YANG SAMA yang boleh saling mengganti.
-                    merged[key] = (ct > lt || (ct === lt && (c.rows || []).length >= (l.rows || []).length)) ? c : l;
-                });
-                return merged;
-            }
-
-            const localGudangBeforeCloud = normalizeGudangHistoryPeriods(GUDANG_HISTORY || {});
-            const cloudGudangHistory = extractCloudGudangHistory(cloud && cloud.gudang_data);
-            const mergedGudangHistory = mergeGudangHistorySafe(localGudangBeforeCloud, cloudGudangHistory);
-
-            if (Object.keys(mergedGudangHistory).length) {
-                const localChangedDuringStartup = JSON.stringify(mergedGudangHistory) !== JSON.stringify(localGudangBeforeCloud);
-                GUDANG_HISTORY = mergedGudangHistory;
-                saveGudangHistoryToStorage(GUDANG_HISTORY);
-                const keys = gudangHistoryKeysSorted();
-
-                // Pertahankan pilihan bulan lokal bila masih ada. Kalau tidak ada,
-                // gunakan pilihan cloud bila valid, lalu bulan paling baru.
-                let savedSelected = null;
-                try { savedSelected = localStorage.getItem(GUDANG_SELECTED_PERIOD_KEY); } catch (err) {}
-                const cloudSelected = cloud && cloud.gudang_data && cloud.gudang_data.selected;
-                GUDANG_SELECTED_PERIOD = (savedSelected && GUDANG_HISTORY[savedSelected]) ? savedSelected :
-                    ((cloudSelected && GUDANG_HISTORY[cloudSelected]) ? cloudSelected :
-                    (keys.length ? keys[keys.length - 1] : null));
-                try {
-                    if (GUDANG_SELECTED_PERIOD) localStorage.setItem(GUDANG_SELECTED_PERIOD_KEY, GUDANG_SELECTED_PERIOD);
-                } catch (err) {}
-                GUDANG_DATA = GUDANG_SELECTED_PERIOD ? GUDANG_HISTORY[GUDANG_SELECTED_PERIOD] : emptyGudangSnapshot();
-                try { localStorage.removeItem(GUDANG_EMPTY_FLAG_KEY); } catch (err) {}
-                invalidateGudangCaches();
-                if (typeof populateGudangPeriodFilter === 'function') populateGudangPeriodFilter();
-                if (typeof updateGudangUploadStatusLabel === 'function') updateGudangUploadStatusLabel();
-                if (typeof renderGudangTable === 'function') renderGudangTable();
-
-                // Bila merge menemukan bulan lokal yang belum ada di cloud, dorong
-                // kembali history LENGKAP ke cloud. Ini mencegah Agustus hilang
-                // hanya karena cloud sebelumnya berisi September saja.
-                if (localChangedDuringStartup || (hasLocalGudangData && cloudGudangHistory &&
-                    Object.keys(localGudangBeforeCloud).length > Object.keys(cloudGudangHistory).length)) {
-                    shouldPushLocalToCloud = true;
-                }
-            }
-            // Push lokal->cloud (kalau lokal lebih baru) baru dilakukan DI SINI,
-            // setelah Rapikan/Harga Beli sudah masuk ke memori -- supaya payload
-            // yang dikirim ke cloud lengkap (bukan rapikan/harga beli kosong).
             if (shouldPushLocalToCloud) pushToSupabase();
 
             // Backup folder handle
@@ -10459,9 +8645,6 @@
         document.getElementById('filterSalesSales').addEventListener('change', doSalesSearch);
         const filterSalesKategoriEl = document.getElementById('filterSalesKategori');
         if (filterSalesKategoriEl) filterSalesKategoriEl.addEventListener('change', doSalesSearch);
-        const fileInputGudangEl = document.getElementById('fileInputGudang');
-        if (fileInputGudangEl) fileInputGudangEl.addEventListener('change', e => { if (e.target.files.length) handleGudangFileUpload(e); });
-        updateGudangUploadStatusLabel();
         const ringkasanRupaSearchEl = document.getElementById('ringkasanRupaSearch');
         if (ringkasanRupaSearchEl) {
             ringkasanRupaSearchEl.addEventListener('input', () => renderRingkasanRupa());
@@ -11249,20 +9432,16 @@
             openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
             downloadFakturExcel, downloadFakturSalesExcel, downloadFakturBulanExcel, downloadFakturDay, downloadDailyRingkasanExcel,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
-            downloadCurrentSalesExcel, downloadRingkasanDetailPerTanggalExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
+            downloadCurrentSalesExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
             switchCekSub, toggleCekBulanPanel, onCekBulanAllChange, onCekBulanItemChange,
             toggleCekDownloadMenu, renderCekTable, resetCekSearch, downloadCekExcel,
             pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
-            installApp, toggleRingkasanRupaShowAll, switchGudangMainSub,
-            onRingkasanDateFilterChange, clearRingkasanDateFilter,
-            openRingkasanInvestigationModal, closeRingkasanInvestigationModal, performRingkasanInvestigation,
-            renderRingkasanCekTab,
+            installApp, toggleRingkasanRupaShowAll,
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
             openFixHargaBeliModal, closeFixHargaBeliModal, onFixHBProdukChange, applyFixHargaBeli,
             openHapusBulanModal, closeHapusBulanModal, toggleHapusBulanSelectAll, syncHapusBulanSelectAll, applyHapusBulan,
-            resetGudangData, hapusDataGudangSepenuhnya, setGudangSelectedPeriod,
             switchARSub, toggleARMenu, closeARMenu, arClearData, arApplyPiutangFilter, arFilterFullTable, arExportPiutang,
-            arSwitchSource, arRemoveSource, toggleGudangMenu, closeGudangMenu,
+            arSwitchSource, arRemoveSource,
             pengHandleFile, pengSwitchSource, pengRemoveSource, pengRemoveActiveSource, pengDownloadExcel
         });
     </script>
