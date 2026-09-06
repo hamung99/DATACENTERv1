@@ -1282,6 +1282,74 @@
             }
             window.switchTab = activateMainTab;
             window.__activateMainTabFallback = activateMainTab;
+
+            // Fallback sub-tab: tetap bekerja walaupun module utama gagal load.
+            // Saat module berhasil, fungsi asli akan mengambil alih melalui Object.assign(window,...).
+            function setActiveButtons(ids, activeId) {
+                ids.forEach(function(id) {
+                    const b = document.getElementById(id);
+                    if (b) {
+                        const on = id === activeId;
+                        b.classList.toggle('active', on);
+                        b.setAttribute('aria-selected', on ? 'true' : 'false');
+                    }
+                });
+            }
+
+            window.switchFakturSub = function(sub) {
+                const map = {
+                    ringkasan:'subBtnFakturRingkasan', bulan:'subBtnFakturBulan',
+                    sales:'subBtnFakturSales', pengeluaran:'subBtnFakturPengeluaran'
+                };
+                if (!map[sub]) return;
+                setActiveButtons(Object.values(map), map[sub]);
+                const panels = {
+                    ringkasan:['dailyPanel','resultInfo','tableWrap'],
+                    bulan:['fakturBulanWrap'], sales:['fakturSalesWrap'],
+                    pengeluaran:['fakturPengeluaranWrap']
+                };
+                ['dailyPanel','resultInfo','tableWrap','fakturBulanWrap','fakturSalesWrap','fakturPengeluaranWrap'].forEach(function(id){
+                    const el=document.getElementById(id); if(el) el.style.display='none';
+                });
+                (panels[sub]||[]).forEach(function(id){
+                    const el=document.getElementById(id); if(el) el.style.display='';
+                });
+            };
+
+            window.switchSalesSub = function(sub) {
+                const map = {ringkasan:'subBtnRingkasan',transaksi:'subBtnTransaksi',produk:'subBtnProduk',pay:'subBtnPay',sales:'subBtnSales',salesProduk:'subBtnSalesProduk',lengkap:'subBtnLengkap',bulan:'subBtnBulan'};
+                if (!map[sub]) return;
+                setActiveButtons(Object.values(map), map[sub]);
+                const panels = {
+                    ringkasan:['ringkasanSummaryTop','ringkasanSummaryBottom'], transaksi:['salesTableWrap','salesCardsGrid'],
+                    produk:['profitProdukWrap'], pay:['profitPayWrap'], sales:['profitSalesWrap'],
+                    salesProduk:['profitSalesProdukWrap'], lengkap:['profitLengkapWrap'], bulan:['profitBulanWrap']
+                };
+                ['ringkasanSummaryTop','ringkasanSummaryBottom','salesTableWrap','salesCardsGrid','profitProdukWrap','profitPayWrap','profitSalesWrap','profitSalesProdukWrap','profitLengkapWrap','profitBulanWrap'].forEach(function(id){
+                    const el=document.getElementById(id); if(el) el.style.display='none';
+                });
+                (panels[sub]||[]).forEach(function(id){
+                    const el=document.getElementById(id); if(el) el.style.display='';
+                });
+            };
+
+            window.switchCekSub = function(sub) {
+                const map = {cash:'cekSubCash',tempo:'cekSubTempo',nosales:'cekSubNosales',anomali:'cekSubAnomali'};
+                if (!map[sub]) return;
+                setActiveButtons(Object.values(map), map[sub]);
+            };
+
+            window.switchARSub = function(sub) {
+                const map = {ringkasan:'arSubBtnRingkasan',piutang:'arSubBtnPiutang',top20:'arSubBtnTop20',lengkap:'arSubBtnLengkap'};
+                if (!map[sub]) return;
+                setActiveButtons(Object.values(map), map[sub]);
+                Object.keys(map).forEach(function(k){
+                    const cap=k.charAt(0).toUpperCase()+k.slice(1);
+                    const panel=document.getElementById('arPanel'+cap);
+                    if(panel) panel.style.display=(k===sub)?'':'none';
+                });
+            };
+
             document.addEventListener('DOMContentLoaded', function () {
                 let initial = 'faktur';
                 try {
