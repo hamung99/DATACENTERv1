@@ -10200,5 +10200,32 @@ export async function chunkedFilter(arr, predicate, chunkSize = 300) {
         });
     </script>
 
+<script>
+/* ROBUST SUB-TAB NAVIGATION FALLBACK
+   Keeps sub-tab active state working even if another handler/module fails. */
+(function(){
+  function bindSubTabs(){
+    document.querySelectorAll('button[onclick*="switchFakturSub"],button[onclick*="switchSalesSub"],button[onclick*="switchCekSub"],button[onclick*="switchARSub"]').forEach(function(btn){
+      if(btn.dataset.subtabFallbackBound==='1') return;
+      btn.dataset.subtabFallbackBound='1';
+      btn.addEventListener('click', function(ev){
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        var oc=btn.getAttribute('onclick')||'';
+        var m=oc.match(/(switchFakturSub|switchSalesSub|switchCekSub|switchARSub)\\(\\s*[\"']([^\"']+)[\"']\\s*\\)/);
+        if(!m) return;
+        var fn=m[1], val=m[2];
+        var group=fn==='switchFakturSub'?'switchFakturSub':fn==='switchSalesSub'?'switchSalesSub':fn==='switchCekSub'?'switchCekSub':'switchARSub';
+        var selector='button[onclick*="'+group+'("]';
+        document.querySelectorAll(selector).forEach(function(b){b.classList.remove('active');});
+        btn.classList.add('active');
+        try { if(typeof window[fn]==='function') window[fn](val); } catch(err) { console.warn('Sub-tab render error:',err); }
+        btn.classList.add('active');
+      }, true);
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindSubTabs); else bindSubTabs();
+})();
+</script>
 </body>
 </html>
