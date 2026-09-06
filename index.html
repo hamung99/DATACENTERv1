@@ -1260,6 +1260,38 @@
         <footer>DATACENTER · Mode terang / gelap · Upload Excel</footer>
     </div>
 
+    <script>
+        // Fallback navigasi tab utama: sengaja berdiri sendiri dari module utama.
+        // Jadi tab tetap bisa diklik walaupun module/import gagal dimuat.
+        (function () {
+            const MAIN_TABS = ['faktur', 'penjualan', 'cek', 'ar'];
+            function activateMainTab(tab) {
+                if (!MAIN_TABS.includes(tab)) return;
+                MAIN_TABS.forEach(function (t) {
+                    const panelId = t === 'cek' ? 'tabCek' : 'tab' + t.charAt(0).toUpperCase() + t.slice(1);
+                    const btnId = t === 'cek' ? 'tabBtnCek' : 'tabBtn' + t.charAt(0).toUpperCase() + t.slice(1);
+                    const panel = document.getElementById(panelId);
+                    const btn = document.getElementById(btnId);
+                    if (panel) panel.style.display = (t === tab) ? '' : 'none';
+                    if (btn) {
+                        btn.classList.toggle('active', t === tab);
+                        btn.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+                    }
+                });
+                try { sessionStorage.setItem('datacenter-active-main-tab', tab); } catch (e) {}
+            }
+            window.switchTab = activateMainTab;
+            window.__activateMainTabFallback = activateMainTab;
+            document.addEventListener('DOMContentLoaded', function () {
+                let initial = 'faktur';
+                try {
+                    const saved = sessionStorage.getItem('datacenter-active-main-tab');
+                    if (MAIN_TABS.includes(saved)) initial = saved;
+                } catch (e) {}
+                activateMainTab(initial);
+            });
+        })();
+    </script>
     <script type="module">
         // ====================================================================
         //  KODE JAVASCRIPT UTAMA – OPTIMASI UNTUK DATA BESAR
