@@ -1261,6 +1261,106 @@
     </div>
 
     <script>
+        // Fallback navigasi tab utama: sengaja berdiri sendiri dari module utama.
+        // Jadi tab tetap bisa diklik walaupun module/import gagal dimuat.
+        (function () {
+            const MAIN_TABS = ['faktur', 'penjualan', 'cek', 'ar'];
+            function activateMainTab(tab) {
+                if (!MAIN_TABS.includes(tab)) return;
+                MAIN_TABS.forEach(function (t) {
+                    const panelId = t === 'cek' ? 'tabCek' : 'tab' + t.charAt(0).toUpperCase() + t.slice(1);
+                    const btnId = t === 'cek' ? 'tabBtnCek' : 'tabBtn' + t.charAt(0).toUpperCase() + t.slice(1);
+                    const panel = document.getElementById(panelId);
+                    const btn = document.getElementById(btnId);
+                    if (panel) panel.style.display = (t === tab) ? '' : 'none';
+                    if (btn) {
+                        btn.classList.toggle('active', t === tab);
+                        btn.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+                    }
+                });
+                try { sessionStorage.setItem('datacenter-active-main-tab', tab); } catch (e) {}
+            }
+            window.switchTab = activateMainTab;
+            window.__activateMainTabFallback = activateMainTab;
+
+            // Fallback sub-tab: tetap bekerja walaupun module utama gagal load.
+            // Saat module berhasil, fungsi asli akan mengambil alih melalui Object.assign(window,...).
+            function setActiveButtons(ids, activeId) {
+                ids.forEach(function(id) {
+                    const b = document.getElementById(id);
+                    if (b) {
+                        const on = id === activeId;
+                        b.classList.toggle('active', on);
+                        b.setAttribute('aria-selected', on ? 'true' : 'false');
+                    }
+                });
+            }
+
+            window.switchFakturSub = function(sub) {
+                const map = {
+                    ringkasan:'subBtnFakturRingkasan', bulan:'subBtnFakturBulan',
+                    sales:'subBtnFakturSales', pengeluaran:'subBtnFakturPengeluaran'
+                };
+                if (!map[sub]) return;
+                setActiveButtons(Object.values(map), map[sub]);
+                const panels = {
+                    ringkasan:['dailyPanel','resultInfo','tableWrap'],
+                    bulan:['fakturBulanWrap'], sales:['fakturSalesWrap'],
+                    pengeluaran:['fakturPengeluaranWrap']
+                };
+                ['dailyPanel','resultInfo','tableWrap','fakturBulanWrap','fakturSalesWrap','fakturPengeluaranWrap'].forEach(function(id){
+                    const el=document.getElementById(id); if(el) el.style.display='none';
+                });
+                (panels[sub]||[]).forEach(function(id){
+                    const el=document.getElementById(id); if(el) el.style.display='';
+                });
+            };
+
+            window.switchSalesSub = function(sub) {
+                const map = {ringkasan:'subBtnRingkasan',transaksi:'subBtnTransaksi',produk:'subBtnProduk',pay:'subBtnPay',sales:'subBtnSales',salesProduk:'subBtnSalesProduk',lengkap:'subBtnLengkap',bulan:'subBtnBulan'};
+                if (!map[sub]) return;
+                setActiveButtons(Object.values(map), map[sub]);
+                const panels = {
+                    ringkasan:['ringkasanSummaryTop','ringkasanSummaryBottom'], transaksi:['salesTableWrap','salesCardsGrid'],
+                    produk:['profitProdukWrap'], pay:['profitPayWrap'], sales:['profitSalesWrap'],
+                    salesProduk:['profitSalesProdukWrap'], lengkap:['profitLengkapWrap'], bulan:['profitBulanWrap']
+                };
+                ['ringkasanSummaryTop','ringkasanSummaryBottom','salesTableWrap','salesCardsGrid','profitProdukWrap','profitPayWrap','profitSalesWrap','profitSalesProdukWrap','profitLengkapWrap','profitBulanWrap'].forEach(function(id){
+                    const el=document.getElementById(id); if(el) el.style.display='none';
+                });
+                (panels[sub]||[]).forEach(function(id){
+                    const el=document.getElementById(id); if(el) el.style.display='';
+                });
+            };
+
+            window.switchCekSub = function(sub) {
+                const map = {cash:'cekSubCash',tempo:'cekSubTempo',nosales:'cekSubNosales',anomali:'cekSubAnomali'};
+                if (!map[sub]) return;
+                setActiveButtons(Object.values(map), map[sub]);
+            };
+
+            window.switchARSub = function(sub) {
+                const map = {ringkasan:'arSubBtnRingkasan',piutang:'arSubBtnPiutang',top20:'arSubBtnTop20',lengkap:'arSubBtnLengkap'};
+                if (!map[sub]) return;
+                setActiveButtons(Object.values(map), map[sub]);
+                Object.keys(map).forEach(function(k){
+                    const cap=k.charAt(0).toUpperCase()+k.slice(1);
+                    const panel=document.getElementById('arPanel'+cap);
+                    if(panel) panel.style.display=(k===sub)?'':'none';
+                });
+            };
+
+            document.addEventListener('DOMContentLoaded', function () {
+                let initial = 'faktur';
+                try {
+                    const saved = sessionStorage.getItem('datacenter-active-main-tab');
+                    if (MAIN_TABS.includes(saved)) initial = saved;
+                } catch (e) {}
+                activateMainTab(initial);
+            });
+        })();
+    </script>
+    <script type="module">
         // ====================================================================
         //  KODE JAVASCRIPT UTAMA – OPTIMASI UNTUK DATA BESAR
         //
@@ -1271,772 +1371,18 @@
         //  state global (allRows/salesRows/cleanRows/cache) secara erat —
         //  lihat catatan MODULARISASI.md untuk rencana fase berikutnya.
         // ====================================================================
-        // DEPENDENSI DIBUNDel KE DALAM HTML agar tab dan data tetap berjalan
-        // walaupun folder ./js/ tidak tersedia saat file dibuka langsung.
-// ====================================================================
-//  utils.js — Fungsi bantu murni (tidak menyentuh DOM / state global)
-// ====================================================================
-
-/**
- * Escape karakter HTML berbahaya agar aman disisipkan ke innerHTML.
- * @param {*} s Nilai apa pun, akan dikonversi ke string.
- * @returns {string} String yang sudah di-escape.
- */
-function esc(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-/**
- * Format angka ke format ribuan Indonesia. Nilai 0/null/undefined -> '—'.
- * @param {number|null|undefined} n
- * @returns {string}
- */
-function fmt(n) {
-    return (n == null || n === 0) ? '—' : n.toLocaleString('id-ID');
-}
-
-/**
- * Konversi nilai apa pun menjadi angka. Mendukung string dengan koma ribuan.
- * @param {*} v
- * @returns {number} 0 jika tidak bisa di-parse.
- */
-function num(v) {
-    if (v == null || v === '') return 0;
-    if (typeof v === 'number') return v;
-    const n = parseFloat(String(v).replace(/,/g, ''));
-    return isNaN(n) ? 0 : n;
-}
-
-/**
- * Konversi nilai apa pun menjadi string yang sudah di-trim.
- * @param {*} v
- * @returns {string}
- */
-function str(v) {
-    return v == null ? '' : String(v).trim();
-}
-
-/**
- * Padding angka menjadi 2 digit (mis. 5 -> "05").
- * @param {number} n
- * @returns {string}
- */
-function pad2(n) {
-    return String(n).padStart(2, '0');
-}
-
-/**
- * Format objek Date menjadi "DD/MM/YYYY".
- * @param {Date} d
- * @returns {string} String kosong jika d bukan Date valid.
- */
-function formatDate(d) {
-    if (!(d instanceof Date) || isNaN(d)) return '';
-    return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
-}
-
-/**
- * Bangun kunci angka untuk pengurutan tanggal (YYYYMMDD), dengan fallback
- * membaca pola tanggal dari nama sheet jika dateStr tidak mengandung tanggal.
- * @param {string} dateStr
- * @param {string} sheet
- * @returns {number}
- */
-function dateSortKey(dateStr, sheet) {
-    const m = String(dateStr).match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/);
-    if (m) {
-        const y = m[3] ? parseInt(m[3]) : 2026;
-        return y * 10000 + parseInt(m[2]) * 100 + parseInt(m[1]);
-    }
-    const s = String(sheet).match(/(\d{1,2})-(\d{1,2})/);
-    if (s) return 2026 * 10000 + parseInt(s[2]) * 100 + parseInt(s[1]);
-    return 0;
-}
-
-/**
- * Parse berbagai format tanggal penjualan (Date, "DD/MM/YYYY", "DD-MM-YY", dll)
- * menjadi objek Date.
- * @param {*} s
- * @returns {Date|null}
- */
-function parseSalesDate(s) {
-    if (!s) return null;
-    if (s instanceof Date && !isNaN(s)) return s;
-    const str = String(s).trim();
-    let m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-    if (m) {
-        let d = parseInt(m[1], 10),
-            mo = parseInt(m[2], 10) - 1,
-            y = parseInt(m[3], 10);
-        if (y < 100) y += 2000;
-        const dt = new Date(y, mo, d);
-        return isNaN(dt) ? null : dt;
-    }
-    const dt = new Date(str);
-    return isNaN(dt) ? null : dt;
-}
-
-/**
- * Tambah n hari ke tanggal d (tanpa mengubah d).
- * @param {Date} d
- * @param {number} n
- * @returns {Date}
- */
-function addDays(d, n) {
-    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    x.setDate(x.getDate() + n);
-    return x;
-}
-
-/**
- * Hitung selisih hari (b - a) dalam satuan hari penuh, berbasis UTC agar
- * tidak terpengaruh perubahan DST.
- * @param {Date} a
- * @param {Date} b
- * @returns {number}
- */
-function daysBetween(a, b) {
-    const ms = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) -
-        Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
-    return Math.floor(ms / 86400000);
-}
-
-/**
- * Format tanggal untuk tampilan ID, mengembalikan '—' jika tidak valid.
- * @param {Date} d
- * @returns {string}
- */
-function fmtDateID(d) {
-    if (!d || isNaN(d)) return '—';
-    return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
-}
-
-/** Urutan nama bulan (index 0 = Januari) dipakai di seluruh aplikasi. */
-const MONTH_ORDER = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober',
-    'November', 'Desember', 'Lainnya'
-];
-
-/**
- * Ambil nama bulan (Indonesia) dari objek Date.
- * @param {Date} d
- * @returns {string}
- */
-function monthNameFromDate(d) {
-    if (!d || isNaN(d)) return 'Lainnya';
-    return MONTH_ORDER[d.getMonth()] || 'Lainnya';
-}
-
-/**
- * Nama bulan kalender saat ini (dipakai sebagai bulan default aplikasi).
- * @returns {string}
- */
-function currentMonthName() {
-    return MONTH_ORDER[new Date().getMonth()] || 'Lainnya';
-}
-
-/**
- * Tentukan bulan yang sebaiknya dipilih otomatis: bulan kalender saat ini
- * jika tersedia di data, jika tidak gunakan bulan terbaru dari data.
- * @param {string[]} months
- * @returns {string|null}
- */
-function preferredMonth(months) {
-    const list = Array.isArray(months) ? months.filter(Boolean) : [];
-    const now = currentMonthName();
-    if (list.includes(now)) return now;
-    const ordered = [...new Set(list)].sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
-    return ordered.length ? ordered[ordered.length - 1] : null;
-}
-
-/**
- * Deteksi nama bulan dari nama sheet dan/atau label tanggal.
- * @param {string} sheetName
- * @param {string} dateLabel
- * @returns {string|null}
- */
-function detectMonth(sheetName, dateLabel) {
-    const src = (dateLabel + ' ' + sheetName).toUpperCase();
-    let m = src.match(/\/(\d{1,2})\/(\d{4})/);
-    if (m) return MONTH_ORDER[parseInt(m[1], 10) - 1] || null;
-    m = src.match(/(\d{1,2})-(\d{2})/);
-    if (m) return MONTH_ORDER[parseInt(m[2], 10) - 1] || null;
-    for (const [k, v] of Object.entries(MONTH_ORDER)) {
-        if (src.includes(k) && k.length > 2) return v;
-    }
-    return null;
-}
-
-/**
- * Render badge status HTML untuk baris Uang Masuk.
- * @param {string} s
- * @returns {string} HTML badge.
- */
-function statusBadge(s) {
-    if (s === 'LUNAS') return '<span class="badge badge-lunas">LUNAS</span>';
-    if (s === 'TITIP') return '<span class="badge badge-titip">TITIP</span>';
-    if (s === 'TF') return '<span class="badge badge-tf">TF</span>';
-    if (s === 'RETUR') return '<span class="badge badge-retur">RETUR</span>';
-    return '<span class="muted">' + esc(s) + '</span>';
-}
-
-/**
- * Render badge section (PIUTANG / DROPPING).
- * @param {string} s
- * @returns {string} HTML badge.
- */
-function sectionBadge(s) {
-    return '<span class="badge badge-section">' + (s === 'PIUTANG TEMPO' ? 'PIUTANG' : 'DROPPING') + '</span>';
-}
-
-/**
- * Render badge status untuk tab Cek Data (Lunas/Overdue/Titip/Belum Jatuh Tempo).
- * @param {object|string} rOrSt Baris cek atau string status langsung.
- * @returns {string} HTML badge.
- */
-function statusBadgeCek(rOrSt) {
-    const st = (rOrSt && typeof rOrSt === 'object') ? rOrSt.statusCek : rOrSt;
-    const umur = (rOrSt && typeof rOrSt === 'object') ? (rOrSt.umurOverdue || 0) : 0;
-    if (st === 'Lunas') return '<span class="badge badge-lunas">LUNAS</span>';
-    if (st === 'Overdue') return '<span class="badge badge-retur">OVERDUE ' + umur + ' hr</span>';
-    if (st === 'Titip') return '<span class="badge badge-titip">TITIP</span>';
-    if (st === 'Belum Jatuh Tempo') return '<span class="badge badge-tf">BELUM JT</span>';
-    return '<span class="badge badge-section">' + esc(st || '') + '</span>';
-}
-
-/**
- * Normalisasi teks pencarian: lowercase, hilangkan diakritik & pemisah,
- * rapikan spasi ganda.
- * @param {*} v
- * @returns {string}
- */
-function normalizeSearchText(v) {
-    return String(v == null ? '' : v)
-        .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[\/\\,;|:_\-]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-/**
- * Cocokkan query multi-kata terhadap kumpulan field secara fleksibel:
- * setiap kata pada query harus ditemukan di SALAH SATU field (bisa beda
- * field untuk tiap kata), sehingga "RAJU KARANGSAMBUNG" bisa cocok walau
- * "RAJU" ada di kolom SALES dan "KARANGSAMBUNG" ada di kolom ALAMAT.
- * @param {string} query
- * @param {Array<*>} fields
- * @returns {boolean}
- */
-function flexibleSearchMatch(query, fields) {
-    const q = normalizeSearchText(query);
-    if (!q) return true;
-    const fieldValues = (fields || [])
-        .filter(v => v != null && String(v).trim() !== '')
-        .map(v => normalizeSearchText(v));
-    const tokens = q.split(' ').filter(Boolean);
-    return tokens.every(token =>
-        fieldValues.some(field => field.includes(token))
-    );
-}
-
-/**
- * Normalisasi teks untuk pencocokan fuzzy di tab Cek Data (huruf kecil,
- * hanya alfanumerik).
- * @param {*} v
- * @returns {string}
- */
-function normCekText(v) {
-    return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
-}
-
-/**
- * Bandingkan dua teks apakah "mirip" (sama persis atau salah satu substring
- * dari yang lain) setelah dinormalisasi.
- * @param {*} a
- * @param {*} b
- * @returns {boolean}
- */
-function cekTextSimilar(a, b) {
-    a = normCekText(a);
-    b = normCekText(b);
-    if (!a || !b) return false;
-    return a === b || a.includes(b) || b.includes(a);
-}
-
-/**
- * Skor kecocokan nominal pembayaran vs tagihan (0-7) untuk fuzzy matching
- * di tab Cek Data. Dipakai bersama oleh tabel Cek Data Tempo maupun
- * rekonsiliasi Uang Masuk, supaya keduanya selalu sepakat. Skor bertingkat:
- * - 7 = nominal sama persis (toleransi Rp1)
- * - 5 = pembayaran cicilan wajar (45%-99% dari tagihan)
- * - 4 = mendekati sama (selisih kecil, dalam toleransi ~3%)
- * - 0 = tidak ada kecocokan nominal yang meyakinkan
- * @param {number} paid Jumlah yang dibayar.
- * @param {number} nominal Nominal tagihan.
- * @returns {number} 0, 4, 5, atau 7.
- */
-function cekAmountScore(paid, nominal) {
-    paid = Number(paid) || 0;
-    nominal = Number(nominal) || 0;
-    if (!paid || !nominal) return 0;
-    const diff = Math.abs(paid - nominal);
-    if (diff <= 1) return 7;
-    if (paid < nominal && paid >= nominal * 0.45) return 5;
-    if (diff <= Math.max(1000, nominal * 0.03)) return 4;
-    return 0;
-}
-
-/**
- * Skor kemiripan dua No.Faktur berdasarkan kecocokan digit (0-8), dipakai
- * sebagai penguat kecil saat fuzzy matching (mis. kesalahan ketik 1-2 digit).
- * Dipakai bersama oleh tabel Cek Data Tempo & rekonsiliasi Uang Masuk.
- * @param {*} a
- * @param {*} b
- * @returns {number} 0, 1, 3, atau 8.
- */
-function cekFakturSimilarity(a, b) {
-    a = String(a || '').replace(/\D/g, '');
-    b = String(b || '').replace(/\D/g, '');
-    if (!a || !b || a.length !== b.length) return 0;
-    let same = 0;
-    for (let i = 0; i < a.length; i++) if (a[i] === b[i]) same++;
-    if (same === a.length) return 8;
-    if (same >= Math.max(4, a.length - 1)) return 3;
-    if (same >= Math.max(4, a.length - 2)) return 1;
-    return 0;
-}
-
-/**
- * Pecah token kata dari teks yang sudah dinormalisasi lewat normCekText.
- * Dipakai untuk membangun index pencarian fuzzy (lihat cekTextSimilar).
- * @param {*} v
- * @returns {string[]}
- */
-function normCekTokens(v) {
-    const n = normCekText(v);
-    return n ? n.split(' ').filter(Boolean) : [];
-}
-
-/**
- * Serahkan kendali sebentar ke browser (event loop) supaya proses yang
- * berat tidak membuat UI freeze. Dipakai oleh chunkedFilter dan proses
- * berat lain yang jalan per-chunk (mis. fuzzy matching Cek Data Tempo).
- * @returns {Promise<void>}
- */
-function yieldToMain() {
-    return new Promise(resolve => {
-        if (typeof requestAnimationFrame === 'function') {
-            requestAnimationFrame(() => resolve());
-        } else {
-            setTimeout(resolve, 0);
-        }
-    });
-}
-
-/**
- * Filter array besar tanpa memblokir UI: proses per-chunk, lalu kasih
- * jeda ke browser (yieldToMain) di antara chunk.
- * @param {Array<*>} arr
- * @param {function(*): boolean} predicate
- * @param {number} [chunkSize=300]
- * @returns {Promise<Array<*>>}
- */
-export async function chunkedFilter(arr, predicate, chunkSize = 300) {
-    const out = [];
-    const list = arr || [];
-    for (let i = 0; i < list.length; i++) {
-        if (predicate(list[i])) out.push(list[i]);
-        if ((i + 1) % chunkSize === 0) await yieldToMain();
-    }
-    return out;
-}
-
-        // ---- IndexedDB persistence (embedded fallback; tidak bergantung pada ./js/db.js) ----
-        const DB_NAME = 'uangMasukDB';
-        const DB_VERSION = 1;
-        const DB_STORE = 'rows';
-        const DB_KEY = 'allRows';
-        const DB_KEY_SALES = 'salesRows';
-        const DB_KEY_RAPIKAN = 'rapikanRows';
-        const DB_KEY_HARGA_BELI = 'hargaBeli';
-        let dbInstance = null;
-        function openDB() {
-            return new Promise((resolve, reject) => {
-                if (dbInstance) return resolve(dbInstance);
-                if (!('indexedDB' in window)) return reject(new Error('IndexedDB tidak didukung browser ini'));
-                const req = indexedDB.open(DB_NAME, DB_VERSION);
-                req.onupgradeneeded = () => {
-                    const db = req.result;
-                    if (!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE);
-                };
-                req.onsuccess = () => { dbInstance = req.result; resolve(dbInstance); };
-                req.onerror = () => reject(req.error);
-            });
-        }
-        async function saveRowsToDB(rows, key = DB_KEY, afterSave) {
-            try {
-                const db = await openDB();
-                await new Promise((resolve, reject) => {
-                    const tx = db.transaction(DB_STORE, 'readwrite');
-                    tx.objectStore(DB_STORE).put(rows || [], key);
-                    tx.oncomplete = resolve;
-                    tx.onerror = () => reject(tx.error);
-                });
-            } catch (e) { console.warn('Gagal simpan IndexedDB:', e); }
-            if (typeof afterSave === 'function') { try { afterSave(); } catch(e) {} }
-        }
-        async function loadRowsFromDB(key = DB_KEY) {
-            try {
-                const db = await openDB();
-                return await new Promise((resolve, reject) => {
-                    const tx = db.transaction(DB_STORE, 'readonly');
-                    const req = tx.objectStore(DB_STORE).get(key);
-                    req.onsuccess = () => resolve(req.result || []);
-                    req.onerror = () => reject(req.error);
-                });
-            } catch (e) { console.warn('Gagal baca IndexedDB:', e); return []; }
-        }
-
-    function parseWorkbook(wb) {
-      const rows = [];
-      for (const sheetName of wb.SheetNames) {
-        if (/^sheet\d*$/i.test(sheetName) && sheetName.toLowerCase() === 'sheet2') continue;
-        const ws = wb.Sheets[sheetName];
-        if (!ws) continue;
-        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
-        if (!aoa || aoa.length < 5) continue;
-
-        let dateLabel = sheetName;
-        for (let r = 0; r < Math.min(6, aoa.length); r++) {
-          for (let c = 0; c < (aoa[r] || []).length; c++) {
-            const v = aoa[r][c];
-            if (v && typeof v === 'string' && /\d{1,2}\/\d{1,2}\/\d{4}/.test(v)) {
-              dateLabel = v.trim();
-              break;
-            }
-            if (v instanceof Date) {
-              dateLabel = formatDate(v);
-              break;
-            }
-          }
-        }
-        const sheetMonth = detectMonth(sheetName, dateLabel);
-
-        let section = 'PIUTANG TEMPO';
-        let currentSales = '';
-
-        for (let r = 0; r < aoa.length; r++) {
-          const row = aoa[r] || [];
-          const rowStr = row.map(x => (x == null ? '' : String(x))).join(' ').toUpperCase();
-
-          if (rowStr.includes('CASH DROPPING')) { section = 'CASH DROPPING'; currentSales = ''; continue; }
-          if (rowStr.includes('PIUTANG TEMPO')) { section = 'PIUTANG TEMPO'; currentSales = ''; continue; }
-          if (/UANG MASUK DARI PIUTANG|UANG MASUK CASH|TOTAL UANG MASUK|MENGETAHUI|TOTAL CASH|TOTAL TRANSFER/.test(rowStr)) continue;
-
-          const colC = row[2] != null ? String(row[2]).trim() : '';
-          if (colC && /^(RAJU|JOSSY|HAFID|ZEIN|ALIM)/i.test(colC)) currentSales = colC;
-
-          let fakturIdx = -1, faktur = null;
-          for (let c = 2; c <= 5; c++) {
-            const v = row[c];
-            if (v == null) continue;
-            const s = String(v).trim();
-            if (/^\d{10,}$/.test(s) || /^0\d{10,}$/.test(s)) {
-              faktur = s; fakturIdx = c; break;
-            }
-          }
-          if (!faktur) continue;
-          if (/NO FAKTUR|NOMINAL|TAGIHAN/i.test(rowStr) && !/TOKO|WARUNG|MART|CELL|SWALAYAN|BUMDES/i.test(rowStr)) continue;
-
-          const namaToko = str(row[fakturIdx + 1]);
-          const alamat = str(row[fakturIdx + 2]);
-          let tagihan = num(row[fakturIdx + 5]);
-
-          let minyakCash = num(row[9]);
-          let minyakTf = num(row[10]);
-          let rupaCash = num(row[11]);
-          let rupaTf = num(row[12]);
-          let ket = str(row[13]) || str(row[14]) || '';
-
-          if (!tagihan) tagihan = num(row[8]) || num(row[fakturIdx + 5]);
-
-          let status = '—';
-          const ketUp = ket.toUpperCase();
-          if (ketUp.includes('LUNAS')) status = 'LUNAS';
-          else if (ketUp.includes('TITIP')) status = 'TITIP';
-          else if (ketUp.includes('TF') || ketUp.includes('TRANSFER')) status = 'TF';
-          else if (ketUp.includes('RETUR')) status = 'RETUR';
-          else if (ket) status = ket;
-
-          let sales = currentSales;
-          if (section === 'CASH DROPPING' && colC) sales = colC;
-          else if (!sales && colC && !/^\d+$/.test(colC)) sales = colC;
-
-          if (/^TOTAL/i.test(str(row[1])) || /^TOTAL/i.test(namaToko)) continue;
-
-          rows.push({
-            sheet: sheetName,
-            date: dateLabel,
-            month: sheetMonth || 'Lainnya',
-            section,
-            sales: sales || '—',
-            faktur,
-            toko: namaToko || '—',
-            alamat: alamat || '—',
-            tagihan,
-            minyakCash, minyakTf, rupaCash, rupaTf,
-            ket: ket || '—',
-            status,
-            // PERF: gabungan lowercase semua kolom yang dicari, dihitung SEKALI
-            // saat parsing. doSearch() jadi cukup 1x .includes() per baris,
-            // bukan 6-7x .toLowerCase()+.includes() per baris setiap pencarian.
-            _q: (faktur + ' ' + (namaToko || '') + ' ' + (alamat || '') + ' ' + (sales || '') + ' ' + sheetName + ' ' + dateLabel + ' ' + (sheetMonth || '')).toLowerCase()
-          });
-        }
-      }
-      return rows;
-    }
-
-    function str(v) { return v == null ? '' : String(v).trim(); }
-    function num(v) {
-      if (v == null || v === '') return 0;
-      if (typeof v === 'number') return v;
-      const n = parseFloat(String(v).replace(/,/g, ''));
-      return isNaN(n) ? 0 : n;
-    }
-    function formatDate(d) {
-      const pad = n => n < 10 ? '0' + n : '' + n;
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-    }
-    function fmt(n) { return !n ? '—' : n.toLocaleString('id-ID'); }
-
-    const MONTH_ORDER = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember','Lainnya'];
-
-    let allMonthFiltersInitialized = false;
-    function initializeAllMonthFiltersToLatest() {
-      if (allMonthFiltersInitialized) return;
-      initializeAllMonthFiltersToLatest();
-      const last = latestMonth();
-      if (!last) return;
-      ['filterMonth','filterRekMonth','filterAnomaliMonth','filterCekAnomaliMonth','filterSalesMonth'].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        const option = Array.from(el.options || []).find(o => o.value === last);
-        if (option) el.value = last;
-      });
-      allMonthFiltersInitialized = true;
-    }
-
-    function latestMonth() {
-      const months = [...new Set(allRows.map(r => r.month).filter(Boolean))];
-      months.sort((a,b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
-      return months.length ? months[months.length - 1] : null;
-    }
-
-    function updateCards(rows) {
-      const data = rows || allRows;
-      const cards = document.getElementById('fakturCards');
-      if (!allRows.length) {
-        cards.classList.remove('show');
-        return;
-      }
-      cards.classList.add('show');
-
-      let minyak = 0, rupa = 0;
-      for (const r of data) {
-        minyak += (r.minyakCash || 0) + (r.minyakTf || 0);
-        rupa += (r.rupaCash || 0) + (r.rupaTf || 0);
-      }
-      const total = minyak + rupa;
-      const fmtN = n => n.toLocaleString('id-ID');
-
-      document.getElementById('fcMinyak').textContent = fmtN(minyak);
-      document.getElementById('fcRupa').textContent = fmtN(rupa);
-      document.getElementById('fcTotal').textContent = fmtN(total);
-    }
-
-    function buildDailySummary(rows) {
-      const body = document.getElementById('dailyBody');
-      if (!rows || !rows.length) {
-        dailyPanel.style.display = 'none';
-        return;
-      }
-      const map = {};
-      for (const r of rows) {
-        const k = r.sheet;
-        if (!map[k]) {
-          map[k] = {
-            sheet: r.sheet,
-            date: r.date,
-            month: r.month,
-            count: 0,
-            piutang: 0,
-            dropping: 0,
-            tagihan: 0,
-            cash: 0,
-            tf: 0
-          };
-        }
-        const g = map[k];
-        g.count++;
-        g.tagihan += r.tagihan || 0;
-        const bayarCash = (r.minyakCash || 0) + (r.rupaCash || 0);
-        const bayarTf = (r.minyakTf || 0) + (r.rupaTf || 0);
-        g.cash += bayarCash;
-        g.tf += bayarTf;
-        if (r.section === 'PIUTANG TEMPO') g.piutang += bayarCash + bayarTf;
-        else g.dropping += bayarCash + bayarTf;
-      }
-      const list = Object.values(map);
-      list.sort((a, b) => {
-        const pa = a.date.match(/(\d{1,2})\/(\d{1,2})/);
-        const pb = b.date.match(/(\d{1,2})\/(\d{1,2})/);
-        if (pa && pb) {
-          const da = parseInt(pa[2])*100 + parseInt(pa[1]);
-          const db = parseInt(pb[2])*100 + parseInt(pb[1]);
-          return da - db;
-        }
-        return a.sheet.localeCompare(b.sheet);
-      });
-
-      let sumC = 0, sumP = 0, sumD = 0, sumT = 0, sumCash = 0, sumTf = 0, sumCnt = 0;
-      body.innerHTML = list.map(g => {
-        const total = g.cash + g.tf;
-        sumC += g.count; sumP += g.piutang; sumD += g.dropping;
-        sumT += g.tagihan; sumCash += g.cash; sumTf += g.tf; sumCnt += total;
-        return '<tr data-sheet="' + esc(g.sheet) + '" onclick="filterBySheet(\'' + esc(g.sheet).replace(/'/g, "\\'") + '\')">' +
-          '<td><strong>' + esc(g.date) + '</strong></td>' +
-          '<td class="muted">' + esc(g.sheet) + '</td>' +
-          '<td class="num">' + g.count.toLocaleString('id-ID') + '</td>' +
-          '<td class="num">' + fmt(g.piutang) + '</td>' +
-          '<td class="num">' + fmt(g.dropping) + '</td>' +
-          '<td class="num">' + fmt(g.tagihan) + '</td>' +
-          '<td class="num">' + fmt(g.cash) + '</td>' +
-          '<td class="num">' + fmt(g.tf) + '</td>' +
-          '<td class="num"><strong>' + fmt(total) + '</strong></td>' +
-        '</tr>';
-      }).join('') +
-      '<tr class="total-row">' +
-        '<td colspan="2">TOTAL (' + list.length + ' hari)</td>' +
-        '<td class="num">' + sumC.toLocaleString('id-ID') + '</td>' +
-        '<td class="num">' + fmt(sumP) + '</td>' +
-        '<td class="num">' + fmt(sumD) + '</td>' +
-        '<td class="num">' + fmt(sumT) + '</td>' +
-        '<td class="num">' + fmt(sumCash) + '</td>' +
-        '<td class="num">' + fmt(sumTf) + '</td>' +
-        '<td class="num">' + fmt(sumCash + sumTf) + '</td>' +
-      '</tr>';
-
-      dailyPanel.style.display = 'block';
-      const monSel = document.getElementById('filterMonth');
-      const monLabel = monSel && monSel.value !== 'all' ? monSel.value : 'Semua Bulan';
-      const totalUang = sumCash + sumTf;
-      document.getElementById('dailyHint').textContent =
-        'TOTAL Uang Masuk ' + monLabel + ' ' + totalUang.toLocaleString('id-ID') +
-        '  ·  Klik baris tanggal untuk filter detail faktur';
-    }
-
-    // ---- Data Penjualan (separate Excel format, detail per transaction) ----
-    let salesRows = [];
-    const fileInputSales = document.getElementById('fileInputSales');
-    const salesFileNameEl = document.getElementById('salesFileName');
-    const salesLoading = document.getElementById('salesLoading');
-    const salesEmptyState = document.getElementById('salesEmptyState');
-    const salesSearchBar = document.getElementById('salesSearchBar');
-    const salesTableWrap = document.getElementById('salesTableWrap');
-    const salesTbody = document.getElementById('salesTbody');
-    const salesResultInfo = document.getElementById('salesResultInfo');
-
-    fileInputSales.addEventListener('change', e => {
-      if (e.target.files.length) handleSalesFiles(e.target.files);
-    });
-    document.getElementById('salesSearchInput').addEventListener('keydown', e => {
-      if (e.key === 'Enter') doSalesSearch();
-    });
-    document.getElementById('filterSalesMonth').addEventListener('change', doSalesSearch);
-    document.getElementById('filterSalesPembayaran').addEventListener('change', doSalesSearch);
-    document.getElementById('filterSalesSales').addEventListener('change', doSalesSearch);
-
-    function parseSalesWorkbook(wb) {
-      const rows = [];
-      for (const sheetName of wb.SheetNames) {
-        const ws = wb.Sheets[sheetName];
-        if (!ws) continue;
-        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
-        if (!aoa || aoa.length < 2) continue;
-
-        let headerRowIdx = -1;
-        const colMap = {};
-        for (let r = 0; r < Math.min(5, aoa.length); r++) {
-          const row = aoa[r] || [];
-          const upRow = row.map(x => (x == null ? '' : String(x).trim().toUpperCase()));
-          if (upRow.some(v => v.includes('FAKTUR')) && upRow.some(v => v.includes('PRODUK'))) {
-            headerRowIdx = r;
-            row.forEach((v, c) => {
-              const label = v == null ? '' : String(v).trim().toUpperCase();
-              if (!label) return;
-              if (label.includes('TANGGAL')) colMap.tanggal = c;
-              else if (label.includes('FAKTUR')) colMap.noFaktur = c;
-              else if (label.includes('PRODUK')) colMap.produk = c;
-              else if (label.includes('JUMLAH')) colMap.jumlah = c;
-              else if (label.includes('SATUAN')) colMap.satuan = c;
-              else if (label.includes('HARGA JUAL')) colMap.hargaJual = c;
-              else if (label.includes('DISC')) colMap.disc = c;
-              else if (label.includes('HARGA BELI')) colMap.hargaBeli = c;
-              else if (label === 'TOTAL' || label.includes('TOTAL')) colMap.total = c;
-              else if (label.includes('SALES')) colMap.sales = c;
-              else if (label.includes('CUSTOMER')) colMap.customer = c;
-              else if (label.includes('ALAMAT')) colMap.alamat = c;
-              else if (label.includes('PEMBAYARAN') || label.includes('BAYAR')) colMap.pembayaran = c;
-            });
-            break;
-          }
-        }
-        if (headerRowIdx === -1) continue;
-
-        for (let r = headerRowIdx + 1; r < aoa.length; r++) {
-          const row = aoa[r] || [];
-          const rawFaktur = colMap.noFaktur != null ? row[colMap.noFaktur] : null;
-          if (rawFaktur == null || String(rawFaktur).trim() === '') continue;
-          if (/^TOTAL/i.test(String(rawFaktur).trim())) continue;
-
-          const get = key => (colMap[key] != null ? row[colMap[key]] : null);
-          let tgl = get('tanggal');
-          if (tgl instanceof Date) tgl = formatDate(tgl);
-          else tgl = tgl == null ? '' : String(tgl).trim();
-          const monthVal = detectMonth(sheetName, tgl);
-
-          const noFakturVal = String(rawFaktur).trim();
-          const produkVal = str(get('produk'));
-          const salesVal = str(get('sales'));
-          const customerVal = str(get('customer'));
-          const alamatVal = str(get('alamat'));
-
-          rows.push({
-            sheet: sheetName,
-            tanggal: tgl,
-            month: monthVal || 'Lainnya',
-            noFaktur: noFakturVal,
-            produk: produkVal,
-            jumlah: num(get('jumlah')),
-            satuan: str(get('satuan')),
-            hargaJual: num(get('hargaJual')),
-            disc: num(get('disc')),
-            total: num(get('total')),
-            sales: salesVal,
-            customer: customerVal,
-            alamat: alamatVal,
-            pembayaran: str(get('pembayaran')),
-            hargaBeli: num(get('hargaBeli')),
-            // PERF: lihat catatan _q di parseWorkbook - sama, dihitung sekali di sini.
-            _q: (noFakturVal + ' ' + produkVal + ' ' + customerVal + ' ' + salesVal + ' ' + alamatVal).toLowerCase()
-          });
-        }
-      }
-      return rows;
-    }
-
-
+        import {
+            esc, fmt, num, str, pad2, formatDate, dateSortKey, parseSalesDate,
+            addDays, daysBetween, fmtDateID, MONTH_ORDER, monthNameFromDate,
+            currentMonthName, preferredMonth, detectMonth, statusBadge,
+            sectionBadge, statusBadgeCek, normalizeSearchText, flexibleSearchMatch,
+            normCekText, normCekTokens, cekTextSimilar, cekAmountScore, cekFakturSimilarity, chunkedFilter, yieldToMain
+        } from './js/utils.js';
+        import {
+            DB_NAME, DB_VERSION, DB_STORE, DB_KEY, DB_KEY_SALES, DB_KEY_RAPIKAN,
+            DB_KEY_HARGA_BELI, openDB, saveRowsToDB, loadRowsFromDB
+        } from './js/db.js';
+        import { parseWorkbook, parseSalesWorkbook } from './js/excelParser.js';
 
         // ---- Global state ----
         let allRows = [];
@@ -10169,7 +9515,7 @@ export async function chunkedFilter(arr, predicate, chunkSize = 300) {
         arInitFromStorage();
 
         // ---- Ekspos ke window ----
-        // Karena <script> tidak lagi membuat fungsi top-level
+        // Karena <script type="module"> tidak lagi membuat fungsi top-level
         // menjadi global, sedangkan HTML yang dirender lewat innerHTML masih
         // memanggilnya lewat atribut inline (onclick="switchTab('sales')" dst),
         // fungsi-fungsi berikut perlu didaftarkan eksplisit ke window. Aman
@@ -10200,32 +9546,5 @@ export async function chunkedFilter(arr, predicate, chunkSize = 300) {
         });
     </script>
 
-<script>
-/* ROBUST SUB-TAB NAVIGATION FALLBACK
-   Keeps sub-tab active state working even if another handler/module fails. */
-(function(){
-  function bindSubTabs(){
-    document.querySelectorAll('button[onclick*="switchFakturSub"],button[onclick*="switchSalesSub"],button[onclick*="switchCekSub"],button[onclick*="switchARSub"]').forEach(function(btn){
-      if(btn.dataset.subtabFallbackBound==='1') return;
-      btn.dataset.subtabFallbackBound='1';
-      btn.addEventListener('click', function(ev){
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        var oc=btn.getAttribute('onclick')||'';
-        var m=oc.match(/(switchFakturSub|switchSalesSub|switchCekSub|switchARSub)\\(\\s*[\"']([^\"']+)[\"']\\s*\\)/);
-        if(!m) return;
-        var fn=m[1], val=m[2];
-        var group=fn==='switchFakturSub'?'switchFakturSub':fn==='switchSalesSub'?'switchSalesSub':fn==='switchCekSub'?'switchCekSub':'switchARSub';
-        var selector='button[onclick*="'+group+'("]';
-        document.querySelectorAll(selector).forEach(function(b){b.classList.remove('active');});
-        btn.classList.add('active');
-        try { if(typeof window[fn]==='function') window[fn](val); } catch(err) { console.warn('Sub-tab render error:',err); }
-        btn.classList.add('active');
-      }, true);
-    });
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bindSubTabs); else bindSubTabs();
-})();
-</script>
 </body>
 </html>
