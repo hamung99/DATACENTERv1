@@ -1,14 +1,21 @@
 // ====================================================================
 //  sw.js — Service Worker sederhana untuk DATACENTER-antiAmbigu
-//  Strategi: cache-first untuk app shell (file sendiri), network-first
-//  untuk request lain (CDN, dll) agar data selalu yang terbaru
-//  ketika online, tapi app tetap bisa dibuka saat offline.
+//  Strategi: NETWORK-FIRST untuk SEMUA request (app shell milik sendiri
+//  maupun resource eksternal seperti CDN XLSX). Selalu coba ambil versi
+//  terbaru dari server dulu selama online; cache cuma dipakai sebagai
+//  fallback kalau offline / request ke server gagal.
+//
+//  Kenapa diganti dari cache-first: dengan cache-first, browser bisa
+//  "nyangkut" di file lama setelah kode di-update (index.html/js baru
+//  tidak otomatis kepakai, bahkan bisa kecampur versi lama+baru yang
+//  saling tidak cocok). Dengan network-first, masalah itu hilang total
+//  tanpa perlu ingat menaikkan CACHE_NAME tiap kali deploy.
 // ====================================================================
 
-const CACHE_NAME = 'datacenter-shell-v1';
+const CACHE_NAME = 'datacenter-shell-v2';
 
-// Ganti angka versi di atas (v1 -> v2, dst) setiap kali file-file app
-// shell di bawah ini diubah, supaya browser mau mengambil versi baru.
+// Daftar file yang di-precache saat install, supaya app tetap bisa
+// dibuka walau lagi offline (fallback saja — bukan sumber utama lagi).
 const APP_SHELL = [
     './',
     './index.html',
@@ -31,15 +38,14 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((keys) =>
-            Promise.all(
+        caches.keys()
+            .then((keys) => Promise.all(
                 keys
                     .filter((key) => key !== CACHE_NAME)
                     .map((key) => caches.delete(key))
-            )
-        )
+            ))
+            .then(() => self.clients.claim())
     );
-    self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -48,38 +54,18 @@ self.addEventListener('fetch', (event) => {
     // Hanya tangani GET; biarkan request lain (POST, dsb) lewat apa adanya.
     if (req.method !== 'GET') return;
 
-    const url = new URL(req.url);
-    const isSameOrigin = url.origin === self.location.origin;
-
-    if (isSameOrigin) {
-        // App shell sendiri: cache-first, lalu update cache di background.
-        event.respondWith(
-            caches.match(req).then((cached) => {
-                const fetchPromise = fetch(req)
-                    .then((networkRes) => {
-                        if (networkRes && networkRes.ok) {
-                            const clone = networkRes.clone();
-                            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-                        }
-                        return networkRes;
-                    })
-                    .catch(() => cached);
-                return cached || fetchPromise;
+    // Network-first untuk semua request: coba ambil dari server dulu,
+    // simpan salinannya ke cache kalau berhasil, dan baru jatuh ke cache
+    // (kalau ada) saat fetch gagal — misal karena sedang offline.
+    event.respondWith(
+        fetch(req)
+            .then((networkRes) => {
+                if (networkRes && networkRes.ok) {
+                    const clone = networkRes.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+                }
+                return networkRes;
             })
-        );
-    } else {
-        // Resource eksternal (CDN XLSX, dll): network-first,
-        // fallback ke cache kalau offline dan pernah tersimpan.
-        event.respondWith(
-            fetch(req)
-                .then((networkRes) => {
-                    if (networkRes && networkRes.ok) {
-                        const clone = networkRes.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-                    }
-                    return networkRes;
-                })
-                .catch(() => caches.match(req))
-        );
-    }
+            .catch(() => caches.match(req))
+    );
 });
