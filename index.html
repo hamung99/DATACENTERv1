@@ -2611,7 +2611,7 @@
 
             filtered.forEach((r) => {
                 const daysOverdue = r.umurOverdue || 0;
-                const fakturEsc = String(r.noFaktur || '').replace(/'/g, "\\'");
+                const fakturEsc = jsAttrEsc(r.noFaktur);
                 html += `<tr>
                     <td><span class="faktur-link" title="Klik untuk melihat detail" onclick="closeTempoJtModal();openCekAnomaliDetail(encodeURIComponent('${fakturEsc}'))"><strong>${esc(r.noFaktur || '—')}</strong></span></td>
                     <td>${esc(r.tanggal || '—')}</td>
@@ -3003,6 +3003,18 @@
         function isBatalRow(r) {
             return !!(r && r.statusTransaksi === 'BATAL');
         }
+
+        // Escape nilai (mis. No.Faktur) supaya aman ditempel ke dalam inline
+        // onclick="...('...')" — string JS berkutip-satu di dalam atribut
+        // HTML berkutip-dua. Backslash di-escape dulu, baru kutip satu (untuk
+        // literal JS-nya), lalu kutip dua (supaya atribut HTML-nya tidak
+        // "patah" kalau nilainya kebetulan mengandung tanda kutip dua).
+        function jsAttrEsc(val) {
+            return String(val == null ? '' : val)
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'")
+                .replace(/"/g, '&quot;');
+        }
         function setFakturBatalStatus(noFaktur, batal) {
             const fk = String(noFaktur || '').trim();
             if (!fk) return false;
@@ -3087,7 +3099,7 @@
             const nomCell = r._showNomFaktur ? ('<td class="num"><strong>' + fmt(nomFaktur) + '</strong></td>') :
                 '<td class="num"></td>';
             const batalHtml = isBatalRow(r) ? (' <span class="badge badge-retur" style="margin-left:4px;">BATAL</span>' +
-                ' <button class="btn btn-outline" style="padding:1px 8px;font-size:0.68rem;margin-left:4px;" title="Batalkan status BATAL (kembalikan ke transaksi normal)" onclick="event.stopPropagation();undoFakturBatal(encodeURIComponent(\'' + String(r.noFaktur || '').replace(/'/g, "\\'") + '\'))">↩️ Undo</button>') : '';
+                ' <button class="btn btn-outline" style="padding:1px 8px;font-size:0.68rem;margin-left:4px;" title="Batalkan status BATAL (kembalikan ke transaksi normal)" onclick="event.stopPropagation();undoFakturBatal(encodeURIComponent(\'' + jsAttrEsc(r.noFaktur) + '\'))">↩️ Undo</button>') : '';
             const marginFlag = computeFitriMarginFlag(r);
             const hargaJualCell = marginFlag
                 ? ('<td class="num" style="color:#dc2626;font-weight:800;" title="Margin ' +
@@ -4025,7 +4037,7 @@
         }
 
         function renderProfitSalesProduk(rows) {
-            const cleanRows = (rows || []).filter(r => String(r.status || '').toUpperCase() !== 'BATAL' && !r.isBatal);
+            const cleanRows = (rows || []).filter(r => !isBatalRow(r));
             const salesSet = new Set();
             const map = {};
             for (const r of cleanRows) {
@@ -5568,7 +5580,7 @@
                     const tipeColor = r.tipeBayar === 'Cash' ? 'var(--green, #16a34a)' : 'var(--blue, #2563eb)';
                     return '<tr>' +
                         '<td>' + esc(fmtCekTanggalTampilan(r.tanggal, r.tglDate)) + '</td>' +
-                        '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekAnomaliDetail(encodeURIComponent(\'' + String(r.noFaktur || '') + '\'))">' + esc(r.noFaktur) + '</span></td>' +
+                        '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekAnomaliDetail(encodeURIComponent(\'' + jsAttrEsc(r.noFaktur) + '\'))">' + esc(r.noFaktur) + '</span></td>' +
                         '<td class="toko">' + esc(r.customer) + '</td>' +
                         '<td>' + esc(r.sales) + '</td>' +
                         '<td>' + produkKategoriBadge(r.produkKategori) + '</td>' +
@@ -5586,7 +5598,7 @@
                 if (isTempo) {
                     return '<tr>' +
                         '<td>' + esc(fmtCekTanggalTampilan(r.tanggal, r.tglDate)) + '</td>' +
-                        '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekTempoDetail(encodeURIComponent(\'' + String(r.noFaktur || '') + '\'))">' + esc(r.noFaktur) + '</span>' + notInSalesBadge(r) + '</td>' +
+                        '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekTempoDetail(encodeURIComponent(\'' + jsAttrEsc(r.noFaktur) + '\'))">' + esc(r.noFaktur) + '</span>' + notInSalesBadge(r) + '</td>' +
                         '<td class="toko">' + esc(r.customer) + '</td>' +
                         '<td>' + esc(r.sales) + '</td>' +
                         '<td>' + produkKategoriBadge(r.produkKategori) + '</td>' +
@@ -5608,7 +5620,7 @@
                     // nunggak) -- cukup satu kolom Status yang tegas: Ada Uang Masuk.
                     return '<tr>' +
                         '<td>' + esc(fmtCekTanggalTampilan(r.tanggal, r.tglDate)) + '</td>' +
-                        '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekUangMasukDetail(encodeURIComponent(\'' + String(r.noFaktur || '') + '\'))">' + esc(r.noFaktur) + '</span></td>' +
+                        '<td class="faktur"><span class="faktur-link" title="Klik untuk melihat detail" onclick="openCekUangMasukDetail(encodeURIComponent(\'' + jsAttrEsc(r.noFaktur) + '\'))">' + esc(r.noFaktur) + '</span></td>' +
                         '<td class="toko">' + esc(r.customer) + '</td>' +
                         '<td>' + esc(r.sales) + '</td>' +
                         '<td class="num"><strong>' + (r.nominal || 0).toLocaleString('id-ID') + '</strong></td>' +
@@ -6923,20 +6935,25 @@
         })();
 
         function switchTab(tab) {
-            const tabs = ['faktur', 'penjualan', 'cek', 'rapikan'];
-            tabs.forEach(t => {
+            // 4 panel konten, tapi hanya 3 yang punya tombol di tab bar utama —
+            // 'rapikan' cuma diakses lewat menu (lihat tombol "🧹 Rapikan Data"),
+            // jadi memang tidak ada id 'tabBtnRapikan'. Dipisah supaya jelas dan
+            // tidak ada percobaan mencari tombol yang memang tidak pernah ada.
+            const panels = ['faktur', 'penjualan', 'cek', 'rapikan'];
+            const tabButtons = ['faktur', 'penjualan', 'cek'];
+            panels.forEach(t => {
                 const panelName = t === 'cek' ? 'tabCek' : ('tab' + t.charAt(0).toUpperCase() + t.slice(1));
-                const btnName = t === 'cek' ? 'tabBtnCek' : ('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
                 const panel = document.getElementById(panelName);
-                const btn = document.getElementById(btnName);
                 if (panel) panel.style.display = (t === tab) ? '' : 'none';
+            });
+            tabButtons.forEach(t => {
+                const btnName = t === 'cek' ? 'tabBtnCek' : ('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+                const btn = document.getElementById(btnName);
+                // Kalau tab aktif 'rapikan', t tidak akan pernah sama dengan
+                // 'faktur'/'penjualan'/'cek', jadi otomatis ketiga tombol ini
+                // ke-nonaktifkan tanpa perlu blok manual terpisah lagi.
                 if (btn) btn.classList.toggle('active', t === tab);
             });
-            if (tab === 'rapikan') {
-                document.getElementById('tabBtnFaktur').classList.remove('active');
-                document.getElementById('tabBtnPenjualan').classList.remove('active');
-                document.getElementById('tabBtnCek').classList.remove('active');
-            }
             if (tab === 'cek') {
                 // Cukup render ulang tampilan; cache faktur/sales hanya perlu
                 // dibangun ulang saat data benar-benar berubah (lihat
@@ -7179,7 +7196,6 @@
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal
         });
     </script>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 </body>
 </html>
