@@ -650,6 +650,7 @@
             <div class="search-bar show" id="salesSearchBar">
                 <input type="text" id="salesSearchInput" placeholder="Cari faktur, produk, toko/customer, alamat, sales... (bisa kombinasi)" autocomplete="off">
                 <select id="filterSalesMonth"><option value="all">Semua Bulan</option></select>
+                <select id="filterSalesTanggal"><option value="all">Semua Tanggal</option></select>
                 <select id="filterSalesPembayaran"><option value="all">Semua Pembayaran</option><option value="Cash">Cash</option><option value="Tempo">Tempo</option></select>
                 <select id="filterSalesSales"><option value="all">Semua Sales</option><option value="GC">GC</option><option value="HAFID">HAFID</option><option value="JOSSY">JOSSY</option><option value="PARIMIN">PARIMIN</option><option value="RAJU">RAJU</option></select>
                 <select id="filterSalesKategori"><option value="all">Semua Kategori</option><option value="Fitri">🟣 Fitri</option><option value="Rupa2">⚪ Rupa Rupa</option></select>
@@ -3598,13 +3599,37 @@
             salesVirtual.setData(rows);
         }
 
+        // Kunci tanggal ter-normalisasi (YYYY-MM-DD, berbasis waktu lokal) supaya
+        // format tanggal mentah yang berbeda-beda (5/9/2026, 05/09/2026, dst)
+        // tetap dianggap sama saat difilter.
+        function salesDateKey(val) {
+            const d = (val instanceof Date) ? val : parseSalesDate(val);
+            if (!d || isNaN(d)) return '';
+            return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+        }
+
         function populateSalesFilters() {
             const monthSel = document.getElementById('filterSalesMonth');
             const paySel = document.getElementById('filterSalesPembayaran');
             const salesSel = document.getElementById('filterSalesSales');
+            const tglSel = document.getElementById('filterSalesTanggal');
             const curMonth = monthSel.value,
                 curPay = paySel.value,
-                curSales = salesSel.value;
+                curSales = salesSel.value,
+                curTgl = tglSel ? tglSel.value : 'all';
+            if (tglSel) {
+                const tglMap = {};
+                for (const r of salesRows) {
+                    const d = parseSalesDate(r.tanggal);
+                    if (!d || isNaN(d)) continue;
+                    const key = salesDateKey(d);
+                    if (!tglMap[key]) tglMap[key] = d;
+                }
+                const tglKeys = Object.keys(tglMap).sort();
+                tglSel.innerHTML = '<option value="all">Semua Tanggal</option>' +
+                    tglKeys.map(k => '<option value="' + k + '">' + esc(fmtDateID(tglMap[k])) + '</option>').join('');
+                if (tglKeys.includes(curTgl)) tglSel.value = curTgl;
+            }
             const months = [...new Set(salesRows.map(r => r.month).filter(Boolean))];
             months.sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
             const lastSalesMonth = preferredMonth(months);
@@ -3658,12 +3683,15 @@
         async function doSalesSearch() {
             const q = document.getElementById('salesSearchInput').value.trim().toLowerCase();
             const mon = document.getElementById('filterSalesMonth').value;
+            const tglEl2 = document.getElementById('filterSalesTanggal');
+            const tgl = tglEl2 ? tglEl2.value : 'all';
             const pay = document.getElementById('filterSalesPembayaran').value;
             const sls = document.getElementById('filterSalesSales').value;
             const katEl2 = document.getElementById('filterSalesKategori');
             const kat2 = katEl2 ? katEl2.value : 'all';
             let filtered = salesRows;
             if (mon !== 'all') filtered = filtered.filter(r => r.month === mon);
+            if (tgl !== 'all') filtered = filtered.filter(r => salesDateKey(r.tanggal) === tgl);
             if (pay === '__BATAL__') {
                 filtered = filtered.filter(isBatalRow);
             } else {
@@ -3694,6 +3722,8 @@
             const months = [...new Set(salesRows.map(r => r.month).filter(Boolean))];
             const activeMonth = preferredMonth(months);
             document.getElementById('filterSalesMonth').value = activeMonth || 'all';
+            const tglResetEl = document.getElementById('filterSalesTanggal');
+            if (tglResetEl) tglResetEl.value = 'all';
             document.getElementById('filterSalesPembayaran').value = 'all';
             document.getElementById('filterSalesSales').value = 'all';
             const katResetEl = document.getElementById('filterSalesKategori');
@@ -4421,6 +4451,8 @@
             document.getElementById('clearSalesBtn').style.display = 'none';
             document.getElementById('salesSearchInput').value = '';
             document.getElementById('filterSalesMonth').innerHTML = '<option value="all">Semua Bulan</option>';
+            const tglClrEl = document.getElementById('filterSalesTanggal');
+            if (tglClrEl) tglClrEl.innerHTML = '<option value="all">Semua Tanggal</option>';
             document.getElementById('filterSalesPembayaran').innerHTML = '<option value="all">Semua Pembayaran</option>';
             document.getElementById('filterSalesSales').innerHTML = '<option value="all">Semua Sales</option>';
             fileInputSales.value = '';
@@ -7109,6 +7141,8 @@
         document.getElementById('salesSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter')
                 doSalesSearch(); });
         document.getElementById('filterSalesMonth').addEventListener('change', doSalesSearch);
+        const filterSalesTanggalEl = document.getElementById('filterSalesTanggal');
+        if (filterSalesTanggalEl) filterSalesTanggalEl.addEventListener('change', doSalesSearch);
         document.getElementById('filterSalesPembayaran').addEventListener('change', doSalesSearch);
         document.getElementById('filterSalesSales').addEventListener('change', doSalesSearch);
         const filterSalesKategoriEl = document.getElementById('filterSalesKategori');
