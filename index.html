@@ -3115,7 +3115,7 @@
                             else if (label.includes('HARGA BELI')) colMap.hargaBeli = c;
                             else if (label === 'TOTAL' || label.includes('TOTAL')) colMap.total = c;
                             else if (label.includes('SALES')) colMap.sales = c;
-                            else if (label.includes('CUSTOMER')) colMap.customer = c;
+                            else if (label.includes('CUSTOMER') && !label.includes('KD')) colMap.customer = c;
                             else if (label.includes('ALAMAT')) colMap.alamat = c;
                             else if (label.includes('PEMBAYARAN') || label.includes('BAYAR')) colMap.pembayaran = c;
                           });
