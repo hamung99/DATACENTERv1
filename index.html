@@ -166,15 +166,15 @@
             font-weight: 600;
         }
         .cek-subtab-btn {
-            padding: 9px 18px;
+            padding: 6px 14px;
             border-radius: 999px;
             border: 1px solid var(--border);
             background: var(--card);
             color: var(--muted);
-            font-weight: 600;
-            font-size: 0.82rem;
+            font-weight: 500;
+            font-size: 0.8rem;
             cursor: pointer;
-            min-height: 40px;
+            min-height: 30px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -5452,67 +5452,31 @@
                     if (!g.sales && r.sales) g.sales = r.sales;
                     if (!g.alamat && r.alamat) g.alamat = r.alamat;
                 }
-                // Tahap 1 (KHUSUS NOSALES): exact/normalized No.Faktur TIDAK lagi
-                // otomatis dianggap sebagai Uang Masuk yang benar. Kandidat harus
-                // diverifikasi dengan Customer + Alamat + Nominal.
-                //
-                // Untuk pembayaran sebagian/TITIP, paidAmount boleh lebih kecil dari
-                // nominal penjualan. Yang tidak boleh adalah nominal/tagihan UM jauh
-                // lebih besar dari faktur penjualan, atau Customer/Alamat tidak cocok.
-                const isNosalesAmountCompatible = (salesNominal, u) => {
-                    const sn = Number(salesNominal) || 0;
-                    const paid = Number(u && u.paidAmount) || 0;
-                    const tagihan = Number(u && u.tagihanUM) || 0;
-                    if (sn <= 0) return false;
-                    if (paid <= 0 && !(u && u.hasLunas)) return false;
-                    const tolerance = Math.max(1000, sn * 0.02); // toleransi 2%, min Rp1.000
-                    // Jika UM menyimpan nilai tagihan, itu harus merujuk nominal faktur.
-                    // PaidAmount boleh lebih kecil karena TITIP/cicilan.
-                    if (tagihan > 0 && Math.abs(tagihan - sn) > tolerance) return false;
-                    // Pembayaran tidak boleh melebihi nilai faktur secara material.
-                    if (paid > sn + tolerance) return false;
-                    return true;
-                };
-
-                const exactValidated = new Set();
+                // Tahap 1: faktur yang lolos exact ATAU normalized-match langsung
+                // dianggap ADA di Uang Masuk (bukan anomali) -- ini menutup celah
+                // false positive akibat beda format penomoran (leading zero, strip,
+                // spasi, huruf besar-kecil) yang seharusnya merujuk faktur yang sama.
                 const stillUnresolved = [];
-                const usedExactUmKeys = new Set();
                 for (const g of byFaktur.values()) {
-                    const candidateKeys = new Set();
-                    if (umFakturSet.has(g.noFaktur)) candidateKeys.add(g.noFaktur);
+                    if (umFakturSet.has(g.noFaktur)) continue; // exact match -> aman
                     const nk = normFakturKey(g.noFaktur);
-                    if (nk && umFakturNormMap.has(nk)) {
-                        for (const fk of umFakturNormMap.get(nk)) candidateKeys.add(fk);
-                    }
-
-                    let matched = false;
-                    for (const fk of candidateKeys) {
-                        if (usedExactUmKeys.has(fk)) continue;
-                        const u = umByFaktur.get(fk);
-                        if (!u) continue;
-                        const sameCustomer = cekTextSimilar(g.customer, u.toko);
-                        const sameAddress = cekTextSimilar(g.alamat, u.alamat);
-                        if (!sameCustomer || !sameAddress) continue;
-                        if (!isNosalesAmountCompatible(g.nominal, u)) continue;
-                        usedExactUmKeys.add(fk);
-                        exactValidated.add(g.noFaktur);
-                        matched = true;
-                        break;
-                    }
-                    if (!matched) stillUnresolved.push(g);
+                    if (nk && umFakturNormMap.has(nk)) continue; // normalized match -> aman
+                    stillUnresolved.push(g);
                 }
-
-                // Tahap 2: yang belum tervalidasi exact/normalized dicoba fuzzy-match.
-                // Ini tetap memakai mesin fuzzy yang sama, termasuk toleransi typo
-                // No.Faktur dan anti-ambiguity. Hanya yang gagal setelah verifikasi
-                // identitas + nominal inilah yang masuk "Belum Ada Uang Masuk".
-                const fuzzyUsedKeys = new Set(usedExactUmKeys);
+                // Tahap 2: sisanya (belum ketemu exact/normalized) dicoba fuzzy-match
+                // berdasarkan kemiripan customer/alamat/sales + tanggal + kemiripan
+                // No.Faktur, memakai infrastruktur yang sama dengan tab Tempo
+                // (resolveCekFuzzyMatchesGlobally). Ini menangani kasus format nomor
+                // faktur berbeda jauh, tapi transaksinya jelas sama (nominal & identitas
+                // cocok). Hanya faktur yang GAGAL di kedua tahap ini yang divonis Anomali.
+                const fuzzyUsedKeys = new Set();
                 const fuzzyResolved = await resolveCekFuzzyMatchesGlobally(stillUnresolved, umByFaktur, fuzzyUsedKeys);
-
-                // Anomali = faktur Penjualan yang tidak tervalidasi oleh exact/normalized
-                // maupun fuzzy matching.
+                // Anomali = faktur di Data Penjualan yang TIDAK ditemukan sama sekali
+                // (exact, normalized, maupun fuzzy) di Data Uang Masuk.
                 for (const g of byFaktur.values()) {
-                    if (exactValidated.has(g.noFaktur)) continue;
+                    if (umFakturSet.has(g.noFaktur)) continue;
+                    const nk = normFakturKey(g.noFaktur);
+                    if (nk && umFakturNormMap.has(nk)) continue;
                     if (fuzzyResolved.has(g.noFaktur)) continue;
                     g.statusCek = 'Anomali';
                     g.pembayaran = g.tipeBayar;
