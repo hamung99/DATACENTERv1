@@ -526,6 +526,19 @@
                 <div class="menu-wrap" id="menuWrap">
                     <button class="menu-btn" id="menuBtn" onclick="toggleMenu()">☰ Menu ▾</button>
                     <div class="menu-dd" id="menuDd">
+                        <div class="menu-files" id="cloudSyncPanel" style="background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:10px 12px;margin:2px 4px 10px 4px;">
+                            <div style="font-weight:800;font-size:0.8rem;margin-bottom:6px;">☁️ Sync Antar-Device (Cloud)</div>
+                            <div style="color:var(--muted);line-height:1.6;margin-bottom:8px;">
+                                Sync terakhir di device ini: <strong id="syncDeviceTime">—</strong><br>
+                                Data di Cloud: <strong id="syncCloudTime">—</strong>
+                            </div>
+                            <button type="button" class="menu-item" id="btnSyncUpload" onclick="manualUploadToCloud()" style="justify-content:center;background:var(--accent, #2563eb);color:#fff;font-weight:700;border:none;">⬆️ Upload Data Device Ini ke Cloud</button>
+                            <button type="button" class="menu-item" id="btnSyncDownload" onclick="manualDownloadFromCloud()" style="justify-content:center;margin-top:6px;">⬇️ Ambil Data Terbaru dari Cloud</button>
+                            <div style="color:var(--muted);font-size:0.68rem;line-height:1.5;margin-top:8px;">
+                                Gunakan <strong>"Upload"</strong> setelah selesai kerja di device ini, dan <strong>"Ambil"</strong> sebelum mulai kerja di device lain, supaya data selalu sinkron. Data terbaru akan <strong>MENIMPA</strong> data di device tujuan.
+                            </div>
+                        </div>
+                        <div class="menu-divider"></div>
                         <label class="menu-item upload-item">
                             <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="">
                             📂 Upload Excel (Uang Masuk)
@@ -1254,11 +1267,18 @@
             try { localStorage.setItem(LOCAL_DATA_UPDATED_KEY, new Date().toISOString()); } catch (err) {}
         }
 
+        // CATATAN: sinkron ke Supabase (cloud) SENGAJA TIDAK otomatis lagi di
+        // sini. Sebelumnya auto-push yang di-debounce 800ms ini bisa balapan
+        // dengan refresh halaman -> kalau user refresh sebelum 800ms/network
+        // request-nya selesai, cloud jadi berisi data lama (misal kosong
+        // bekas "Hapus") dan menimpa data lokal yang baru saat reload
+        // berikutnya. Sekarang sync ke/dari cloud HARUS manual lewat panel
+        // "☁️ Sync Antar-Device (Cloud)" di Menu (tombol Upload/Ambil), jadi
+        // jelas kapan data benar-benar terkirim/diterima.
         function queueCloudSync() {
             markLocalDataUpdated();
             clearTimeout(_syncTimer);
             _syncTimer = setTimeout(() => {
-                if (supabaseClient) pushToSupabase();
                 if (backupDirHandle) writeLocalBackup();
                 autoBackupJsonDirty = true;
                 maybeAutoBackupJson();
@@ -1318,6 +1338,145 @@
                 el.style.color = isErr ? 'var(--red)' : 'var(--muted)'; }
             if (isErr) console.warn('[Supabase]', msg);
             else console.log('[Supabase]', msg);
+        }
+
+        // ---- Sync Antar-Device (Cloud) — manual, jelas, tanpa auto-race ----
+        const DEVICE_LAST_SYNC_KEY = 'deviceLastSyncAt';
+
+        function formatSyncDate(iso) {
+            if (!iso) return null;
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return null;
+            const bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+            const dd = String(d.getDate()).padStart(2, '0');
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mi = String(d.getMinutes()).padStart(2, '0');
+            return dd + ' ' + bulan[d.getMonth()] + ' ' + d.getFullYear() + ', ' + hh + '.' + mi;
+        }
+
+        async function fetchCloudUpdatedAtOnly() {
+            if (!supabaseClient) return null;
+            try {
+                const { data, error } = await supabaseClient
+                    .from('app_data')
+                    .select('updated_at')
+                    .eq('id', SUPABASE_ROW_ID)
+                    .maybeSingle();
+                if (error) throw error;
+                return data ? data.updated_at : null;
+            } catch (err) {
+                return null;
+            }
+        }
+
+        async function renderCloudSyncPanel() {
+            const deviceEl = document.getElementById('syncDeviceTime');
+            const cloudEl = document.getElementById('syncCloudTime');
+            if (deviceEl) {
+                const localSync = formatSyncDate(localStorage.getItem(DEVICE_LAST_SYNC_KEY));
+                deviceEl.textContent = localSync || 'Belum pernah sync';
+            }
+            if (cloudEl) {
+                if (!supabaseClient) { cloudEl.textContent = 'Fitur cloud tidak aktif'; return; }
+                cloudEl.textContent = 'Mengecek…';
+                const cloudTs = await fetchCloudUpdatedAtOnly();
+                const label = formatSyncDate(cloudTs);
+                cloudEl.textContent = label || 'Belum ada data di cloud';
+            }
+        }
+
+        function saveRowsToDBOnly(rows, key) {
+            return new Promise(resolve => { try { saveRowsToDB(rows, key, () => resolve(true)); } catch (err) { resolve(false); } });
+        }
+
+        async function manualUploadToCloud() {
+            if (!supabaseClient) { alert('Fitur cloud belum aktif/terkonfigurasi di aplikasi ini.'); return; }
+            const btn = document.getElementById('btnSyncUpload');
+            if (btn) { btn.disabled = true; btn.textContent = '⬆️ Mengupload…'; }
+            const ok = await pushToSupabase();
+            if (btn) { btn.disabled = false; btn.textContent = '⬆️ Upload Data Device Ini ke Cloud'; }
+            if (ok) {
+                const now = new Date().toISOString();
+                localStorage.setItem(DEVICE_LAST_SYNC_KEY, now);
+                alert('✅ Berhasil! Data di device ini sudah diupload ke cloud.\n\nWaktu: ' + formatSyncDate(now) +
+                    '\n\nSekarang di device lain, klik "⬇️ Ambil Data Terbaru dari Cloud" untuk menyamakan datanya.');
+            } else {
+                alert('❌ Gagal upload ke cloud. Cek koneksi internet lalu coba lagi.');
+            }
+            renderCloudSyncPanel();
+        }
+
+        async function manualDownloadFromCloud() {
+            if (!supabaseClient) { alert('Fitur cloud belum aktif/terkonfigurasi di aplikasi ini.'); return; }
+            const cloudTs = await fetchCloudUpdatedAtOnly();
+            const cloudLabel = formatSyncDate(cloudTs) || 'tidak diketahui';
+            const sure = confirm(
+                'Ambil data terbaru dari cloud (update terakhir: ' + cloudLabel + ')?\n\n' +
+                'Semua data di DEVICE INI (Uang Masuk, Data Penjualan, Rapikan, Harga Beli) akan DITIMPA dengan data dari cloud.\n\n' +
+                'Kalau ada perubahan di device ini yang BELUM di-upload, perubahan itu akan HILANG.\n\nLanjutkan?'
+            );
+            if (!sure) return;
+
+            const btn = document.getElementById('btnSyncDownload');
+            if (btn) { btn.disabled = true; btn.textContent = '⬇️ Mengambil…'; }
+            const cloud = await pullFromSupabase();
+            if (btn) { btn.disabled = false; btn.textContent = '⬇️ Ambil Data Terbaru dari Cloud'; }
+
+            if (!cloud) {
+                alert('❌ Gagal mengambil data dari cloud (atau memang belum ada data tersimpan di cloud). Cek koneksi internet lalu coba lagi.');
+                return;
+            }
+
+            allRows = Array.isArray(cloud.all_rows) ? cloud.all_rows : [];
+            salesRows = Array.isArray(cloud.sales_rows) ? cloud.sales_rows.map(r => r.month ? r :
+                Object.assign({}, r, { month: detectMonth(r.sheet, r.tanggal) || 'Lainnya' })) : [];
+            const rapikanRows = Array.isArray(cloud.rapikan_rows) ? cloud.rapikan_rows : [];
+            const hargaBeliRows = Array.isArray(cloud.harga_beli_rows) ? cloud.harga_beli_rows : [];
+
+            invalidateFakturIndex();
+            invalidateSalesIndex();
+            await Promise.all([
+                saveRowsToDBOnly(allRows, DB_KEY),
+                saveRowsToDBOnly(salesRows, DB_KEY_SALES),
+                saveRowsToDBOnly(rapikanRows, DB_KEY_RAPIKAN),
+                saveRowsToDBOnly(hargaBeliRows, DB_KEY_HARGA_BELI)
+            ]);
+
+            if (window.__rapSetCleanRows) window.__rapSetCleanRows(rapikanRows);
+            if (window.__rapSetPriceRows) window.__rapSetPriceRows(hargaBeliRows);
+
+            if (allRows.length) {
+                emptyState.style.display = 'none';
+                fileNameEl.textContent = 'Data tersimpan (' + allRows.length.toLocaleString('id-ID') + ' baris)';
+                document.getElementById('clearBtn').style.display = 'block';
+                showSummary();
+                searchBar.classList.add('show');
+            } else {
+                emptyState.style.display = 'block';
+                fileNameEl.textContent = 'Belum ada file diupload';
+                document.getElementById('clearBtn').style.display = 'none';
+                searchBar.classList.remove('show');
+            }
+            if (salesRows.length) {
+                document.getElementById('salesEmptyState').style.display = 'none';
+                document.getElementById('salesFileName').textContent = 'Data tersimpan (' + salesRows.length
+                    .toLocaleString('id-ID') + ' baris)';
+                document.getElementById('clearSalesBtn').style.display = 'block';
+                populateSalesFilters();
+                doSalesSearch();
+            } else {
+                document.getElementById('salesEmptyState').style.display = 'block';
+                document.getElementById('salesFileName').textContent = 'Belum ada file diupload';
+                document.getElementById('clearSalesBtn').style.display = 'none';
+            }
+            document.getElementById('tabsBar').style.display = (allRows.length || salesRows.length) ? 'flex' : 'none';
+
+            const now = new Date().toISOString();
+            localStorage.setItem(DEVICE_LAST_SYNC_KEY, now);
+            try { localStorage.setItem(LOCAL_DATA_UPDATED_KEY, cloud.updated_at || now); } catch (err) {}
+
+            alert('✅ Berhasil! Data di device ini sudah disamakan dengan cloud.\n\nUpdate cloud: ' + cloudLabel);
+            renderCloudSyncPanel();
         }
 
         // ---- Backup folder (File System Access API) ----
@@ -7012,71 +7171,18 @@
             });
         }
 
-        // ---- Startup: load data dari IndexedDB + Cloud ----
+        // ---- Startup: load data dari IndexedDB (lokal) saja ----
+        // CATATAN: sebelumnya di sini ada logika "cloudWins" yang otomatis
+        // membandingkan timestamp lokal vs cloud lalu menimpa salah satunya.
+        // Itu sumber bug data hilang saat refresh (race dengan auto-sync yang
+        // di-debounce). Sekarang startup HANYA memuat data lokal (IndexedDB)
+        // device ini apa adanya. Sinkron ke/dari device lain dilakukan MANUAL
+        // lewat panel "☁️ Sync Antar-Device (Cloud)" di Menu.
         (async function initFromDB() {
-            let saved = null,
-                savedSales = null;
-            // Ambil data lokal DULU (sebelum menimpa apa pun), supaya bisa
-            // dibandingkan timestamp-nya dengan data cloud. Rapikan & Harga Beli
-            // ikut diambil di sini juga karena mereka disimpan dalam SATU baris
-            // cloud yang sama (satu updated_at) dengan Uang Masuk/Penjualan.
-            const localAll = await loadRowsFromDB(DB_KEY);
-            const localSales = await loadRowsFromDB(DB_KEY_SALES);
-            const localRapikan = await loadRowsFromDB(DB_KEY_RAPIKAN);
-            const localHargaBeli = await loadRowsFromDB(DB_KEY_HARGA_BELI);
-            const hasLocalData = !!((localAll && localAll.length) || (localSales && localSales.length) ||
-                (localRapikan && localRapikan.length) || (localHargaBeli && localHargaBeli.length));
-            let localTs = 0;
-            try {
-                const raw = localStorage.getItem(LOCAL_DATA_UPDATED_KEY);
-                if (raw) localTs = new Date(raw).getTime() || 0;
-            } catch (err) {}
-
-            const cloud = await pullFromSupabase();
-            const hasCloudData = !!(cloud && (
-                (Array.isArray(cloud.all_rows) && cloud.all_rows.length) ||
-                (Array.isArray(cloud.sales_rows) && cloud.sales_rows.length) ||
-                (Array.isArray(cloud.rapikan_rows) && cloud.rapikan_rows.length) ||
-                (Array.isArray(cloud.harga_beli_rows) && cloud.harga_beli_rows.length)
-            ));
-            const cloudTs = (cloud && cloud.updated_at) ? (new Date(cloud.updated_at).getTime() || 0) : 0;
-
-            // Cloud dipakai kalau: belum ada data lokal sama sekali, ATAU belum
-            // pernah ada catatan waktu perubahan lokal (device baru/browser baru),
-            // ATAU data cloud memang lebih baru/sama dari perubahan lokal terakhir.
-            // Kalau data LOKAL lebih baru dari cloud, lokal yang dipakai dan
-            // didorong ke cloud (bukan ditimpa) supaya cloud ikut ter-update.
-            // Satu keputusan ini dipakai untuk SEMUA data (Uang Masuk, Penjualan,
-            // Rapikan, Harga Beli) karena semuanya berbagi satu baris cloud & satu
-            // updated_at yang sama.
-            const cloudWins = hasCloudData && (!hasLocalData || !localTs || cloudTs >= localTs);
-            // Push lokal->cloud (kalau lokal menang) ditunda sampai SETELAH
-            // Rapikan/Harga Beli dimuat ke memori di bawah -- supaya payload
-            // yang dikirim ke cloud lengkap, bukan rapikan_rows/harga_beli_rows
-            // kosong karena belum sempat di-set.
-            let shouldPushLocalToCloud = false;
-
-            if (cloudWins) {
-                saved = Array.isArray(cloud.all_rows) ? cloud.all_rows : [];
-                savedSales = Array.isArray(cloud.sales_rows) ? cloud.sales_rows : [];
-                allRows = saved;
-                salesRows = savedSales;
-                invalidateFakturIndex();
-                invalidateSalesIndex();
-                saveRowsToDBAndSync(allRows, DB_KEY);
-                saveRowsToDBAndSync(salesRows, DB_KEY_SALES);
-                try { localStorage.setItem(LOCAL_DATA_UPDATED_KEY, cloud.updated_at || new Date().toISOString()); } catch (err) {}
-            } else {
-                saved = localAll;
-                savedSales = localSales;
-                if (hasLocalData && hasCloudData && supabaseClient) {
-                    // Data lokal lebih baru dari cloud -> jangan ditimpa, malah
-                    // dorong data lokal ke cloud supaya cloud ikut ter-update.
-                    allRows = saved || [];
-                    salesRows = savedSales || [];
-                    shouldPushLocalToCloud = true;
-                }
-            }
+            const saved = await loadRowsFromDB(DB_KEY);
+            const savedSales = await loadRowsFromDB(DB_KEY_SALES);
+            const savedRapikan = await loadRowsFromDB(DB_KEY_RAPIKAN);
+            const savedHargaBeli = await loadRowsFromDB(DB_KEY_HARGA_BELI);
             if (saved && saved.length) {
                 allRows = saved;
                 invalidateFakturIndex();
@@ -7100,30 +7206,16 @@
             if ((saved && saved.length) || (savedSales && savedSales.length)) {
                 document.getElementById('tabsBar').style.display = 'flex';
             }
-            // Rapikan data (pakai keputusan cloudWins yang sama dengan di atas,
-            // karena rapikan_rows/harga_beli_rows disimpan di baris cloud yang
-            // sama dengan all_rows/sales_rows, satu updated_at bersama).
-            let savedRapikan = null,
-                savedHargaBeli = null;
-            if (cloudWins) {
-                savedRapikan = Array.isArray(cloud.rapikan_rows) ? cloud.rapikan_rows : [];
-                savedHargaBeli = Array.isArray(cloud.harga_beli_rows) ? cloud.harga_beli_rows : [];
-                saveRowsToDBAndSync(savedRapikan, DB_KEY_RAPIKAN);
-                saveRowsToDBAndSync(savedHargaBeli, DB_KEY_HARGA_BELI);
-            } else {
-                savedRapikan = localRapikan;
-                savedHargaBeli = localHargaBeli;
-            }
             if (savedRapikan && savedRapikan.length && window.__rapSetCleanRows) {
                 window.__rapSetCleanRows(savedRapikan);
             }
             if (savedHargaBeli && savedHargaBeli.length && window.__rapSetPriceRows) {
                 window.__rapSetPriceRows(savedHargaBeli);
             }
-            // Push lokal->cloud (kalau lokal lebih baru) baru dilakukan DI SINI,
-            // setelah Rapikan/Harga Beli sudah masuk ke memori -- supaya payload
-            // yang dikirim ke cloud lengkap (bukan rapikan/harga beli kosong).
-            if (shouldPushLocalToCloud) pushToSupabase();
+
+            // Tampilkan status sync cloud (device ini vs cloud) di panel menu —
+            // hanya untuk INFORMASI, tidak otomatis menimpa apa pun.
+            renderCloudSyncPanel();
 
             // Backup folder handle
             if (backupSupported()) {
@@ -7193,7 +7285,8 @@
             toggleCekDownloadMenu, renderCekTable, resetCekSearch, downloadCekExcel,
             pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
             installApp, toggleRingkasanRupaShowAll,
-            openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal
+            openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
+            manualUploadToCloud, manualDownloadFromCloud
         });
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
