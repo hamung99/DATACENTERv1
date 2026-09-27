@@ -778,10 +778,10 @@
                 <div class="scard"><div class="sc-label" id="cekCard4Label">—</div><div class="sc-value" id="cekCard4">0</div></div>
                 <div class="scard cek-recon-card"><div class="sc-label">Nominal Lunas</div><div class="sc-value" id="cekCardLunas">0</div></div>
                 <div class="scard cek-recon-card"><div class="sc-label">Diterima dr Titip</div><div class="sc-value" id="cekCardTitip">0</div></div>
-                <div class="scard cek-recon-card"><div class="sc-label">🟢 Teridentifikasi CASH</div><div class="sc-value" id="cekCardUMCash">0</div></div>
-                <div class="scard cek-recon-card"><div class="sc-label">🔵 Teridentifikasi TEMPO</div><div class="sc-value" id="cekCardUMTempo">0</div></div>
+                <div class="scard cek-recon-card" style="cursor:pointer;" title="Klik untuk lihat rincian yang sudah teridentifikasi Cash" onclick="openCekReconDetailModal('CASH')"><div class="sc-label">🟢 Teridentifikasi CASH</div><div class="sc-value" id="cekCardUMCash">0</div></div>
+                <div class="scard cek-recon-card" style="cursor:pointer;" title="Klik untuk lihat rincian yang sudah teridentifikasi Tempo" onclick="openCekReconDetailModal('TEMPO')"><div class="sc-label">🔵 Teridentifikasi TEMPO</div><div class="sc-value" id="cekCardUMTempo">0</div></div>
                 <div class="scard cek-recon-card" id="cekCardCrossWrap"><div class="sc-label">💰 TOTAL UANG MASUK</div><div class="sc-value" id="cekCardUMTotal">0</div></div>
-                <div class="scard cek-recon-card"><div class="sc-label">🟡 BELUM TERIDENTIFIKASI</div><div class="sc-value" id="cekCardUMUnidentified">0</div></div>
+                <div class="scard cek-recon-card" style="cursor:pointer;" title="Klik untuk lihat rincian yang belum teridentifikasi" onclick="openCekReconDetailModal('UNIDENTIFIED')"><div class="sc-label">🟡 BELUM TERIDENTIFIKASI</div><div class="sc-value" id="cekCardUMUnidentified">0</div></div>
             </div>
 
             <div class="search-bar show" id="cekSearchBar" style="display:flex;">
@@ -988,6 +988,25 @@
             </div>
         </div>
 
+        <!-- Modal Rincian Rekonsiliasi Uang Masuk (Cash/Tempo Teridentifikasi & Belum Teridentifikasi) -->
+        <div class="modal-overlay" id="cekReconDetailModal" onclick="if(event.target===this)closeCekReconDetailModal()">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="cekReconDetailModalTitle">Rincian</h2>
+                    <button class="modal-close" onclick="closeCekReconDetailModal()">✕</button>
+                </div>
+                <div class="muted" id="cekReconDetailModalSub" style="margin-bottom:10px;font-size:0.8rem;"></div>
+                <div style="overflow-x:auto;">
+                    <table class="modal-table">
+                        <thead>
+                            <tr><th>Tanggal</th><th>Sheet</th><th>Bagian</th><th>Sales</th><th>No Faktur (Uang Masuk)</th><th>Customer/Toko</th><th>Alamat</th><th class="num">Cash</th><th class="num">TF</th><th class="num">Total</th></tr>
+                        </thead>
+                        <tbody id="cekReconDetailModalBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Modal Pengaturan Margin Minimal Fitri -->
         <div class="modal-overlay" id="fitriMarginModal" onclick="if(event.target===this)closeFitriMarginModal()">
             <div class="modal-content">
@@ -1066,6 +1085,7 @@
         let cekFakturCacheDirty = { cash: true, tempo: true, anomali: true, nosales: true };
         let cekFakturCache = { cash: [], tempo: [], anomali: [], nosales: [] };
         let lastCekRows = []; // baris hasil render terakhir Cek Data (dipakai modal detail Tempo)
+        let lastCekRekon = null; // hasil rekonsiliasi Uang Masuk terakhir (dipakai modal Belum Teridentifikasi dkk.)
         const CEK_TEMPO_DAYS = 12; // aturan jatuh tempo: transaksi + N hari
 
         // ---- Tandai Lunas Manual (overlay, tidak mengubah Data Uang Masuk asli) ----
@@ -2912,6 +2932,83 @@
 
         function closeHargaJualModal() {
             const m = document.getElementById('hargaJualModal');
+            if (m) m.classList.remove('open');
+        }
+
+        // ---- Modal Rincian Rekonsiliasi Uang Masuk (dari kartu Cash/Tempo/Belum Teridentifikasi) ----
+        function openCekReconDetailModal(kind) {
+            const rec = lastCekRekon;
+            if (!rec) { alert('Data rekonsiliasi belum siap. Coba klik "Cari" dulu di tab Cek Data lalu coba lagi.'); return; }
+
+            let items, title, label;
+            if (kind === 'CASH') {
+                items = (rec.details || []).filter(d => d.category === 'CASH');
+                title = '🟢 Rincian Teridentifikasi CASH';
+                label = 'Total Cash';
+            } else if (kind === 'TEMPO') {
+                items = (rec.details || []).filter(d => d.category === 'TEMPO');
+                title = '🔵 Rincian Teridentifikasi TEMPO';
+                label = 'Total Tempo';
+            } else {
+                items = (rec.details || []).filter(d => d.matchType === 'UNIDENTIFIED' || !d.category);
+                title = '🟡 Rincian BELUM TERIDENTIFIKASI';
+                label = 'Total Belum Teridentifikasi';
+            }
+
+            const totalAmount = items.reduce((s, it) => s + (it.amount || 0), 0);
+            document.getElementById('cekReconDetailModalTitle').textContent = title;
+            document.getElementById('cekReconDetailModalSub').textContent =
+                items.length.toLocaleString('id-ID') + ' kelompok pembayaran · ' + label + ' ' + fmt(totalAmount);
+
+            const body = document.getElementById('cekReconDetailModalBody');
+            if (!items.length) {
+                body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted)">Tidak ada data pada kelompok ini untuk periode/filter yang dipilih.</td></tr>';
+                document.getElementById('cekReconDetailModal').classList.add('open');
+                return;
+            }
+
+            const sorted = items.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0));
+            let sumCash = 0, sumTf = 0;
+            body.innerHTML = sorted.map(it => {
+                const rows = it.rows || [];
+                const first = rows[0] || {};
+                const last = rows[rows.length - 1] || {};
+                const cash = rows.reduce((s, r) => s + (Number(r.minyakCash) || 0) + (Number(r.rupaCash) || 0), 0);
+                const tf = rows.reduce((s, r) => s + (Number(r.minyakTf) || 0) + (Number(r.rupaTf) || 0), 0);
+                sumCash += cash;
+                sumTf += tf;
+                const fakturVal = it.fakturUangMasuk || first.faktur || '';
+                const fakturCell = fakturVal
+                    ? '<span class="faktur-link" title="Klik untuk lihat riwayat pembayaran" onclick="openFakturModal(\'' +
+                        jsAttrEsc(fakturVal) + '\')">' + esc(fakturVal) + '</span>'
+                    : '<span class="muted">(kosong)</span>';
+                const catBadge = it.matchedFaktur
+                    ? ' <span class="muted" style="font-size:0.68rem;">→ ' + esc(it.matchedFaktur) +
+                        (it.matchType === 'FUZZY' ? ' (fuzzy)' : '') + '</span>'
+                    : '';
+                return '<tr>' +
+                    '<td>' + esc(fmtCekTanggalTampilan(last.date || last.tanggal, parseSalesDate(last.date || last.tanggal))) +
+                    (rows.length > 1 ? ' <span class="muted" style="font-size:0.68rem;">(' + rows.length + ' catatan)</span>' : '') + '</td>' +
+                    '<td>' + esc(first.sheet || '—') + '</td>' +
+                    '<td>' + esc(first.section || '—') + '</td>' +
+                    '<td>' + esc(first.sales || '—') + '</td>' +
+                    '<td>' + fakturCell + catBadge + '</td>' +
+                    '<td>' + esc(first.toko || '—') + '</td>' +
+                    '<td>' + esc(first.alamat || '—') + '</td>' +
+                    '<td class="num">' + fmt(cash) + '</td>' +
+                    '<td class="num">' + fmt(tf) + '</td>' +
+                    '<td class="num"><strong>' + fmt(it.amount) + '</strong></td>' +
+                    '</tr>';
+            }).join('') +
+                '<tr style="font-weight:800;background:var(--bg);"><td colspan="7" style="text-align:right;">TOTAL</td>' +
+                '<td class="num">' + fmt(sumCash) + '</td><td class="num">' + fmt(sumTf) + '</td><td class="num">' +
+                fmt(totalAmount) + '</td></tr>';
+
+            document.getElementById('cekReconDetailModal').classList.add('open');
+        }
+
+        function closeCekReconDetailModal() {
+            const m = document.getElementById('cekReconDetailModal');
             if (m) m.classList.remove('open');
         }
 
@@ -6008,6 +6105,7 @@
 
         async function updateCekReconciliationCards(selectedMonths) {
             const rec = await buildCekUangMasukReconciliation(selectedMonths);
+            lastCekRekon = rec;
             const set = (id, value) => { const el=document.getElementById(id); if(el) el.textContent=Number(value||0).toLocaleString('id-ID'); };
             set('cekCardUMCash', rec.cash);
             set('cekCardUMTempo', rec.tempo);
@@ -7286,7 +7384,8 @@
             pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
             installApp, toggleRingkasanRupaShowAll,
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
-            manualUploadToCloud, manualDownloadFromCloud
+            manualUploadToCloud, manualDownloadFromCloud,
+            openCekReconDetailModal, closeCekReconDetailModal
         });
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
