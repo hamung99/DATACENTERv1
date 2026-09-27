@@ -127,6 +127,7 @@
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; }
         .modal-overlay.open { display: flex; }
         .modal-content { background: var(--card); border-radius: 12px; padding: 20px; max-width: 800px; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); width: 90%; }
+        .modal-content-wide { max-width: 1400px; max-height: 85vh; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
         .modal-header h2 { font-size: 1.1rem; margin: 0; }
         .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--muted); }
@@ -990,14 +991,14 @@
 
         <!-- Modal Rincian Rekonsiliasi Uang Masuk (Cash/Tempo Teridentifikasi & Belum Teridentifikasi) -->
         <div class="modal-overlay" id="cekReconDetailModal" onclick="if(event.target===this)closeCekReconDetailModal()">
-            <div class="modal-content">
+            <div class="modal-content modal-content-wide">
                 <div class="modal-header">
                     <h2 id="cekReconDetailModalTitle">Rincian</h2>
                     <button class="modal-close" onclick="closeCekReconDetailModal()">✕</button>
                 </div>
                 <div class="muted" id="cekReconDetailModalSub" style="margin-bottom:10px;font-size:0.8rem;"></div>
                 <div style="overflow-x:auto;">
-                    <table class="modal-table">
+                    <table class="modal-table" style="font-size:0.95rem;">
                         <thead>
                             <tr><th>Tanggal</th><th>Sheet</th><th>Bagian</th><th>Sales</th><th>No Faktur (Uang Masuk)</th><th>Customer/Toko</th><th>Alamat</th><th class="num">Cash</th><th class="num">TF</th><th class="num">Total</th></tr>
                         </thead>
