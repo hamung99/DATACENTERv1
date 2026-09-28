@@ -1099,6 +1099,20 @@
         <footer>DATACENTER · Mode terang / gelap · Upload Excel</footer>
     </div>
 
+    <script>
+        // Cadangan: tombol Sync tetap bisa membuka panel walau modul utama gagal dimuat.
+        // Setelah modul utama termuat, window.toggleSyncMenu akan digantikan versi lengkapnya.
+        window.toggleSyncMenu = function () {
+            var dd = document.getElementById('syncDd');
+            var md = document.getElementById('menuDd');
+            if (md) md.classList.remove('open');
+            if (dd) dd.classList.toggle('open');
+        };
+        window.addEventListener('error', function (e) {
+            var el = document.getElementById('cloudSyncStatus');
+            if (el && !el.textContent) el.textContent = '\u26A0 Ada error skrip (buka Console/F12)';
+        });
+    </script>
     <script type="module">
         // ====================================================================
         //  KODE JAVASCRIPT UTAMA – OPTIMASI UNTUK DATA BESAR
@@ -1122,6 +1136,35 @@
             DB_KEY_HARGA_BELI, openDB, saveRowsToDB, loadRowsFromDB
         } from './js/db.js';
         import { parseWorkbook, parseSalesWorkbook } from './js/excelParser.js';
+
+        // ---- Ekspos ke window (awal) ----
+        // Didaftarkan paling awal supaya tombol (Sync, Menu, dst) tetap berfungsi walau ada
+        // error di kode startup di bawah. Aman karena semua berupa function declaration (hoisted).
+        // Karena <script type="module"> tidak lagi membuat fungsi top-level
+        // menjadi global, sedangkan HTML yang dirender lewat innerHTML masih
+        // memanggilnya lewat atribut inline (onclick="switchTab('sales')" dst),
+        // fungsi-fungsi berikut perlu didaftarkan eksplisit ke window. Aman
+        // dipanggil di sini walau definisinya ada di bawah/atas karena
+        // deklarasi `function` di-hoist ke atas modul.
+        Object.assign(window, {
+            switchTab, toggleTheme, toggleMenu, closeMenu, toggleSyncMenu, closeSyncMenu, toggleSalesMenu, closeSalesMenu,
+            doSearch, resetSearch, filterBySheet, clearData, switchFakturSub,
+            openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, closeCekTempoDetail,
+            openCekAnomaliDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
+            markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
+            openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
+            downloadFakturExcel,
+            doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
+            downloadCurrentSalesExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
+            switchCekSub, toggleCekBulanPanel, onCekBulanAllChange, onCekBulanItemChange,
+            toggleCekDownloadMenu, renderCekTable, resetCekSearch, downloadCekExcel,
+            pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
+            installApp, toggleRingkasanRupaShowAll,
+            openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
+            manualUploadToCloud, manualDownloadFromCloud,
+            openCekReconDetailModal, closeCekReconDetailModal,
+            cekModalAksi, cekModalUndo, setFakturPembayaran
+        });
 
         // ---- Global state ----
         let allRows = [];
@@ -3445,6 +3488,40 @@
                 }
             }
             if (changed) {
+                cekBerdampinganCache = null;
+                salesFakturMapDirty = true;
+                cekFakturCacheDirty.cash = true;
+                cekFakturCacheDirty.tempo = true;
+                cekFakturCacheDirty.anomali = true;
+                cekFakturCacheDirty.nosales = true;
+                saveRowsToDBAndSync(salesRows, DB_KEY_SALES);
+            }
+            return changed;
+        }
+
+        // ---- Ubah Pembayaran faktur (mis. Cash -> Tempo) ----
+        // Nilai asli disimpan di pembayaranAsli supaya bisa di-undo.
+        function setFakturPembayaran(noFaktur, newPay, restore) {
+            const fk = String(noFaktur || '').trim();
+            if (!fk) return false;
+            let changed = false;
+            for (const r of salesRows) {
+                if (String(r.noFaktur || '').trim() !== fk) continue;
+                if (restore) {
+                    if (r.pembayaranAsli !== undefined) {
+                        r.pembayaran = r.pembayaranAsli;
+                        delete r.pembayaranAsli;
+                        changed = true;
+                    }
+                } else if (r.pembayaran !== newPay) {
+                    if (r.pembayaranAsli === undefined) r.pembayaranAsli = r.pembayaran;
+                    r.pembayaran = newPay;
+                    changed = true;
+                }
+            }
+            if (changed) {
+                cekBerdampinganCache = null;
+                salesFakturMapDirty = true;
                 cekFakturCacheDirty.cash = true;
                 cekFakturCacheDirty.tempo = true;
                 cekFakturCacheDirty.anomali = true;
@@ -6124,19 +6201,22 @@
                 '<td class="num"><strong>' + (r.nominal || 0).toLocaleString('id-ID') + '</strong></td>' +
                 '<td><span class="badge badge-tf">💵 CASH</span></td>' +
                 '<td class="toko">' + esc(r.customer) + '</td>';
+            // Sisi Uang Masuk diberi latar tipis (kuning halus) supaya kelihatan sebagai tabel terpisah
+            const umBg = 'background:color-mix(in srgb, var(--yellow,#d97706) 7%, transparent);';
+            const umSep = umBg + 'border-left:2px solid color-mix(in srgb, var(--yellow,#d97706) 35%, transparent);';
             let kanan;
             if (r.adaDiDropping) {
                 kanan =
-                    '<td>' + esc(r.umTanggal || '\u2014') + '</td>' +
-                    '<td class="faktur">' + esc(r.umFaktur || '') + '</td>' +
-                    '<td class="toko">' + esc(r.umToko || '\u2014') + '</td>' +
-                    '<td class="muted">' + esc(r.umAlamat || '\u2014') + '</td>' +
-                    '<td class="num"><strong>' + (r.umNominal || 0).toLocaleString('id-ID') + '</strong></td>';
+                    '<td style="' + umSep + '">' + esc(r.umTanggal || '\u2014') + '</td>' +
+                    '<td class="faktur" style="' + umBg + '">' + esc(r.umFaktur || '') + '</td>' +
+                    '<td class="toko" style="' + umBg + '">' + esc(r.umToko || '\u2014') + '</td>' +
+                    '<td class="muted" style="' + umBg + '">' + esc(r.umAlamat || '\u2014') + '</td>' +
+                    '<td class="num" style="' + umBg + '"><strong>' + (r.umNominal || 0).toLocaleString('id-ID') + '</strong></td>';
             } else {
                 kanan =
-                    '<td>\u2014</td>' +
-                    '<td><span class="badge badge-retur">\u26A0 TIDAK ADA</span></td>' +
-                    '<td colspan="3" style="color:var(--red,#dc2626);font-weight:600;">Tidak ditemukan di Uang Masuk bagian Cash Dropping</td>';
+                    '<td style="' + umSep + '">\u2014</td>' +
+                    '<td style="' + umBg + '"><span class="badge badge-retur">\u26A0 TIDAK ADA</span></td>' +
+                    '<td colspan="3" style="' + umBg + 'color:var(--red,#dc2626);font-weight:600;">Tidak ditemukan di Uang Masuk bagian Cash Dropping</td>';
             }
             return '<tr>' + kiri + kanan + '</tr>';
         }
@@ -6145,6 +6225,36 @@
         function closeCekBerdampinganModal() {
             const m = document.getElementById('cekBerdampinganModal');
             if (m && m.parentNode) m.parentNode.removeChild(m);
+        }
+
+        var cekModalLastAksi = null;
+
+        async function cekModalRefresh() {
+            invalidateSalesIndex();
+            try { populateSalesFilters(); doSalesSearch(); } catch (e) { /* tab penjualan belum siap */ }
+            await renderCekTable();
+            openCekBerdampinganCardModal(lastCekRows, 'unmatched');
+        }
+
+        async function cekModalAksi(encFaktur, aksi) {
+            const fk = decodeURIComponent(String(encFaktur || ''));
+            const pesan = aksi === 'tempo'
+                ? 'Pindahkan faktur ' + fk + ' dari Cash ke TEMPO?\n\nJenis bayar di Data Penjualan diubah menjadi Tempo. Faktur keluar dari Cash Berdampingan dan akan dihitung sebagai Tempo (muncul di Belum Ada Uang Masuk bila belum ada pembayaran).'
+                : 'Tandai faktur ' + fk + ' sebagai BATAL?\n\nFaktur dikeluarkan dari Total Penjualan, Profit, dan Cash Berdampingan. Bisa di-undo lewat filter \uD83D\uDEAB Transaksi Batal di tab Data Penjualan atau tombol Urungkan.';
+            if (!confirm(pesan)) return;
+            const changed = aksi === 'tempo' ? setFakturPembayaran(fk, 'Tempo') : setFakturBatalStatus(fk, true);
+            if (!changed) { alert('Tidak ada perubahan untuk faktur ' + fk + '.'); return; }
+            cekModalLastAksi = { faktur: fk, aksi: aksi };
+            await cekModalRefresh();
+        }
+
+        async function cekModalUndo() {
+            const a = cekModalLastAksi;
+            if (!a) return;
+            if (a.aksi === 'tempo') setFakturPembayaran(a.faktur, '', true);
+            else setFakturBatalStatus(a.faktur, false);
+            cekModalLastAksi = null;
+            await cekModalRefresh();
         }
 
         function openCekBerdampinganCardModal(rows, mode) {
@@ -6169,15 +6279,18 @@
                         ? '<span class="badge badge-lunas">Ada di Dropping</span>'
                         : '<span class="badge badge-retur">\u26A0 TIDAK ADA</span>') + '</td>' +
                     '<td class="muted">' + esc(r.umAlamat || '\u2014') + '</td>' +
+                    '<td style="white-space:nowrap;">' + (r.adaDiDropping ? '' :
+                        '<button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:.7rem;margin-right:4px;" title="Pindahkan ke Tempo" onclick="cekModalAksi(encodeURIComponent(\'' + jsAttrEsc(r.noFaktur) + '\'),\'tempo\')">\uD83D\uDCC5 Ke Tempo</button>' +
+                        '<button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:.7rem;color:var(--red,#dc2626);" title="Tandai transaksi batal" onclick="cekModalAksi(encodeURIComponent(\'' + jsAttrEsc(r.noFaktur) + '\'),\'batal\')">\uD83D\uDEAB Batal</button>') + '</td>' +
                     '</tr>';
-            }).join('') : '<tr><td colspan="8" style="text-align:center;padding:22px;color:var(--muted);">Tidak ada baris untuk kriteria ini.</td></tr>';
+            }).join('') : '<tr><td colspan="9" style="text-align:center;padding:22px;color:var(--muted);">Tidak ada baris untuk kriteria ini.</td></tr>';
 
             const wrap = document.createElement('div');
             wrap.id = 'cekBerdampinganModal';
             wrap.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;padding:18px;overflow:auto;';
 
             const inner = document.createElement('div');
-            inner.style.cssText = 'background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.42);width:100%;max-width:1100px;';
+            inner.style.cssText = 'background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.42);width:100%;max-width:1200px;';
             inner.innerHTML =
                 '<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);">' +
                     '<div style="flex:1;min-width:0;">' +
@@ -6190,6 +6303,9 @@
                     '</div>' +
                     '<button type="button" id="cekBerdampinganClose" style="border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;font-family:inherit;font-size:.78rem;flex-shrink:0;">Tutup</button>' +
                 '</div>' +
+                (cekModalLastAksi ? ('<div style="margin:10px 14px 0;padding:8px 12px;border-radius:9px;background:color-mix(in srgb, var(--green,#16a34a) 12%, transparent);font-size:.78rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+                    '<span>\u2705 Faktur <b>' + esc(cekModalLastAksi.faktur) + '</b> ' + (cekModalLastAksi.aksi === 'tempo' ? 'dipindah ke <b>Tempo</b>.' : 'ditandai <b>Batal</b>.') + '</span>' +
+                    '<button type="button" class="btn btn-outline" style="padding:2px 9px;font-size:.7rem;" onclick="cekModalUndo()">\u21A9\uFE0F Urungkan</button></div>') : '') +
                 '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;">' +
                     '<div style="border:1px solid var(--border);border-radius:9px;padding:7px 11px;background:var(--bg);min-width:150px;">' +
                         '<div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Jml Faktur</div>' +
@@ -6202,16 +6318,16 @@
                     '<table style="width:100%;border-collapse:collapse;font-size:.8rem;">' +
                         '<thead><tr>' +
                             '<th class="num">No</th><th>Tgl Faktur</th><th>No Faktur</th><th>Sales</th>' +
-                            '<th class="num">Nominal</th><th>Customer</th><th>Status vs Dropping</th><th>Alamat Uang Masuk</th>' +
+                            '<th class="num">Nominal</th><th>Customer</th><th>Status vs Dropping</th><th>Alamat Uang Masuk</th><th>Aksi</th>' +
                         '</tr></thead><tbody>' + body + '</tbody>' +
                     '</table>' +
                 '</div>';
 
             wrap.appendChild(inner);
-            wrap.addEventListener('click', function(e) { if (e.target === wrap) closeCekBerdampinganModal(); });
+            wrap.addEventListener('click', function(e) { if (e.target === wrap) { cekModalLastAksi = null; closeCekBerdampinganModal(); } });
             document.body.appendChild(wrap);
             const btn = document.getElementById('cekBerdampinganClose');
-            if (btn) btn.onclick = closeCekBerdampinganModal;
+            if (btn) btn.onclick = function() { cekModalLastAksi = null; closeCekBerdampinganModal(); };
         }
 
         // ---- Download Excel sub-tab Cash Berdampingan ----
@@ -7854,31 +7970,7 @@
         const ringkasanRupaSelEl = document.getElementById('ringkasanRupaProdukSel');
         if (ringkasanRupaSelEl) ringkasanRupaSelEl.addEventListener('change', () => renderRingkasanRupa());
 
-        // ---- Ekspos ke window ----
-        // Karena <script type="module"> tidak lagi membuat fungsi top-level
-        // menjadi global, sedangkan HTML yang dirender lewat innerHTML masih
-        // memanggilnya lewat atribut inline (onclick="switchTab('sales')" dst),
-        // fungsi-fungsi berikut perlu didaftarkan eksplisit ke window. Aman
-        // dipanggil di sini walau definisinya ada di bawah/atas karena
-        // deklarasi `function` di-hoist ke atas modul.
-        Object.assign(window, {
-            switchTab, toggleTheme, toggleMenu, closeMenu, toggleSyncMenu, closeSyncMenu, toggleSalesMenu, closeSalesMenu,
-            doSearch, resetSearch, filterBySheet, clearData, switchFakturSub,
-            openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, closeCekTempoDetail,
-            openCekAnomaliDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
-            markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
-            openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
-            downloadFakturExcel,
-            doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
-            downloadCurrentSalesExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
-            switchCekSub, toggleCekBulanPanel, onCekBulanAllChange, onCekBulanItemChange,
-            toggleCekDownloadMenu, renderCekTable, resetCekSearch, downloadCekExcel,
-            pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
-            installApp, toggleRingkasanRupaShowAll,
-            openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
-            manualUploadToCloud, manualDownloadFromCloud,
-            openCekReconDetailModal, closeCekReconDetailModal
-        });
+        // (Pendaftaran fungsi ke window dipindah ke awal modul, lihat "Ekspos ke window (awal)".)
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
