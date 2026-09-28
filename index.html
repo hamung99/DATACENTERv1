@@ -187,6 +187,22 @@
             gap: 10px !important;
             row-gap: 10px !important;
         }
+        /* Cek Data: tanpa garis horizontal di bawah sub-tab */
+        #cekSubtabs {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        /* Download di baris filter Cek Data: samakan ukuran dengan tombol Reset */
+        #cekSearchBar .subtab-dl-wrap {
+            margin-left: 0;
+        }
+        #cekSearchBar .subtab-dl {
+            margin-left: 0;
+            min-height: 32px;
+            padding: 5px 9px;
+            font-size: 0.78rem;
+            border-radius: 6px;
+        }
         .cek-subtab-btn:hover { border-color: var(--accent); color: var(--text); transform: translateY(-1px); }
         .cek-subtab-btn.active {
             background: var(--accent);
@@ -825,13 +841,6 @@
                 <button class="cek-subtab-btn" id="cekSubTempo" onclick="switchCekSub('tempo')">📅 Tempo</button>
                 <button class="cek-subtab-btn" id="cekSubNosales" onclick="switchCekSub('nosales')">🧩 Tanpa Penjualan</button>
                 <button class="cek-subtab-btn" id="cekSubAnomali" onclick="switchCekSub('anomali')">🔴 Belum Ada Uang Masuk</button>
-                <div class="subtab-dl-wrap cek-download-wrap" id="cekDownloadWrap">
-                    <button type="button" class="subtab-dl" id="cekDownloadBtn" onclick="toggleCekDownloadMenu(event)">📥 Download ▾</button>
-                    <div class="subtab-dl-menu" id="cekDownloadMenu">
-                        <button type="button" onclick="downloadCekExcel('filter');closeCekDownloadMenu()">⬇ Sesuai Filter</button>
-                        <button type="button" onclick="downloadCekExcel('all');closeCekDownloadMenu()">⬇ Semua Data</button>
-                    </div>
-                </div>
             </div>
 
             <div class="sales-cards show" id="cekCards" style="display:grid; margin-bottom:10px;">
@@ -874,6 +883,13 @@
                 </select>
                 <button class="btn" id="cekSearchBtn" onclick="renderCekTable()">Cari</button>
                 <button class="btn btn-outline" onclick="resetCekSearch()">Reset</button>
+                <div class="subtab-dl-wrap cek-download-wrap" id="cekDownloadWrap">
+                    <button type="button" class="subtab-dl" id="cekDownloadBtn" onclick="toggleCekDownloadMenu(event)">📥 Download ▾</button>
+                    <div class="subtab-dl-menu" id="cekDownloadMenu">
+                        <button type="button" onclick="downloadCekExcel('filter');closeCekDownloadMenu()">⬇ Sesuai Filter</button>
+                        <button type="button" onclick="downloadCekExcel('all');closeCekDownloadMenu()">⬇ Semua Data</button>
+                    </div>
+                </div>
             </div>
             <div id="cekBulanHint" style="display:none;margin:-6px 0 8px;color:var(--muted);font-size:0.75rem;">
                 📅 Centang bulan (bisa lebih dari satu). Filter memuat faktur berdasarkan <b>bulan transaksi</b> atau <b>bulan jatuh tempo</b> (jadi transaksi Juli yang JT di Agustus ikut muncul saat pilih Agustus).
