@@ -451,6 +451,9 @@
         .menu-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 9px; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; min-height: 28px; display: flex; align-items: center; touch-action: manipulation; }
         .menu-dd { display: none; position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, .12); z-index: 100; padding: 6px; }
         .menu-dd.open { display: block; }
+        .sync-btn { background: rgba(37,99,235,.10); border-color: rgba(37,99,235,.35); color: var(--accent, #2563eb); }
+        .sync-dd { min-width: 300px; max-width: 92vw; padding: 8px; }
+        @media (max-width:560px) { .sync-dd { position: fixed; left: 8px; right: 8px; top: 44px; min-width: 0; max-width: none; } }
         .menu-item { display: block; width: 100%; text-align: left; background: none; border: none; border-radius: 7px; padding: 12px 12px; font-size: 0.85rem; color: var(--text); cursor: pointer; font-family: inherit; min-height: 44px; display: flex; align-items: center; touch-action: manipulation; }
         .menu-item:hover { background: var(--bg); }
         .upload-item { cursor: pointer; font-weight: 600; color: var(--accent); }
@@ -543,10 +546,10 @@
             <div class="header-right">
                 <div id="cloudSyncStatus" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;"></div>
                 <button class="menu-btn" id="themeIconBtn" onclick="toggleTheme()" title="Ganti mode gelap/terang" style="font-size:0.95rem;padding:3px 8px;">🌙</button>
-                <div class="menu-wrap" id="menuWrap">
-                    <button class="menu-btn" id="menuBtn" onclick="toggleMenu()">☰ Menu ▾</button>
-                    <div class="menu-dd" id="menuDd">
-                        <div class="menu-files" id="cloudSyncPanel" style="background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:10px 12px;margin:2px 4px 10px 4px;">
+                <div class="menu-wrap" id="syncWrap">
+                    <button class="menu-btn sync-btn" id="syncBtn" onclick="toggleSyncMenu()" title="Sync Antar-Device (Cloud)">☁️ Sync</button>
+                    <div class="menu-dd sync-dd" id="syncDd">
+                        <div id="cloudSyncPanel" style="background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.25);border-radius:10px;padding:10px 12px;margin:0;font-size:0.72rem;">
                             <div style="font-weight:800;font-size:0.8rem;margin-bottom:6px;">☁️ Sync Antar-Device (Cloud)</div>
                             <div style="color:var(--muted);line-height:1.6;margin-bottom:8px;">
                                 Sync terakhir di device ini: <strong id="syncDeviceTime">—</strong><br>
@@ -558,7 +561,11 @@
                                 Gunakan <strong>"Upload"</strong> setelah selesai kerja di device ini, dan <strong>"Ambil"</strong> sebelum mulai kerja di device lain, supaya data selalu sinkron. Data terbaru akan <strong>MENIMPA</strong> data di device tujuan.
                             </div>
                         </div>
-                        <div class="menu-divider"></div>
+                    </div>
+                </div>
+                <div class="menu-wrap" id="menuWrap">
+                    <button class="menu-btn" id="menuBtn" onclick="toggleMenu()">☰ Menu ▾</button>
+                    <div class="menu-dd" id="menuDd">
                         <label class="menu-item upload-item">
                             <input type="file" id="fileInput" accept=".xlsx,.xls" multiple="">
                             📂 Upload Excel (Uang Masuk)
@@ -1341,7 +1348,7 @@
         // request-nya selesai, cloud jadi berisi data lama (misal kosong
         // bekas "Hapus") dan menimpa data lokal yang baru saat reload
         // berikutnya. Sekarang sync ke/dari cloud HARUS manual lewat panel
-        // "☁️ Sync Antar-Device (Cloud)" di Menu (tombol Upload/Ambil), jadi
+        // "☁️ Sync Antar-Device (Cloud)" di tombol Sync (Upload/Ambil), jadi
         // jelas kapan data benar-benar terkirim/diterima.
         function queueCloudSync() {
             markLocalDataUpdated();
@@ -7694,7 +7701,17 @@
             }
         }
 
-        function toggleMenu() { document.getElementById('menuDd').classList.toggle('open'); }
+        function toggleMenu() { closeSyncMenu(); document.getElementById('menuDd').classList.toggle('open'); }
+
+        function toggleSyncMenu() {
+            closeMenu();
+            const dd = document.getElementById('syncDd');
+            const willOpen = !dd.classList.contains('open');
+            dd.classList.toggle('open');
+            if (willOpen) renderCloudSyncPanel();
+        }
+
+        function closeSyncMenu() { const d = document.getElementById('syncDd'); if (d) d.classList.remove('open'); }
 
         function closeMenu() { document.getElementById('menuDd').classList.remove('open'); }
 
@@ -7708,6 +7725,7 @@
                 ['salesDlMenu', 'salesDlWrap'],
                 ['cekDownloadMenu', 'cekDownloadWrap'],
                 ['menuDd', 'menuWrap'],
+                ['syncDd', 'syncWrap'],
                 ['salesMenuDd', 'salesMenuWrap']
             ].forEach(function(pair) {
                 const m = document.getElementById(pair[0]);
@@ -7749,7 +7767,7 @@
         // Itu sumber bug data hilang saat refresh (race dengan auto-sync yang
         // di-debounce). Sekarang startup HANYA memuat data lokal (IndexedDB)
         // device ini apa adanya. Sinkron ke/dari device lain dilakukan MANUAL
-        // lewat panel "☁️ Sync Antar-Device (Cloud)" di Menu.
+        // lewat tombol "☁️ Sync" di header.
         (async function initFromDB() {
             const saved = await loadRowsFromDB(DB_KEY);
             const savedSales = await loadRowsFromDB(DB_KEY_SALES);
