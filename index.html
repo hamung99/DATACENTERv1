@@ -256,6 +256,59 @@
 
         .theme-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 0.9rem; line-height: 1; color: var(--text); min-height: 28px; min-width: 28px; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
 
+        /* ===== Radar Scan button (muat ulang data terbaru dari cloud) ===== */
+        .radar-scan-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 4px 11px 4px 7px;
+            cursor: pointer;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.74rem;
+            font-weight: 600;
+            min-height: 28px;
+            white-space: nowrap;
+            touch-action: manipulation;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+        }
+        .radar-scan-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent-soft);
+        }
+        .radar-scan-btn:disabled {
+            opacity: 0.75;
+            cursor: wait;
+        }
+        .radar-scan-btn.scanning {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+        .radar-icon {
+            width: 18px;
+            height: 18px;
+            flex-shrink: 0;
+            display: block;
+            animation: radarSpinSlow 4.5s linear infinite;
+        }
+        .radar-scan-btn.scanning .radar-icon {
+            animation: radarSpinFast 0.55s linear infinite;
+        }
+        @keyframes radarSpinSlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes radarSpinFast {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .radar-scan-label { line-height: 1; }
+
         .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
         .tabs { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
         .tab-btn {
@@ -575,6 +628,17 @@
             </div>
             <div class="header-right">
                 <div id="cloudSyncStatus" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;"></div>
+                <button type="button" class="radar-scan-btn" id="radarScanBtn" onclick="scanLatestData()" title="Scan — ambil data terbaru dari cloud (muat ulang)">
+                    <svg class="radar-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.4" opacity="0.35"/>
+                        <circle cx="12" cy="12" r="6.5" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>
+                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.4" opacity="0.8"/>
+                        <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
+                        <path d="M12 12 L12 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                        <path d="M12 12 L18.5 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity="0.45"/>
+                    </svg>
+                    <span class="radar-scan-label" id="radarScanLabel">Scan</span>
+                </button>
                 <button class="menu-btn" id="themeIconBtn" onclick="toggleTheme()" title="Ganti mode gelap/terang" style="font-size:0.95rem;padding:3px 8px;">🌙</button>
                 <div class="menu-wrap" id="syncWrap">
                     <button class="menu-btn sync-btn" id="syncBtn" onclick="toggleSyncMenu()" title="Sync Antar-Device (Cloud)">☁️ Sync</button>
@@ -1242,7 +1306,7 @@
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
             openHargaBeliMassalModal, closeHargaBeliMassalModal, hbmRefresh, applyHargaBeliMassal,
             openHapusSalesModal, closeHapusSalesModal, hapusSalesToggleAll, hapusSalesUpdateSummary, confirmHapusSalesBulan,
-            manualUploadToCloud, manualDownloadFromCloud,
+            manualUploadToCloud, manualDownloadFromCloud, scanLatestData,
             openCekReconDetailModal, closeCekReconDetailModal,
             cekModalAksi, cekModalUndo, setFakturPembayaran
         });
@@ -1606,16 +1670,19 @@
             renderCloudSyncPanel();
         }
 
-        async function manualDownloadFromCloud() {
+        async function manualDownloadFromCloud(opts) {
             if (!supabaseClient) { alert('Fitur cloud belum aktif/terkonfigurasi di aplikasi ini.'); return; }
+            const skipConfirm = opts && opts.skipConfirm;
             const cloudTs = await fetchCloudUpdatedAtOnly();
             const cloudLabel = formatSyncDate(cloudTs) || 'tidak diketahui';
-            const sure = confirm(
-                'Ambil data terbaru dari cloud (update terakhir: ' + cloudLabel + ')?\n\n' +
-                'Semua data di DEVICE INI (Uang Masuk, Data Penjualan, Rapikan, Harga Beli) akan DITIMPA dengan data dari cloud.\n\n' +
-                'Kalau ada perubahan di device ini yang BELUM di-upload, perubahan itu akan HILANG.\n\nLanjutkan?'
-            );
-            if (!sure) return;
+            if (!skipConfirm) {
+                const sure = confirm(
+                    'Ambil data terbaru dari cloud (update terakhir: ' + cloudLabel + ')?\n\n' +
+                    'Semua data di DEVICE INI (Uang Masuk, Data Penjualan, Rapikan, Harga Beli) akan DITIMPA dengan data dari cloud.\n\n' +
+                    'Kalau ada perubahan di device ini yang BELUM di-upload, perubahan itu akan HILANG.\n\nLanjutkan?'
+                );
+                if (!sure) return;
+            }
 
             const btn = document.getElementById('btnSyncDownload');
             if (btn) { btn.disabled = true; btn.textContent = '⬇️ Mengambil…'; }
@@ -1677,6 +1744,42 @@
 
             alert('✅ Berhasil! Data di device ini sudah disamakan dengan cloud.\n\nUpdate cloud: ' + cloudLabel);
             renderCloudSyncPanel();
+        }
+
+        // ---- Radar Scan: muat ulang data terbaru dari cloud (UX mirip refresh) ----
+        let _radarScanning = false;
+        function setRadarScanning(on) {
+            _radarScanning = !!on;
+            const btn = document.getElementById('radarScanBtn');
+            const label = document.getElementById('radarScanLabel');
+            if (btn) {
+                btn.classList.toggle('scanning', _radarScanning);
+                btn.disabled = _radarScanning;
+            }
+            if (label) label.textContent = _radarScanning ? 'Scanning…' : 'Scan';
+        }
+        async function scanLatestData() {
+            if (_radarScanning) return;
+            if (!supabaseClient) {
+                alert('Fitur cloud belum aktif/terkonfigurasi di aplikasi ini.');
+                return;
+            }
+            // Konfirmasi dulu (tanpa animasi), baru putar cepat saat proses unduh
+            const cloudTs = await fetchCloudUpdatedAtOnly();
+            const cloudLabel = formatSyncDate(cloudTs) || 'tidak diketahui';
+            const sure = confirm(
+                'Scan data terbaru dari cloud (update terakhir: ' + cloudLabel + ')?\n\n' +
+                'Semua data di DEVICE INI (Uang Masuk, Data Penjualan, Rapikan, Harga Beli) akan DITIMPA dengan data dari cloud.\n\n' +
+                'Kalau ada perubahan di device ini yang BELUM di-upload, perubahan itu akan HILANG.\n\nLanjutkan?'
+            );
+            if (!sure) return;
+
+            setRadarScanning(true);
+            try {
+                await manualDownloadFromCloud({ skipConfirm: true });
+            } finally {
+                setRadarScanning(false);
+            }
         }
 
         // ---- Backup folder (File System Access API) ----
