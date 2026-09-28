@@ -805,6 +805,7 @@
         <div id="tabCek" style="display:none;">
             <div class="subtabs show" id="cekSubtabs" style="display:flex;">
                 <button class="cek-subtab-btn active" id="cekSubCash" onclick="switchCekSub('cash')">💵 Cash</button>
+                <button class="cek-subtab-btn" id="cekSubCashDual" onclick="switchCekSub('cashdual')">💵 Cash Berdampingan</button>
                 <button class="cek-subtab-btn" id="cekSubTempo" onclick="switchCekSub('tempo')">📅 Tempo</button>
                 <button class="cek-subtab-btn" id="cekSubNosales" onclick="switchCekSub('nosales')">🧩 Tanpa Penjualan</button>
                 <button class="cek-subtab-btn" id="cekSubAnomali" onclick="switchCekSub('anomali')">🔴 Belum Ada Uang Masuk</button>
@@ -879,6 +880,7 @@
                 <div><strong>Belum ada data</strong></div>
                 <div class="hint">
                     Sub-tab <b>Cash</b> = faktur <b>Cash Dropping</b> dari tab Uang Masuk.<br>
+                    Sub-tab <b>Cash Berdampingan</b> = <b>Penjualan Cash</b> (Data Penjualan) ditempel berdampingan dengan <b>Uang Masuk bagian Cash Dropping</b>. Yang tidak ketemu pasangannya langsung ditandai dan dihitung di kartu.<br>
                     Sub-tab <b>Tempo</b> = faktur dari Data Penjualan yang pembayarannya <b>bukan Cash</b> (kosong / Tempo / Kredit) <b>dan ketemu pasangannya</b> di Data Penjualan.<br>
                     Sub-tab <b>Tanpa Penjualan</b> = faktur Piutang <b>dan Cash Dropping</b> yang <b>ada di Uang Masuk</b> tapi <b>tidak ditemukan sama sekali</b> di Data Penjualan (exact maupun fuzzy match) — perlu dicek manual, kemungkinan lupa diinput atau nomor faktur beda jauh.<br>
                     Sub-tab <b>Belum Ada Uang Masuk</b> = faktur yang tercatat di <b>Data Penjualan</b> tetapi <b>tidak ditemukan sama sekali</b> di <b>Data Uang Masuk</b> setelah exact, normalized, dan fuzzy match — jadi ini daftar khusus yang perlu ditindaklanjuti.<br>
@@ -2029,6 +2031,7 @@
         // ---- Invalidate cache ----
         function invalidateFakturIndex() {
             fakturIndexDirty = true;
+            cekBerdampinganCache = null;
             cekFakturCacheDirty.cash = true;
             cekFakturCacheDirty.tempo = true;
             cekFakturCacheDirty.anomali = true;
@@ -2037,6 +2040,7 @@
 
         function invalidateSalesIndex() {
             salesFakturMapDirty = true;
+            cekBerdampinganCache = null;
             cekFakturCacheDirty.cash = true;
             cekFakturCacheDirty.tempo = true;
             cekFakturCacheDirty.anomali = true;
@@ -4891,8 +4895,9 @@
             document.getElementById('cekSubTempo').classList.toggle('active', sub === 'tempo');
             document.getElementById('cekSubNosales').classList.toggle('active', sub === 'nosales');
             document.getElementById('cekSubAnomali').classList.toggle('active', sub === 'anomali');
+            document.getElementById('cekSubCashDual').classList.toggle('active', sub === 'cashdual');
             document.querySelectorAll('.cek-recon-card').forEach(el => {
-                el.style.display = (sub === 'anomali' || sub === 'nosales') ? 'none' : '';
+                el.style.display = (sub === 'anomali' || sub === 'nosales' || sub === 'cashdual') ? 'none' : '';
             });
             populateCekStatusOptions(sub);
             const produkFilterEl = document.getElementById('cekFilterProduk');
@@ -4917,6 +4922,16 @@
                     bl.style.display = '';
                     const anomaliMonths = [...new Set((salesRows || []).map(r => r.month).filter(Boolean))];
                     bl.value = preferredMonth(anomaliMonths) || 'all';
+                }
+                if (multiWrap) multiWrap.style.display = 'none';
+                if (hint) hint.style.display = 'none';
+                closeCekBulanPanel();
+            } else if (sub === 'cashdual') {
+                // "Cash Berdampingan": patokan bulannya = Penjualan Cash (Data Penjualan).
+                if (bl) {
+                    bl.style.display = '';
+                    const dualMonths = [...new Set((salesRows || []).map(r => r.month).filter(Boolean))];
+                    bl.value = preferredMonth(dualMonths) || 'all';
                 }
                 if (multiWrap) multiWrap.style.display = 'none';
                 if (hint) hint.style.display = 'none';
@@ -5013,6 +5028,10 @@
                     '<option value="belum_jt">Belum Jatuh Tempo</option>' +
                     '<option value="overdue">Sudah Jatuh Tempo</option>' +
                     '<option value="titip">Titip / Sebagian</option>';
+            } else if (sub === 'cashdual') {
+                sel.innerHTML = '<option value="all">Semua Status</option>' +
+                    '<option value="berdampingan">✅ Ada di Cash Dropping</option>' +
+                    '<option value="tanpa_dropping">⚠ Tidak Ada di Cash Dropping</option>';
             } else {
                 sel.innerHTML = '<option value="all">Semua Status</option>' +
                     '<option value="lunas">Lunas</option>' +
@@ -5974,6 +5993,249 @@
             return d ? fmtDateID(d) : (raw || '—');
         }
 
+        // ================================================================
+        // SUB-TAB "CASH BERDAMPINGAN" (Cek Data)
+        // Membandingkan PENJUALAN CASH (Data Penjualan, kolom Pembayaran = Cash)
+        // dengan UANG MASUK bagian CASH DROPPING, berdampingan per No Faktur.
+        //
+        // Aturan pencocokan (deterministik, tanpa fuzzy):
+        //   1) EXACT  : noFaktur Penjualan === faktur Uang Masuk (setelah trim)
+        //   2) NORMAL : normFakturKey() keduanya sama (buang spasi/strip/tanda baca
+        //               & leading zero, samakan huruf besar-kecil)
+        // Kalau dua-duanya tidak ketemu -> faktur itu TIDAK BERDAMPINGAN
+        // (dihitung di kartu "Tanpa Dropping").
+        // Faktur BATAL di Data Penjualan tidak dihitung.
+        // Pencocokan dilakukan untuk SELURUH data (bukan per bulan), sehingga
+        // filter bulan hanya mempengaruhi tampilan, bukan hasil pencocokan.
+        // ================================================================
+        var cekBerdampinganCache = null;
+
+        function cekIsPenjualanCash(pay) {
+            const p = String(pay || '').trim().toUpperCase();
+            return p === 'CASH' || p.startsWith('CASH') || p === 'TUNAI';
+        }
+
+        function cekBerdampinganMonth(r) {
+            return r.month || monthNameFromDate(parseSalesDate(r.tanggal)) || 'Lainnya';
+        }
+
+        function getCekBerdampinganRows() {
+            if (cekBerdampinganCache) return cekBerdampinganCache;
+
+            // ---- Sisi KANAN: agregat Uang Masuk bagian Cash Dropping per No Faktur ----
+            const umByFaktur = new Map();
+            const umByNorm = new Map();
+            for (const r of (allRows || [])) {
+                const sec = String(r.section || '').toUpperCase();
+                if (!sec.includes('DROPPING')) continue;
+                const fk = String(r.faktur || '').trim();
+                if (!fk) continue;
+                if (!umByFaktur.has(fk)) {
+                    umByFaktur.set(fk, { faktur: fk, tanggal: '', toko: '', alamat: '', nominal: 0, sort: null });
+                }
+                const u = umByFaktur.get(fk);
+                const rowSort = dateSortKey(r.date, r.sheet);
+                if (u.sort == null || rowSort >= u.sort) {
+                    u.sort = rowSort;
+                    u.tanggal = r.date || '';
+                    u.nominal = Number(r.tagihan) || 0;
+                }
+                if (!u.toko && r.toko && r.toko !== '\u2014') u.toko = r.toko;
+                if (!u.alamat && r.alamat && r.alamat !== '\u2014') u.alamat = r.alamat;
+                const nk = normFakturKey(fk);
+                if (nk && !umByNorm.has(nk)) umByNorm.set(nk, fk);
+            }
+
+            // ---- Sisi KIRI: agregat Penjualan Cash per No Faktur ----
+            const salesByFaktur = new Map();
+            for (const r of (salesRows || [])) {
+                if (isBatalRow(r)) continue;
+                if (!cekIsPenjualanCash(r.pembayaran)) continue;
+                const fk = String(r.noFaktur || '').trim();
+                if (!fk) continue;
+                if (!salesByFaktur.has(fk)) {
+                    salesByFaktur.set(fk, {
+                        noFaktur: fk,
+                        tglDate: parseSalesDate(r.tanggal),
+                        tanggal: r.tanggal || '',
+                        sales: r.sales || '',
+                        customer: r.customer || '',
+                        alamat: r.alamat || '',
+                        nominal: 0,
+                        items: 0,
+                        month: cekBerdampinganMonth(r)
+                    });
+                }
+                const g = salesByFaktur.get(fk);
+                g.nominal += Number(r.total) || 0;
+                g.items += 1;
+                if (!g.customer && r.customer) g.customer = r.customer;
+                if (!g.sales && r.sales) g.sales = r.sales;
+                if (!g.alamat && r.alamat) g.alamat = r.alamat;
+            }
+
+            // ---- Gabungkan berdampingan ----
+            const out = [];
+            for (const [fk, g] of salesByFaktur.entries()) {
+                let um = umByFaktur.get(fk);
+                if (!um) {
+                    const nk = normFakturKey(fk);
+                    if (nk && umByNorm.has(nk)) um = umByFaktur.get(umByNorm.get(nk));
+                }
+                g.adaDiDropping = !!um;
+                g.umTanggal = um ? um.tanggal : '';
+                g.umFaktur = um ? um.faktur : '';
+                g.umToko = um ? um.toko : '';
+                g.umAlamat = um ? um.alamat : '';
+                g.umNominal = um ? um.nominal : 0;
+                g.jenisBayar = 'CASH';
+                g.tipeBayar = 'Cash';
+                g.pembayaran = 'Cash';
+                g.statusCek = g.adaDiDropping ? 'Ada di Dropping' : 'Tidak Ada di Dropping';
+                g.toko = g.umToko || g.customer;
+                g.namaToko = g.umToko || '';
+                g.alamat = g.umAlamat || g.alamat;
+                g.nominal = g.nominal || 0;
+                out.push(g);
+            }
+            out.sort((a, b) => {
+                const ta = a.tglDate ? a.tglDate.getTime() : 0;
+                const tb = b.tglDate ? b.tglDate.getTime() : 0;
+                return tb - ta;
+            });
+            cekBerdampinganCache = out;
+            return out;
+        }
+
+        // ---- Satu baris tabel berdampingan: kiri Penjualan Cash, kanan Uang Masuk ----
+        function renderCekBerdampinganRow(r) {
+            const kiri =
+                '<td class="num" style="color:var(--muted);">' + esc(r.__no || '') + '</td>' +
+                '<td style="border-left:3px solid var(--blue,#2563eb);">' + esc(fmtCekTanggalTampilan(r.tanggal, r.tglDate)) + '</td>' +
+                '<td class="faktur">' + esc(r.noFaktur) + '</td>' +
+                '<td>' + esc(r.sales) + '</td>' +
+                '<td class="num"><strong>' + (r.nominal || 0).toLocaleString('id-ID') + '</strong></td>' +
+                '<td><span class="badge badge-tf">💵 CASH</span></td>' +
+                '<td class="toko">' + esc(r.customer) + '</td>';
+            let kanan;
+            if (r.adaDiDropping) {
+                kanan =
+                    '<td>' + esc(r.umTanggal || '\u2014') + '</td>' +
+                    '<td class="faktur">' + esc(r.umFaktur || '') + '</td>' +
+                    '<td class="toko">' + esc(r.umToko || '\u2014') + '</td>' +
+                    '<td class="muted">' + esc(r.umAlamat || '\u2014') + '</td>' +
+                    '<td class="num"><strong>' + (r.umNominal || 0).toLocaleString('id-ID') + '</strong></td>';
+            } else {
+                kanan =
+                    '<td>\u2014</td>' +
+                    '<td><span class="badge badge-retur">\u26A0 TIDAK ADA</span></td>' +
+                    '<td colspan="3" style="color:var(--red,#dc2626);font-weight:600;">Tidak ditemukan di Uang Masuk bagian Cash Dropping</td>';
+            }
+            return '<tr>' + kiri + kanan + '</tr>';
+        }
+
+        // ---- Modal: klik kartu -> tabel datanya ----
+        function closeCekBerdampinganModal() {
+            const m = document.getElementById('cekBerdampinganModal');
+            if (m && m.parentNode) m.parentNode.removeChild(m);
+        }
+
+        function openCekBerdampinganCardModal(rows, mode) {
+            const list = rows || [];
+            const isUnmatched = mode === 'unmatched';
+            const show = isUnmatched ? list.filter(r => !r.adaDiDropping) : list;
+            const total = show.reduce((s, r) => s + (r.nominal || 0), 0);
+            const title = isUnmatched
+                ? 'Penjualan Cash TANPA Uang Masuk Cash Dropping'
+                : 'Semua Penjualan Cash (sesuai filter)';
+            closeCekBerdampinganModal();
+
+            const body = show.length ? show.map((r, i) => {
+                return '<tr>' +
+                    '<td class="num">' + (i + 1) + '</td>' +
+                    '<td>' + esc(fmtCekTanggalTampilan(r.tanggal, r.tglDate)) + '</td>' +
+                    '<td class="faktur">' + esc(r.noFaktur) + '</td>' +
+                    '<td>' + esc(r.sales) + '</td>' +
+                    '<td class="num">' + (r.nominal || 0).toLocaleString('id-ID') + '</td>' +
+                    '<td>' + esc(r.customer) + '</td>' +
+                    '<td>' + (r.adaDiDropping
+                        ? '<span class="badge badge-lunas">Ada di Dropping</span>'
+                        : '<span class="badge badge-retur">\u26A0 TIDAK ADA</span>') + '</td>' +
+                    '<td class="muted">' + esc(r.umAlamat || '\u2014') + '</td>' +
+                    '</tr>';
+            }).join('') : '<tr><td colspan="8" style="text-align:center;padding:22px;color:var(--muted);">Tidak ada baris untuk kriteria ini.</td></tr>';
+
+            const wrap = document.createElement('div');
+            wrap.id = 'cekBerdampinganModal';
+            wrap.style.cssText = 'position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;padding:18px;overflow:auto;';
+
+            const inner = document.createElement('div');
+            inner.style.cssText = 'background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.42);width:100%;max-width:1100px;';
+            inner.innerHTML =
+                '<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);">' +
+                    '<div style="flex:1;min-width:0;">' +
+                        '<div style="font-weight:800;font-size:.95rem;">' + esc(title) + '</div>' +
+                        '<div style="font-size:.76rem;color:var(--muted);margin-top:2px;">' +
+                            (isUnmatched
+                                ? 'Faktur Penjualan Cash yang TIDAK ditemukan di Uang Masuk bagian Cash Dropping.'
+                                : 'Semua faktur Penjualan Cash pada filter yang sedang aktif.') +
+                        '</div>' +
+                    '</div>' +
+                    '<button type="button" id="cekBerdampinganClose" style="border:1px solid var(--border);background:transparent;color:var(--text);border-radius:8px;padding:6px 12px;font-weight:700;cursor:pointer;font-family:inherit;font-size:.78rem;flex-shrink:0;">Tutup</button>' +
+                '</div>' +
+                '<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 14px;">' +
+                    '<div style="border:1px solid var(--border);border-radius:9px;padding:7px 11px;background:var(--bg);min-width:150px;">' +
+                        '<div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Jml Faktur</div>' +
+                        '<div style="font-weight:800;font-size:.95rem;">' + show.length.toLocaleString('id-ID') + '</div></div>' +
+                    '<div style="border:1px solid var(--border);border-radius:9px;padding:7px 11px;background:var(--bg);min-width:150px;">' +
+                        '<div style="font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Total Nominal</div>' +
+                        '<div style="font-weight:800;font-size:.95rem;">' + total.toLocaleString('id-ID') + '</div></div>' +
+                '</div>' +
+                '<div style="overflow:auto;max-height:60vh;padding:0 14px 14px;">' +
+                    '<table style="width:100%;border-collapse:collapse;font-size:.8rem;">' +
+                        '<thead><tr>' +
+                            '<th class="num">No</th><th>Tgl Faktur</th><th>No Faktur</th><th>Sales</th>' +
+                            '<th class="num">Nominal</th><th>Customer</th><th>Status vs Dropping</th><th>Alamat Uang Masuk</th>' +
+                        '</tr></thead><tbody>' + body + '</tbody>' +
+                    '</table>' +
+                '</div>';
+
+            wrap.appendChild(inner);
+            wrap.addEventListener('click', function(e) { if (e.target === wrap) closeCekBerdampinganModal(); });
+            document.body.appendChild(wrap);
+            const btn = document.getElementById('cekBerdampinganClose');
+            if (btn) btn.onclick = closeCekBerdampinganModal;
+        }
+
+        // ---- Download Excel sub-tab Cash Berdampingan ----
+        function downloadCekBerdampinganExcel(scope) {
+            const all = getCekBerdampinganRows();
+            const rows = (scope === 'all') ? all : (lastCekRows || []);
+            if (!rows.length) { alert('Tidak ada data untuk diunduh.'); return; }
+            const selBulan = document.getElementById('cekFilterBulan');
+            const bulanVal = selBulan ? (selBulan.value || 'all') : 'all';
+            const periodLabel = (scope === 'all') ? 'Semua Data' : (bulanVal === 'all' ? 'Semua Bulan' : bulanVal);
+            const aoa = [
+                ['CEK DATA \u2014 CASH BERDAMPINGAN (PENJUALAN CASH vs UANG MASUK CASH DROPPING)', '', '', '', '', '', '', '', '', '', '', periodLabel],
+                ['PENJUALAN \u2014 CASH', '', '', '', '', '', 'UANG MASUK \u2014 CASH DROPPING', '', '', '', '', ''],
+                ['Tgl Faktur', 'No Faktur', 'Sales', 'Nominal', 'Jenis Bayar', 'Customer', 'Tgl Uang Masuk', 'No Faktur UM', 'Nama Toko', 'Alamat', 'Nominal UM', 'Keterangan']
+            ];
+            rows.forEach(r => {
+                aoa.push([
+                    fmtCekTanggalTampilan(r.tanggal, r.tglDate), r.noFaktur || '', r.sales || '',
+                    r.nominal || 0, 'CASH', r.customer || '',
+                    r.umTanggal || '', r.umFaktur || '', r.umToko || '', r.umAlamat || '', r.umNominal || 0,
+                    r.adaDiDropping ? 'Ada di Cash Dropping' : 'TIDAK ADA di Cash Dropping'
+                ]);
+            });
+            aoa.push(['', '', '', rows.reduce((s, r) => s + (r.nominal || 0), 0), '', '', '', '', '', '',
+                rows.reduce((s, r) => s + (r.umNominal || 0), 0), 'TOTAL']);
+            const stamp = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            exportFakturAoa(aoa, 'Cash Berdampingan', 'CekData_CashBerdampingan_' +
+                String(periodLabel).replace(/\s+/g, '_') + '_' + stamp.getFullYear() + pad(stamp.getMonth() + 1) + pad(stamp.getDate()) + '.xlsx');
+        }
+
         // ---- Render Cek Table (dengan virtual) ----
         const cekVirtual = createVirtualTable(
             document.getElementById('cekTableWrap'),
@@ -5982,6 +6244,10 @@
                 const isTempo = cekSub === 'tempo';
                 const isNosales = cekSub === 'nosales';
                 const isAnomali = cekSub === 'anomali';
+                const isCashDual = cekSub === 'cashdual';
+                if (isCashDual) {
+                    return renderCekBerdampinganRow(r);
+                }
                 if (isAnomali) {
                     const tipeColor = r.tipeBayar === 'Cash' ? 'var(--green, #16a34a)' : 'var(--blue, #2563eb)';
                     return '<tr>' +
@@ -6047,7 +6313,7 @@
                     '<td class="muted">' + esc(r.alamat) + '</td>' +
                     '<td>' + esc(r.pembayaran || 'Cash') + '</td>' +
                     '</tr>';
-            }, { rowHeight: 40, colspan: 11 }
+            }, { rowHeight: 40, colspan: 12 }
         );
 
         function getCekSelectedBulan() {
@@ -6286,9 +6552,12 @@
             const isTempo = cekSub === 'tempo';
             const isNosales = cekSub === 'nosales';
             const isAnomali = cekSub === 'anomali';
+            const isCashDual = cekSub === 'cashdual';
             const payType = isTempo ? 'TEMPO' : (isAnomali ? 'ANOMALI' : (isNosales ? 'NOSALES' : 'CASH'));
+            // Sub-tab "Cash Berdampingan" memakai daftar gabungan sendiri
+            // (Penjualan Cash vs Uang Masuk bagian Cash Dropping), bukan buildCekFakturList.
             // Invalidate cache jika ada perubahan data (allRows/salesRows) – kita set dirty flag di handleFiles
-            let rows = await buildCekFakturList(payType);
+            let rows = isCashDual ? getCekBerdampinganRows() : await buildCekFakturList(payType);
             populateCekFilterBulan(rows);
             const q = (document.getElementById('cekSearchInput').value || '').trim().toLowerCase();
             const stFilter = (document.getElementById('cekFilterStatus').value || 'all');
@@ -6328,6 +6597,8 @@
                     if (stFilter === 'anomali_cash') return r.tipeBayar === 'Cash';
                     if (stFilter === 'anomali_tempo') return r.tipeBayar === 'Tempo';
                     if (stFilter === 'anomali_tempo_overdue') return r.tipeBayar === 'Tempo' && r.isOverdue;
+                    if (stFilter === 'berdampingan') return !!r.adaDiDropping;
+                    if (stFilter === 'tanpa_dropping') return !r.adaDiDropping;
                     return true;
                 });
             }
@@ -6338,6 +6609,8 @@
                 }
             }
             lastCekRows = rows;
+            // Nomor urut untuk sub-tab "Cash Berdampingan"
+            if (isCashDual) rows.forEach((r, i) => { r.__no = i + 1; });
 
             // cards
             const nFaktur = rows.length;
@@ -6347,7 +6620,7 @@
             document.getElementById('cekCardLunas').textContent = nomLunas.toLocaleString('id-ID');
             document.getElementById('cekCardTitip').textContent = nomTitip.toLocaleString('id-ID');
             // Crosscheck bukan lagi Nominal Lunas + Titip. Hitung uang masuk berdasarkan tanggal uang masuk.
-            if (!isAnomali && !isNosales) await updateCekReconciliationCards(bulanList);
+            if (!isAnomali && !isNosales && !isCashDual) await updateCekReconciliationCards(bulanList);
 
             // Reset status clickable kartu 1-4 dulu (supaya tidak "nyangkut" dari sub-tab sebelumnya)
             ['cekCard1', 'cekCard2', 'cekCard3', 'cekCard4'].forEach(id => {
@@ -6415,6 +6688,36 @@
                 cekCard4.classList.add('clickable');
                 cekCard4.style.cursor = 'pointer';
                 cekCard4.onclick = () => openTempoJtModal(rows);
+            } else if (isCashDual) {
+                // Kartu 1-2 = seluruh Penjualan Cash (sesuai filter).
+                // Kartu 3-4 = Penjualan Cash yang TIDAK ada di Uang Masuk Cash Dropping.
+                // Keempat kartu bisa diklik untuk membuka tabel datanya.
+                const noDual = rows.filter(r => !r.adaDiDropping);
+                const nomNoDual = noDual.reduce((s, r) => s + (r.nominal || 0), 0);
+                document.getElementById('cekCard1Label').textContent = 'Jml Faktur Penjualan Cash';
+                document.getElementById('cekCard2Label').textContent = 'Nominal Penjualan Cash';
+                document.getElementById('cekCard3Label').textContent = '⚠ Faktur Tanpa Dropping';
+                document.getElementById('cekCard4Label').textContent = '⚠ Nominal Tanpa Dropping';
+                document.getElementById('cekCard1').textContent = nFaktur.toLocaleString('id-ID');
+                document.getElementById('cekCard2').textContent = nominal.toLocaleString('id-ID');
+                document.getElementById('cekCard3').textContent = noDual.length.toLocaleString('id-ID');
+                document.getElementById('cekCard4').textContent = nomNoDual.toLocaleString('id-ID');
+
+                const setDualCard = (id, mode) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    const card = el.parentElement;
+                    card.classList.add('clickable');
+                    card.style.cursor = 'pointer';
+                    card.title = (mode === 'unmatched')
+                        ? 'Klik untuk melihat daftar faktur Penjualan Cash yang tidak ada di Uang Masuk Cash Dropping'
+                        : 'Klik untuk melihat semua faktur Penjualan Cash';
+                    card.onclick = () => openCekBerdampinganCardModal(rows, mode);
+                };
+                setDualCard('cekCard1', 'all');
+                setDualCard('cekCard2', 'all');
+                setDualCard('cekCard3', 'unmatched');
+                setDualCard('cekCard4', 'unmatched');
             } else {
                 document.getElementById('cekCard1Label').textContent = 'Jml Faktur Dropping';
                 document.getElementById('cekCard2Label').textContent = 'Nominal Dropping';
@@ -6456,7 +6759,14 @@
                     'Belum ada <strong>Data Penjualan</strong>. Upload di tab Data Penjualan agar anomali bisa dideteksi.';
                 return;
             }
-            if (!isTempo && !isAnomali && !isNosales && !hasUM) {
+            if (isCashDual && !hasSales) {
+                wrap.style.display = 'none';
+                empty.style.display = 'block';
+                info.innerHTML =
+                    'Belum ada <strong>Data Penjualan</strong>. Upload di tab Data Penjualan agar Penjualan Cash bisa dibandingkan berdampingan dengan Uang Masuk bagian Cash Dropping.';
+                return;
+            }
+            if (!isTempo && !isAnomali && !isNosales && !isCashDual && !hasUM) {
                 wrap.style.display = 'none';
                 empty.style.display = 'block';
                 info.innerHTML =
@@ -6480,6 +6790,18 @@
                 thead.innerHTML = '<tr>' +
                     '<th>Tgl Transaksi</th><th>No Faktur</th><th>Customer</th><th>Sales</th><th>Produk</th>' +
                     '<th class="num">Nominal</th><th>Tipe</th><th>Jatuh Tempo</th><th class="num">Umur Overdue</th><th class="num">Item</th><th>Alamat</th></tr>';
+            } else if (isCashDual) {
+                const bgL = 'color-mix(in srgb, var(--blue,#2563eb) 20%, var(--th-bg))';
+                const bgR = 'color-mix(in srgb, var(--yellow,#d97706) 20%, var(--th-bg))';
+                const hcell = (txt, isNum, bg) => '<th' + (isNum ? ' class="num"' : '') +
+                    ' style="background:' + bg + ';">' + txt + '</th>';
+                thead.innerHTML = '<tr>' +
+                    hcell('No', false, bgL) + hcell('Tgl Faktur', false, bgL) + hcell('No Faktur', false, bgL) +
+                    hcell('Sales', false, bgL) + hcell('Nominal', true, bgL) + hcell('Jenis Bayar', false, bgL) +
+                    hcell('Customer', false, bgL) +
+                    hcell('Tgl UM', false, bgR) + hcell('No Faktur', false, bgR) + hcell('Nama Toko', false, bgR) +
+                    hcell('Alamat', false, bgR) + hcell('Nominal UM', true, bgR) +
+                    '</tr>';
             } else {
                 thead.innerHTML = '<tr>' +
                     '<th>Tgl Transaksi</th><th>No Faktur</th><th>Customer</th><th>Sales</th>' +
@@ -6508,6 +6830,7 @@
                 (isTempo ? ('Tempo / Piutang · jatuh tempo ' + CEK_TEMPO_DAYS + ' hari setelah transaksi') :
                     isNosales ? 'Ada di Data Uang Masuk (Piutang), tidak ditemukan di Data Penjualan (exact maupun fuzzy match)' :
                     isAnomali ? 'Ada di Data Penjualan, tidak ditemukan di Data Uang Masuk (belum bayar / belum tercatat)' :
+                    isCashDual ? 'Penjualan Cash (Data Penjualan) berdampingan dengan Uang Masuk bagian Cash Dropping' :
                     'Faktur Dropping dari Uang Masuk (penjualan cash)');
         }
 
@@ -6517,7 +6840,7 @@
             const produkFilterReset = document.getElementById('cekFilterProduk');
             if (produkFilterReset) produkFilterReset.value = 'all';
             const bl = document.getElementById('cekFilterBulan');
-            const cekMonths = [...new Set(((cekSub === 'tempo' || cekSub === 'anomali' || cekSub === 'nosales') ? (salesRows || []) : (allRows || [])).map(r => r.month).filter(Boolean))];
+            const cekMonths = [...new Set(((cekSub === 'tempo' || cekSub === 'anomali' || cekSub === 'nosales' || cekSub === 'cashdual') ? (salesRows || []) : (allRows || [])).map(r => r.month).filter(Boolean))];
             const activeCekMonth = preferredMonth(cekMonths);
             if (bl) bl.value = activeCekMonth || 'all';
             cekSelectedBulanMulti = activeCekMonth ? [activeCekMonth] : ['all'];
@@ -6533,6 +6856,7 @@
         }
 
         async function downloadCekExcel(scope) {
+            if (cekSub === 'cashdual') { downloadCekBerdampinganExcel(scope); return; }
             const isTempo = cekSub === 'tempo';
             const isNosales = cekSub === 'nosales';
             const isAnomali = cekSub === 'anomali';
