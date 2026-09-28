@@ -1215,7 +1215,7 @@
             openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, closeCekTempoDetail,
             openCekAnomaliDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
             markFakturLunasManualFromModal, undoFakturLunasManualFromModal, setFakturManualLunas,
-            openTempoJtModal, closeTempoJtModal, openHargaJualModal, closeHargaJualModal,
+            openTempoJtModal, closeTempoJtModal, openCekNominal0Modal, openHargaJualModal, closeHargaJualModal,
             downloadFakturExcel,
             doSalesSearch, resetSalesSearch, setSalesViewMode, switchSalesSub,
             downloadCurrentSalesExcel, clearSalesData, toggleSalesDlMenu, closeSalesDlMenu,
@@ -1246,7 +1246,8 @@
         let salesFakturMapDirty = true;
         let salesFakturMap = new Map(); // Map<faktur, agregat>
         let cekFakturCacheDirty = { cash: true, tempo: true, anomali: true, nosales: true };
-        let cekFakturCache = { cash: [], tempo: [], anomali: [], nosales: [] };
+        let cekFakturCache = { cash: [], tempo: [], anomali: [], nosales: [], nominal0: [] };
+        let lastCekNominal0 = []; // faktur Nominal 0 (dikecualikan dari Belum Ada Uang Masuk) sesuai filter terakhir
         let lastCekRows = []; // baris hasil render terakhir Cek Data (dipakai modal detail Tempo)
         let lastCekRekon = null; // hasil rekonsiliasi Uang Masuk terakhir (dipakai modal Belum Teridentifikasi dkk.)
         const CEK_TEMPO_DAYS = 12; // aturan jatuh tempo: transaksi + N hari
@@ -2910,7 +2911,8 @@
         // ---- Modal detail Cek Data -> Belum Ada Uang Masuk (Anomali) ----
         function openCekAnomaliDetail(encodedFaktur) {
             const faktur = decodeURIComponent(String(encodedFaktur || ''));
-            const row = (lastCekRows || []).find(r => String(r.noFaktur || '') === faktur);
+            const row = (lastCekRows || []).find(r => String(r.noFaktur || '') === faktur) ||
+                (lastCekNominal0 || []).find(r => String(r.noFaktur || '') === faktur);
             if (!row) return;
 
             const details = Array.isArray(row.details) ? row.details : [];
@@ -3025,6 +3027,10 @@
                 filtered = allRows.filter(r => r.tipeBayar === 'Tempo' && r.isOverdue);
                 title = '🚨 Detail Faktur Tempo Sudah Jatuh Tempo';
                 emptyMsg = 'Tidak ada data Tempo Sudah JT';
+            } else if (type === 'nominal0') {
+                filtered = allRows.slice();
+                title = '⚠ Faktur Nominal 0 — Cek Data';
+                emptyMsg = 'Tidak ada faktur Nominal 0';
             } else {
                 filtered = allRows.slice();
                 title = '🔴 Detail Faktur Belum Ada Uang Masuk';
@@ -3076,6 +3082,9 @@
             html += `<div style="margin-top:16px;padding:12px;background:var(--accent-soft);border-radius:8px;font-size:0.9rem;">
                 <strong>Total: ${filtered.length} faktur</strong> — Nominal: <strong>${fmt(filtered.reduce((s,r) => s + (r.nominal || 0), 0))}</strong>
             </div>`;
+            if (type === 'nominal0') {
+                html += `<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Faktur di atas <b>tidak dihitung</b> sebagai Belum Ada Uang Masuk karena nominalnya 0. Kemungkinan penyebab: <b>bonus/gratis</b>, <b>retur/koreksi net 0</b>, atau <b>kolom TOTAL di Excel penjualan kosong/formula belum terhitung</b>. Cek Harga Jual &amp; Total di Data Penjualan; perbaiki file Excel bila salah, atau klik <b>🚫 Batal</b> bila transaksinya memang tidak berlaku.</div>`;
+            }
             html += `<div style="margin-top:8px;font-size:0.78rem;color:var(--muted);">Kalau ternyata suatu faktur di atas adalah transaksi penjualan yang <b>batal/dibatalkan</b> (bukan lupa dicatat uang masuknya), klik <b>🚫 Batal</b> di baris tersebut. Faktur akan dikeluarkan dari Total Penjualan, Profit, dan daftar Belum Ada Uang Masuk — data asli tetap tersimpan dan bisa di-undo lewat filter "🚫 Transaksi Batal" di tab Data Penjualan.</div>`;
 
             document.getElementById('tempoJtContent').innerHTML = html;
@@ -3094,8 +3103,13 @@
             doSalesSearch();
             if (typeof renderCekTable === 'function') await renderCekTable();
             // Refresh isi modal pakai data anomali terbaru (yang sudah BATAL otomatis hilang)
-            openCekAnomaliCardModal(lastCekRows || [], type);
+            openCekAnomaliCardModal(type === 'nominal0' ? (lastCekNominal0 || []) : (lastCekRows || []), type);
             alert('Faktur ' + faktur + ' berhasil ditandai BATAL.');
+        }
+
+        // Buka daftar faktur Nominal 0 (dipanggil dari link di baris info sub-tab Belum Ada Uang Masuk)
+        function openCekNominal0Modal() {
+            openCekAnomaliCardModal(lastCekNominal0 || [], 'nominal0');
         }
 
         function closeTempoJtModal() {
@@ -5952,6 +5966,7 @@
                 const fuzzyResolved = await resolveCekFuzzyMatchesGlobally(stillUnresolved, umByFaktur, fuzzyUsedKeys);
                 // Anomali = faktur di Data Penjualan yang TIDAK ditemukan sama sekali
                 // (exact, normalized, maupun fuzzy) di Data Uang Masuk.
+                const nominal0Out = [];
                 for (const g of byFaktur.values()) {
                     if (umFakturSet.has(g.noFaktur)) continue;
                     const nk = normFakturKey(g.noFaktur);
@@ -5966,6 +5981,20 @@
                     else if (g.hasFitri) g.produkKategori = 'Fitri';
                     else if (g.hasRupa) g.produkKategori = 'Rupa2';
                     else g.produkKategori = '—';
+                    // Faktur Nominal 0 (bonus/gratis/retur net 0/kolom TOTAL kosong) tidak mungkin
+                    // punya uang masuk -> BUKAN anomali pembayaran. Dipisah ke daftar sendiri
+                    // "Nominal 0 - cek data" supaya tidak menggelembungkan Belum Ada Uang Masuk.
+                    if (Math.abs(g.nominal || 0) < 0.5) {
+                        g.statusCek = 'Nominal 0';
+                        g.paidAmount = 0;
+                        g.jatuhTempo = null;
+                        g.jatuhTempoStr = '—';
+                        g.isOverdue = false;
+                        g.umurOverdue = 0;
+                        g.umurOverdueStr = '—';
+                        nominal0Out.push(g);
+                        continue;
+                    }
                     // Jatuh tempo hanya relevan untuk anomali bertipe Tempo (Cash tidak
                     // punya konsep jatuh tempo). paidAmount selalu 0 di sini karena
                     // memang tidak ada uang masuk sama sekali untuk faktur ini.
@@ -5996,6 +6025,8 @@
                     const tb = b.tglDate ? b.tglDate.getTime() : 0;
                     return tb - ta;
                 });
+                nominal0Out.sort((a, b) => (b.tglDate ? b.tglDate.getTime() : 0) - (a.tglDate ? a.tglDate.getTime() : 0));
+                cekFakturCache.nominal0 = nominal0Out;
                 cekFakturCache[cacheKey] = out;
                 cekFakturCacheDirty[cacheKey] = false;
                 return out;
@@ -6959,6 +6990,28 @@
                 }
             }
             lastCekRows = rows;
+            // Faktur Nominal 0 (hanya sub-tab Belum Ada Uang Masuk), ikut filter cari/bulan/produk
+            let nominal0Rows = [];
+            if (isAnomali) {
+                nominal0Rows = (cekFakturCache.nominal0 || []).slice();
+                if (q) nominal0Rows = nominal0Rows.filter(r => flexibleSearchMatch(q, [
+                    r.noFaktur, r.customer, r.sales, r.alamat, r.pembayaran, r.tanggal, r.month, r.tipeBayar, r.produkKategori
+                ], r, 'cek'));
+                if (!bulanList.includes('all')) {
+                    const setB0 = new Set(bulanList);
+                    nominal0Rows = nominal0Rows.filter(r => setB0.has(r.month));
+                }
+                const pf0 = (document.getElementById('cekFilterProduk') || {}).value || 'all';
+                if (pf0 !== 'all') nominal0Rows = nominal0Rows.filter(r => r.produkKategori === pf0);
+                if (stFilter === 'anomali_cash') nominal0Rows = nominal0Rows.filter(r => r.tipeBayar === 'Cash');
+                if (stFilter === 'anomali_tempo') nominal0Rows = nominal0Rows.filter(r => r.tipeBayar === 'Tempo');
+                if (stFilter === 'anomali_tempo_overdue') nominal0Rows = [];
+            }
+            lastCekNominal0 = nominal0Rows;
+            const nominal0Note = (isAnomali && nominal0Rows.length)
+                ? ' · <a href="#" style="color:var(--yellow,#d97706);font-weight:700;" title="Faktur nominal 0 tidak dihitung sebagai Belum Ada Uang Masuk. Klik untuk melihat daftarnya." onclick="openCekNominal0Modal();return false;">⚠ ' +
+                  nominal0Rows.length.toLocaleString('id-ID') + ' faktur Nominal 0 - cek data (dikecualikan)</a>'
+                : '';
             // Nomor urut untuk sub-tab "Cash Berdampingan"
             if (isCashDual) rows.forEach((r, i) => { r.__no = i + 1; });
 
@@ -7171,7 +7224,7 @@
                 }
                 tbody.innerHTML =
                     '<tr><td colspan="11" style="text-align:center;padding:28px;color:var(--muted)">' + msg + '</td></tr>';
-                info.innerHTML = 'Menampilkan <strong>0</strong> faktur';
+                info.innerHTML = 'Menampilkan <strong>0</strong> faktur' + nominal0Note;
                 cekVirtual.setData([]);
                 return;
             }
@@ -7181,7 +7234,7 @@
                     isNosales ? 'Ada di Data Uang Masuk (Piutang), tidak ditemukan di Data Penjualan (exact maupun fuzzy match)' :
                     isAnomali ? 'Ada di Data Penjualan, tidak ditemukan di Data Uang Masuk (belum bayar / belum tercatat)' :
                     isCashDual ? 'Penjualan Cash (Data Penjualan) berdampingan dengan Uang Masuk bagian Cash Dropping' :
-                    'Faktur Dropping dari Uang Masuk (penjualan cash)');
+                    'Faktur Dropping dari Uang Masuk (penjualan cash)') + nominal0Note;
         }
 
         function resetCekSearch() {
