@@ -137,7 +137,7 @@
         .modal-table th { background: var(--th-bg); font-weight: 600; color: var(--muted); }
         .modal-table tr:hover { background: var(--table-hover); }
 
-        .subtabs { display: none; align-items: center; gap: 0; margin-bottom: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+        .subtabs { display: none; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
         .subtabs.show { display: flex; }
         .subtab-btn {
             padding: 7px 14px;
@@ -179,8 +179,13 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
-            flex: 1 1 140px;
+            flex: 0 1 auto;
+            margin: 0 2px;
             transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+        }
+        #cekSubtabs, #fakturSubtabs {
+            gap: 10px !important;
+            row-gap: 10px !important;
         }
         .cek-subtab-btn:hover { border-color: var(--accent); color: var(--text); transform: translateY(-1px); }
         .cek-subtab-btn.active {
