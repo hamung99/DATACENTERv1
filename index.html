@@ -453,7 +453,7 @@
         .menu-dd.open { display: block; }
         .sync-btn { background: rgba(37,99,235,.10); border-color: rgba(37,99,235,.35); color: var(--accent, #2563eb); }
         .sync-dd { min-width: 300px; max-width: 92vw; padding: 8px; }
-        @media (max-width:560px) { .sync-dd { position: fixed; left: 8px; right: 8px; top: 44px; min-width: 0; max-width: none; } }
+        @media (max-width:560px) { .menu-dd.sync-dd { position: fixed; left: 8px; right: 8px; top: 44px; min-width: 0; max-width: none; } }
         .menu-item { display: block; width: 100%; text-align: left; background: none; border: none; border-radius: 7px; padding: 12px 12px; font-size: 0.85rem; color: var(--text); cursor: pointer; font-family: inherit; min-height: 44px; display: flex; align-items: center; touch-action: manipulation; }
         .menu-item:hover { background: var(--bg); }
         .upload-item { cursor: pointer; font-weight: 600; color: var(--accent); }
@@ -7862,7 +7862,7 @@
         // dipanggil di sini walau definisinya ada di bawah/atas karena
         // deklarasi `function` di-hoist ke atas modul.
         Object.assign(window, {
-            switchTab, toggleTheme, toggleMenu, closeMenu, toggleSalesMenu, closeSalesMenu,
+            switchTab, toggleTheme, toggleMenu, closeMenu, toggleSyncMenu, closeSyncMenu, toggleSalesMenu, closeSalesMenu,
             doSearch, resetSearch, filterBySheet, clearData, switchFakturSub,
             openFakturModal, closeFakturModal, openCekTempoDetail, openCekUangMasukDetail, closeCekTempoDetail,
             openCekAnomaliDetail, markFakturBatalFromModal, markFakturBatalFromCardModal, undoFakturBatal, setFakturBatalStatus,
