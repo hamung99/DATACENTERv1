@@ -727,7 +727,8 @@
                     <div class="menu-dd" id="salesMenuDd">
                         <label class="menu-item upload-item"><input type="file" id="fileInputSales" accept=".xlsx,.xls" multiple=""> 📂 Upload Data Penjualan</label>
                         <button class="menu-item" onclick="openFitriMarginModal(); closeSalesMenu();">🎯 Atur Margin Minimal Fitri</button>
-                        <button class="menu-item" id="clearSalesBtn" onclick="clearSalesData(); closeSalesMenu();" style="display:none;">✕ Hapus Data Penjualan</button>
+                        <button class="menu-item" onclick="openHargaBeliMassalModal(); closeSalesMenu();">💰 Harga Beli Massal</button>
+                        <button class="menu-item" id="clearSalesBtn" onclick="openHapusSalesModal(); closeSalesMenu();" style="display:none;">✕ Hapus Data Penjualan</button>
                         <div class="menu-divider"></div>
                         <div class="menu-files" id="salesFileName">Data tersimpan (0 baris)</div>
                     </div>
@@ -1096,6 +1097,51 @@
         </div>
 
 
+        <!-- Modal Harga Beli Massal per Rentang Tanggal -->
+        <div class="modal-overlay" id="hbmModal" onclick="if(event.target===this)closeHargaBeliMassalModal()">
+            <div class="modal-content" style="max-width:480px;">
+                <div class="modal-header">
+                    <h2>💰 Harga Beli Massal per Rentang Tanggal</h2>
+                    <button class="modal-close" onclick="closeHargaBeliMassalModal()">✕</button>
+                </div>
+                <div class="muted" style="margin-bottom:12px;font-size:0.8rem;line-height:1.5;">
+                    Fitur ini untuk edit massal. Pilih rentang tanggal (boleh satu hari saja, atau satu bulan penuh) + produk, lalu isi harga beli baru. Cocok untuk kasus harga beli yang berubah di tengah bulan.
+                </div>
+                <label style="font-size:0.75rem;font-weight:600;color:var(--muted);">Tanggal mulai</label>
+                <input type="date" id="hbmStart" onchange="hbmRefresh(true)" style="background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box;margin:4px 0 10px;">
+                <label style="font-size:0.75rem;font-weight:600;color:var(--muted);">Tanggal akhir <span style="font-weight:400;">(kosong = sama dengan tanggal mulai)</span></label>
+                <input type="date" id="hbmEnd" onchange="hbmRefresh(true)" style="background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box;margin:4px 0 10px;">
+                <select id="hbmProduk" onchange="hbmRefresh(false)" style="background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box;margin:0 0 10px;"><option value="">Pilih produk...</option></select>
+                <input type="number" id="hbmHarga" min="0" step="any" placeholder="Masukkan harga beli baru" oninput="hbmRefresh(false)" style="background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:0.9rem;width:100%;box-sizing:border-box;margin:0 0 10px;">
+                <div id="hbmPreview" style="font-size:0.8rem;line-height:1.5;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--bg);margin-bottom:12px;">Pilih tanggal dan produk untuk melihat baris yang akan berubah.</div>
+                <button class="btn" id="hbmApplyBtn" style="width:100%;padding:12px;font-weight:700;" onclick="applyHargaBeliMassal()">Ubah Harga Beli Produk</button>
+                <div class="muted" style="margin-top:10px;font-size:0.78rem;line-height:1.5;">
+                    Pilih rentang tanggal + produk, isi harga beli baru. Hanya transaksi produk tersebut dalam rentang tanggal tersebut yang akan berubah.
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Hapus Data Penjualan per Bulan -->
+        <div class="modal-overlay" id="hapusSalesModal" onclick="if(event.target===this)closeHapusSalesModal()">
+            <div class="modal-content" style="max-width:440px;">
+                <div class="modal-header">
+                    <h2>✕ Hapus Data Penjualan</h2>
+                    <button class="modal-close" onclick="closeHapusSalesModal()">✕</button>
+                </div>
+                <div class="muted" style="margin-bottom:10px;font-size:0.8rem;line-height:1.5;">Centang bulan yang ingin dihapus. Data bulan lain tidak akan tersentuh.</div>
+                <label style="display:flex;align-items:center;gap:8px;padding:8px 4px;font-weight:700;font-size:0.88rem;border-bottom:1px solid var(--border);cursor:pointer;">
+                    <input type="checkbox" id="hapusSalesAll" onchange="hapusSalesToggleAll(this.checked)"> Pilih semua bulan
+                </label>
+                <div id="hapusSalesList" style="max-height:45vh;overflow-y:auto;"></div>
+                <div id="hapusSalesSummary" class="muted" style="margin-top:10px;font-size:0.8rem;"></div>
+                <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-outline" onclick="closeHapusSalesModal()">Batal</button>
+                    <button class="btn" id="hapusSalesConfirmBtn" style="background:#dc2626;border-color:#dc2626;" onclick="confirmHapusSalesBulan()">🗑️ Hapus Terpilih</button>
+                </div>
+            </div>
+        </div>
+
+
         <footer>DATACENTER · Mode terang / gelap · Upload Excel</footer>
     </div>
 
@@ -1161,6 +1207,8 @@
             pickBackupFolder, restoreFromBackupFolder, saveBackupJson, setAutoBackupJsonEnabled,
             installApp, toggleRingkasanRupaShowAll,
             openFitriMarginModal, closeFitriMarginModal, addFitriMarginRuleRow, saveFitriMarginRulesFromModal,
+            openHargaBeliMassalModal, closeHargaBeliMassalModal, hbmRefresh, applyHargaBeliMassal,
+            openHapusSalesModal, closeHapusSalesModal, hapusSalesToggleAll, hapusSalesUpdateSummary, confirmHapusSalesBulan,
             manualUploadToCloud, manualDownloadFromCloud,
             openCekReconDetailModal, closeCekReconDetailModal,
             cekModalAksi, cekModalUndo, setFakturPembayaran
@@ -3749,6 +3797,168 @@
             closeFitriMarginModal();
             // Refresh tampilan tabel Transaksi supaya tanda margin ter-update
             renderSalesTable(lastSalesFiltered.length ? lastSalesFiltered : salesRows);
+        }
+
+        // ---- Refresh menyeluruh setelah data penjualan diubah/dihapus sebagian ----
+        async function refreshSalesAfterDataChange() {
+            invalidateSalesIndex();
+            lastProfitProdukRows = []; lastProfitPayRows = []; lastProfitSalesRows = [];
+            lastProfitSalesProdukRows = []; lastProfitBulanRows = [];
+            salesFileNameEl.textContent = 'Data tersimpan (' + salesRows.length.toLocaleString('id-ID') + ' baris)';
+            populateSalesFilters();
+            await doSalesSearch();
+            if (currentSalesSub === 'salesProduk') renderProfitSalesProduk(lastSalesFiltered);
+            saveRowsToDBAndSync(salesRows, DB_KEY_SALES);
+        }
+
+        // ---- Harga Beli Massal per Rentang Tanggal ----
+        function hbmRange() {
+            const s = document.getElementById('hbmStart').value;
+            let e = document.getElementById('hbmEnd').value;
+            if (s && !e) e = s;
+            return { s, e };
+        }
+        function hbmMatchRows(s, e, produk) {
+            if (!s || !e || !produk) return [];
+            return salesRows.filter(r => {
+                if (r.produk !== produk) return false;
+                const k = salesDateKey(r.tanggal);
+                return k && k >= s && k <= e;
+            });
+        }
+        function openHargaBeliMassalModal() {
+            document.getElementById('hbmStart').value = '';
+            document.getElementById('hbmEnd').value = '';
+            document.getElementById('hbmHarga').value = '';
+            document.getElementById('hbmProduk').value = '';
+            hbmRefresh(true);
+            document.getElementById('hbmModal').classList.add('open');
+        }
+        function closeHargaBeliMassalModal() {
+            document.getElementById('hbmModal').classList.remove('open');
+        }
+        // rebuildProduk=true: bangun ulang daftar produk sesuai rentang tanggal
+        function hbmRefresh(rebuildProduk) {
+            const { s, e } = hbmRange();
+            const sel = document.getElementById('hbmProduk');
+            if (rebuildProduk) {
+                const cur = sel.value;
+                const set = new Set();
+                for (const r of salesRows) {
+                    if (!r.produk) continue;
+                    if (s) {
+                        const k = salesDateKey(r.tanggal);
+                        if (!k || k < s || (e && k > e)) continue;
+                    }
+                    set.add(r.produk);
+                }
+                const names = [...set].sort((a, b) => a.localeCompare(b));
+                sel.innerHTML = '<option value="">Pilih produk...</option>' +
+                    names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+                if (set.has(cur)) sel.value = cur;
+            }
+            const prev = document.getElementById('hbmPreview');
+            const btn = document.getElementById('hbmApplyBtn');
+            if (!s || !sel.value) {
+                prev.innerHTML = 'Pilih tanggal dan produk untuk melihat baris yang akan berubah.';
+                btn.disabled = true; btn.style.opacity = '.6';
+                return;
+            }
+            if (e < s) {
+                prev.innerHTML = '<span style="color:#dc2626;">Tanggal akhir tidak boleh lebih awal dari tanggal mulai.</span>';
+                btn.disabled = true; btn.style.opacity = '.6';
+                return;
+            }
+            const rows = hbmMatchRows(s, e, sel.value);
+            const olds = [...new Set(rows.map(r => Number(r.hargaBeli) || 0))].sort((a, b) => a - b);
+            const hargaVal = document.getElementById('hbmHarga').value;
+            prev.innerHTML = '<b>' + rows.length.toLocaleString('id-ID') + '</b> baris akan berubah' +
+                (rows.length ? '<br>Harga beli saat ini: ' + olds.map(v => 'Rp ' + fmt(v)).join(', ') : '') +
+                (rows.length && hargaVal !== '' ? '<br>Menjadi: <b>Rp ' + fmt(Number(hargaVal)) + '</b>' : '');
+            const ok = rows.length > 0 && hargaVal !== '' && Number(hargaVal) >= 0;
+            btn.disabled = !ok; btn.style.opacity = ok ? '1' : '.6';
+        }
+        async function applyHargaBeliMassal() {
+            const { s, e } = hbmRange();
+            const produk = document.getElementById('hbmProduk').value;
+            const hargaStr = document.getElementById('hbmHarga').value;
+            if (!s) { alert('Isi tanggal mulai dulu.'); return; }
+            if (e < s) { alert('Tanggal akhir tidak boleh lebih awal dari tanggal mulai.'); return; }
+            if (!produk) { alert('Pilih produk dulu.'); return; }
+            const harga = Number(hargaStr);
+            if (hargaStr === '' || isNaN(harga) || harga < 0) { alert('Masukkan harga beli baru yang valid.'); return; }
+            const rows = hbmMatchRows(s, e, produk);
+            if (!rows.length) { alert('Tidak ada transaksi produk tersebut pada rentang tanggal itu.'); return; }
+            const rentang = s === e ? s : (s + ' s/d ' + e);
+            if (!confirm('Ubah harga beli "' + produk + '" menjadi Rp ' + fmt(harga) + '\nRentang: ' + rentang +
+                '\nJumlah baris terpengaruh: ' + rows.length.toLocaleString('id-ID') + '\n\nLanjutkan?')) return;
+            for (const r of rows) r.hargaBeli = harga;
+            closeHargaBeliMassalModal();
+            await refreshSalesAfterDataChange();
+            alert('Selesai. ' + rows.length.toLocaleString('id-ID') + ' baris diperbarui.');
+        }
+
+        // ---- Hapus Data Penjualan per Bulan ----
+        function hapusSalesGroups() {
+            const g = {};
+            for (const r of salesRows) {
+                const m = r.month || 'Lainnya';
+                if (!g[m]) g[m] = { rows: 0, min: null, max: null };
+                g[m].rows++;
+                const d = parseSalesDate(r.tanggal);
+                if (d && !isNaN(d)) {
+                    if (!g[m].min || d < g[m].min) g[m].min = d;
+                    if (!g[m].max || d > g[m].max) g[m].max = d;
+                }
+            }
+            return g;
+        }
+        function openHapusSalesModal() {
+            const g = hapusSalesGroups();
+            const months = Object.keys(g).sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
+            const list = document.getElementById('hapusSalesList');
+            list.innerHTML = months.map(m =>
+                '<label style="display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer;font-size:0.88rem;">' +
+                '<input type="checkbox" class="hapus-bulan-cb" value="' + esc(m) + '" onchange="hapusSalesUpdateSummary()"> ' +
+                '<span style="flex:1;"><b>' + esc(m) + '</b>' +
+                (g[m].min ? '<br><span class="muted" style="font-size:0.72rem;">' + esc(fmtDateID(g[m].min)) + (g[m].max && +g[m].max !== +g[m].min ? ' – ' + esc(fmtDateID(g[m].max)) : '') + '</span>' : '') +
+                '</span><span class="muted">' + g[m].rows.toLocaleString('id-ID') + ' baris</span></label>'
+            ).join('') || '<div class="muted" style="padding:10px;">Tidak ada data.</div>';
+            document.getElementById('hapusSalesAll').checked = false;
+            hapusSalesUpdateSummary();
+            document.getElementById('hapusSalesModal').classList.add('open');
+        }
+        function closeHapusSalesModal() {
+            document.getElementById('hapusSalesModal').classList.remove('open');
+        }
+        function hapusSalesToggleAll(checked) {
+            document.querySelectorAll('.hapus-bulan-cb').forEach(cb => { cb.checked = checked; });
+            hapusSalesUpdateSummary();
+        }
+        function hapusSalesSelected() {
+            return [...document.querySelectorAll('.hapus-bulan-cb:checked')].map(cb => cb.value);
+        }
+        function hapusSalesUpdateSummary() {
+            const all = document.querySelectorAll('.hapus-bulan-cb');
+            const sel = hapusSalesSelected();
+            document.getElementById('hapusSalesAll').checked = all.length > 0 && sel.length === all.length;
+            const n = salesRows.filter(r => sel.includes(r.month || 'Lainnya')).length;
+            document.getElementById('hapusSalesSummary').textContent = sel.length
+                ? sel.length + ' bulan dipilih · ' + n.toLocaleString('id-ID') + ' baris akan dihapus'
+                : 'Belum ada bulan yang dipilih.';
+            const btn = document.getElementById('hapusSalesConfirmBtn');
+            btn.disabled = !sel.length; btn.style.opacity = sel.length ? '1' : '.6';
+        }
+        async function confirmHapusSalesBulan() {
+            const sel = hapusSalesSelected();
+            if (!sel.length) return;
+            const n = salesRows.filter(r => sel.includes(r.month || 'Lainnya')).length;
+            if (!confirm('Hapus data penjualan bulan: ' + sel.join(', ') + '\n' + n.toLocaleString('id-ID') + ' baris akan dihapus permanen.\n\nLanjutkan?')) return;
+            closeHapusSalesModal();
+            const allMonths = new Set(salesRows.map(r => r.month || 'Lainnya'));
+            if (sel.length >= allMonths.size) { clearSalesData(); return; }
+            salesRows = salesRows.filter(r => !sel.includes(r.month || 'Lainnya'));
+            await refreshSalesAfterDataChange();
         }
 
         function sortRingkasanSalesNames(names) {
