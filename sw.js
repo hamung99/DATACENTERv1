@@ -12,7 +12,7 @@
 //  tanpa perlu ingat menaikkan CACHE_NAME tiap kali deploy.
 // ====================================================================
 
-const CACHE_NAME = 'datacenter-shell-v2';
+const CACHE_NAME = 'datacenter-shell-v3';
 
 // Daftar file yang di-precache saat install, supaya app tetap bisa
 // dibuka walau lagi offline (fallback saja — bukan sumber utama lagi).
@@ -24,7 +24,8 @@ const APP_SHELL = [
     './js/db.js',
     './js/excelParser.js',
     './icon-192.png',
-    './icon-512.png'
+    './icon-512.png',
+    './icon-512-maskable.png'
 ];
 
 self.addEventListener('install', (event) => {
