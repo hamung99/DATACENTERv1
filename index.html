@@ -263,6 +263,10 @@
         }
         .tab-btn.active:hover { transform: none; }
 
+        /* Tab utama di dalam header */
+        .top-header .tabs { margin: 0 0 0 10px; flex: 1; justify-content: flex-start; flex-wrap: nowrap; }
+        @media (max-width:700px) { .top-header .tabs { order: 3; flex: 1 1 100%; flex-wrap: wrap; margin: 2px 0 0; padding-bottom: 3px; } }
+
         .search-bar { display: none; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
         .search-bar.show { display: flex; }
         .search-bar input { flex: 1; min-width: 180px; background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; color: var(--text); font-size: 0.9rem; outline: none; min-height: 44px; touch-action: manipulation; }
@@ -543,6 +547,11 @@
     <div class="top-header">
         <div class="header-inner">
             <div class="brand"><div><h1>DATACENTER</h1></div></div>
+            <div class="tabs" id="tabsBar" style="display:flex;">
+                <button class="tab-btn active" id="tabBtnFaktur" onclick="switchTab('faktur')">💰 Uang Masuk</button>
+                <button class="tab-btn" id="tabBtnPenjualan" onclick="switchTab('penjualan')">📊 Data Penjualan</button>
+                <button class="tab-btn" id="tabBtnCek" onclick="switchTab('cek')">🔍 Cek Data</button>
+            </div>
             <div class="header-right">
                 <div id="cloudSyncStatus" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;"></div>
                 <button class="menu-btn" id="themeIconBtn" onclick="toggleTheme()" title="Ganti mode gelap/terang" style="font-size:0.95rem;padding:3px 8px;">🌙</button>
@@ -604,12 +613,6 @@
     </div>
 
     <div class="container">
-        <div class="tabs" id="tabsBar" style="display:flex;">
-            <button class="tab-btn active" id="tabBtnFaktur" onclick="switchTab('faktur')">💰 Uang Masuk</button>
-            <button class="tab-btn" id="tabBtnPenjualan" onclick="switchTab('penjualan')">📊 Data Penjualan</button>
-            <button class="tab-btn" id="tabBtnCek" onclick="switchTab('cek')">🔍 Cek Data</button>
-        </div>
-
         <!-- TAB UANG MASUK -->
         <div id="tabFaktur" style="">
             <div class="sales-cards show" id="fakturCards">
@@ -1155,8 +1158,17 @@
             if (dd) dd.classList.toggle('open');
         };
         window.addEventListener('error', function (e) {
+            var msg = String((e && e.message) || '');
+            // Notifikasi bawaan browser yang tidak berbahaya (bukan bug)
+            if (/ResizeObserver loop/i.test(msg)) return;
+            var file = String((e && e.filename) || '').split('/').pop().split('?')[0];
+            var detail = msg + (file ? ' [' + file + ':' + (e.lineno || '?') + ']' : '');
+            console.error('[DATACENTER] Error skrip:', detail, e && e.error);
             var el = document.getElementById('cloudSyncStatus');
-            if (el && !el.textContent) el.textContent = '\u26A0 Ada error skrip (buka Console/F12)';
+            if (el && !el.textContent) {
+                el.textContent = '\u26A0 Error skrip: ' + (msg.length > 60 ? msg.slice(0, 60) + '\u2026' : (msg || 'lihat Console/F12'));
+                el.title = detail;
+            }
         });
     </script>
     <script type="module">
