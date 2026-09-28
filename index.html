@@ -5330,9 +5330,9 @@
                     '<option value="not_in_sales">⚠ Tidak Ada di Data Penjualan</option>';
             } else if (sub === 'anomali') {
                 sel.innerHTML = '<option value="all">Semua</option>' +
-                    '<option value="anomali_cash">💵 Cash — belum ada uang masuk</option>' +
-                    '<option value="anomali_tempo">📅 Tempo — belum ada uang masuk</option>' +
-                    '<option value="anomali_tempo_overdue">🚨 Tempo — sudah jatuh tempo</option>';
+                    '<option value="anomali_cash">💵 Cash Belum Ada Uang Masuk</option>' +
+                    '<option value="anomali_tempo">📅 Tempo - Belum Jatuh Tempo</option>' +
+                    '<option value="anomali_tempo_overdue">🚨 Tempo Sudah Jatuh Tempo</option>';
             } else if (sub === 'nosales') {
                 sel.innerHTML = '<option value="all">Semua Status</option>' +
                     '<option value="lunas">Lunas</option>' +
@@ -6945,7 +6945,7 @@
                     if (stFilter === 'belum_bayar') return r.statusCek === 'Cash';
                     if (stFilter === 'not_in_sales') return r.fromSales === false;
                     if (stFilter === 'anomali_cash') return r.tipeBayar === 'Cash';
-                    if (stFilter === 'anomali_tempo') return r.tipeBayar === 'Tempo';
+                    if (stFilter === 'anomali_tempo') return r.tipeBayar === 'Tempo' && !r.isOverdue;
                     if (stFilter === 'anomali_tempo_overdue') return r.tipeBayar === 'Tempo' && r.isOverdue;
                     if (stFilter === 'berdampingan') return !!r.adaDiDropping;
                     if (stFilter === 'tanpa_dropping') return !r.adaDiDropping;
@@ -8200,6 +8200,7 @@
         // (Pendaftaran fungsi ke window dipindah ke awal modul, lihat "Ekspos ke window (awal)".)
     </script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79"}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v31edd6df95cf4e85bb4c19e7a9bdbcba1788362987495" integrity="sha512-iIg7k2xntmwu6/uSb5tpc/hySgZc4eoL31yB29W6tJFo2akwjPWcEqnCEdJvGexCL0KEQwVYv5BlowfhVz26hg==" data-cf-beacon='{"version":"2024.11.0","token":"4edd5f8ec12a48cfa682ab8261b80a79","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>
